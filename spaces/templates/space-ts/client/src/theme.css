@@ -1,0 +1,56 @@
+/* Web-font slot: uncomment the line below and put your font there. A web-font
+   @import must come before the Tailwind import — an @import placed after any
+   other rule is a build error, and it is reported against a line number in the
+   expanded Tailwind output, far past the end of this file, so the message
+   cannot point you at the mistake. */
+/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap'); */
+@import "tailwindcss";
+@import "tailwindcss-safe-area";
+
+@theme {
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 28px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 30px;
+  --text-3xl--line-height: 36px;
+  --text-4xl: 36px;
+  --text-4xl--line-height: 40px;
+  --text-5xl: 48px;
+  --text-5xl--line-height: 52px;
+}
+
+:root {
+  color-scheme: light dark;
+  --bg: #f2f2f7;
+  --surface: #ffffff;
+  --text: #1c1c1e;
+  --dim: #6b7280;
+  --border: #e5e7eb;
+  --accent: #0f766e;
+  --radius: 12px;
+  --space-surface: var(--surface);
+  --space-surface-alt: var(--surface);
+  --space-muted: var(--dim);
+  --space-border: var(--border);
+  --space-accent: var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --text: #f0f0f0;
+    --dim: #9ca3af;
+    --border: #2d2d2d;
+    --accent: #2dd4bf;
+  }
+}

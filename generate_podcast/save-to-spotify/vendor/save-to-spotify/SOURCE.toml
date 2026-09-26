@@ -1,0 +1,13 @@
+repo = "https://github.com/spotify/save-to-spotify.git"
+rev = "a62408bcfb5e5be686e1fdcc361398493b8c4160"
+tag = "v0.1.3"
+package = "save-to-spotify"
+version = "0.1.3"
+artifact = "save-to-spotify"
+release_url = "https://github.com/spotify/save-to-spotify/releases/tag/v0.1.3"
+release_asset = "save-to-spotify-linux-amd64-v0.1.3.zip"
+release_asset_sha256 = "9ca09a3fdfbe5ec51d8f7b807d1b95bfe4cebfbb7098bb0500240dc4cf114adf"
+# The release asset is a .zip; hatch-image extracts the `save-to-spotify` executable
+# (linux/amd64) and installs it as the trusted payload. The bundled skills/ tree inside
+# the zip is ignored — we ship our own SKILL.md and Rust wrapper.
+release_asset_archive_member = "save-to-spotify"

@@ -1,0 +1,273 @@
+#!/usr/bin/env python3
+"""Scaffold a workspace skill for a connector that is already connected.
+
+Collection is `credentials.request_api_access`. By the time this runs the
+connector exists in authd, so its hosts and auth mode are read from there
+rather than taken on argv: authd's record is what Sentinel enforces, and a
+skill that claims a host the connector does not declare fails at egress with
+nothing to point at.
+
+Writes SKILL.md and an empty bin/. The CLIs are the author's to write.
+"""
+
+import argparse
+import json
+import os
+import re
+import socket
+import sys
+from pathlib import Path
+
+AUTHD_SOCKET = os.environ.get("JARVIS_AUTHD_SOCK", "/run/hatch/auth/authd.sock")
+LIST_PATH = "/v1/custom-connectors/list"
+HELPER_PATH = "/opt/hatch/skills/skill-creator/bin/dynamic_credentials.py"
+
+SERVICE_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+SKILL_DIR_RE = re.compile(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
+INVALID_AUTH_RE = re.compile(
+    r"API_KEY|--api-key|--key(?![\w-])|~/user/auth|JARVIS_HOME/user/auth|export .*KEY"
+)
+
+
+def fail(message: str) -> None:
+    print(f"error: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def title_case_provider(provider: str) -> str:
+    cleaned = provider.replace("_", " ").replace("-", " ").replace(".", " ")
+    return " ".join(word.capitalize() for word in cleaned.split())
+
+
+def snake_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_")
+
+
+def shell_safe_path(path: Path) -> str:
+    text = str(path)
+    if re.fullmatch(r"[A-Za-z0-9_./-]+", text):
+        return text
+    return "'" + text.replace("'", "'\\''") + "'"
+
+
+def yaml_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def _post_json_unix(socket_path: str, path: str, payload: dict, timeout: float) -> str:
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    request = (
+        f"POST {path} HTTP/1.1\r\n"
+        "Host: authd.local\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("ascii") + body
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+            conn.settimeout(timeout)
+            conn.connect(socket_path)
+            conn.sendall(request)
+            chunks = []
+            while True:
+                chunk = conn.recv(65536)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+    except OSError as err:
+        fail(f"could not reach authd at {socket_path}: {err}")
+    raw = b"".join(chunks).decode("utf-8", errors="replace")
+    head, _, tail = raw.partition("\r\n\r\n")
+    status = head.split("\r\n", 1)[0]
+    if " 200" not in status:
+        fail(f"authd returned {status.strip()} for {path}")
+    return tail
+
+
+def registered_connector(provider: str) -> dict:
+    """The connector authd currently holds for `custom.<provider>`."""
+    name = f"custom.{provider}"
+    payload = _post_json_unix(AUTHD_SOCKET, LIST_PATH, {}, 5.0)
+    try:
+        # This route wraps in `{"ok", "result"}`; /v1/credentials/surrogate does not.
+        connectors = json.loads(payload).get("result", {}).get("connectors", [])
+    except (json.JSONDecodeError, AttributeError) as err:
+        fail(f"could not parse the authd connector list: {err}")
+    for entry in connectors:
+        if str(entry.get("name", "")).lower() != name:
+            continue
+        # An OAuth row is listed from register time and only flips to connected
+        # at the authorize callback, so registered does not mean usable.
+        if entry.get("disabled"):
+            fail(f"{name} is disabled; ask the user to re-enable it before scaffolding")
+        if not entry.get("connected"):
+            fail(
+                f"{name} is registered but holds no credential yet, so the user "
+                "has not finished the setup link. Wait for the connected "
+                "notification instead of scaffolding a skill that cannot "
+                "authenticate"
+            )
+        return entry
+    fail(
+        f"no connector named {name} is registered; "
+        "set it up with credentials.request_api_access first"
+    )
+
+
+def render_skill_md(
+    *,
+    kind: str,
+    skill_name: str,
+    skill_slug: str,
+    provider: str,
+    display_name: str,
+    description: str,
+    purpose: str,
+    hosts: list[str],
+) -> str:
+    host_list = ", ".join(hosts) if hosts else "the connector's declared hosts"
+    never_ask = (
+        "Never ask the user to paste a raw key in chat, set a secret environment "
+        "variable, pass a secret flag, or write an auth file."
+    )
+    auth_failure = (
+        "A 401 or 403 is a question about the request before it is a question "
+        "about the key. Check that the credential was attached at all: a request "
+        "built without the helpers named under Tooling carries nothing, and that "
+        "looks exactly like a wrong or under-scoped token. Only once a request "
+        "that did carry the credential is still rejected, call "
+        "`credentials.request_api_access` with `reconnect` to replace it. The "
+        f"connector is stored as `custom.{provider}`."
+    )
+
+    if kind == "oauth":
+        tooling = f"""Add service-specific CLIs under `~/workspace/skills/{skill_slug}/bin/`.
+
+CLIs must use authd or shared connector helpers for authenticated requests. They must not read OAuth client credentials, browser callback payloads, refresh tokens, access tokens, or Muse auth files directly."""
+    else:
+        tooling = f"""Add service-specific CLIs under `~/workspace/skills/{skill_slug}/bin/`.
+
+Python CLIs must import `{HELPER_PATH}` and call `add_surrogate_to_request(...)`, `url_with_surrogate_query_param(...)`, or `url_with_surrogate_path_segment(...)` before authenticated requests, matching where the provider reads the key. If they use `urllib`, read JSON responses with `read_json_response(resp)` from the same helper instead of calling `resp.read()` directly. They must send only `hsurr:*` values, and only to the hosts below."""
+
+    return f"""---
+name: {yaml_quote(skill_name)}
+description: {yaml_quote(description)}
+---
+
+# {display_name}
+
+## Purpose
+{purpose}
+
+## Tooling
+{tooling}
+
+## Auth
+The credential is already stored; nothing here collects one. {never_ask}
+
+{auth_failure}
+
+## Operating Rules
+1. Use this skill when the user asks for {display_name} or this provider's API.
+2. Restrict authenticated requests to: {host_list}.
+3. Do not print, log, or persist raw credentials.
+4. If auth is missing or rejected, follow the Auth section rather than asking for a key.
+"""
+
+
+def validate_skill(skill_dir: Path, helper_path: Path, kind: str) -> None:
+    skill_md = skill_dir / "SKILL.md"
+    if not skill_md.exists():
+        fail(f"missing {skill_md}")
+    text = skill_md.read_text(encoding="utf-8")
+    if not text.startswith("---\n"):
+        fail("SKILL.md must start with opening '---' frontmatter")
+    if "\n---\n" not in text[4:]:
+        fail("SKILL.md must contain closing '---' frontmatter")
+    if kind == "api-key" and not helper_path.exists():
+        fail(f"missing bundled auth helper: {helper_path}")
+    matches = []
+    for path in skill_dir.rglob("*"):
+        if not path.is_file() or path.suffix == ".pyc":
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        if INVALID_AUTH_RE.search(body):
+            matches.append(str(path))
+    if matches:
+        fail("invalid raw-secret auth pattern found in: " + ", ".join(matches))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Scaffold a workspace skill for an already-connected custom connector."
+    )
+    parser.add_argument("--provider", required=True, help="Provider slug, e.g. tavily")
+    parser.add_argument("--skill-name", help="Directory name, e.g. tavily-search")
+    parser.add_argument("--display-name")
+    parser.add_argument("--description")
+    parser.add_argument("--purpose")
+    parser.add_argument("--output-dir")
+    parser.add_argument("--force", action="store_true")
+    args = parser.parse_args()
+
+    provider = args.provider.strip().lower().removeprefix("custom.")
+    if not SERVICE_RE.match(provider):
+        fail(f"invalid provider: {provider}")
+
+    connector = registered_connector(provider)
+    hosts = [str(host) for host in connector.get("hosts", []) if str(host).strip()]
+    kind = "oauth" if str(connector.get("schema", "")).lower() == "oauth" else "api-key"
+
+    skill_slug = (args.skill_name or provider.replace("_", "-")).strip()
+    if not SKILL_DIR_RE.match(skill_slug):
+        fail("--skill-name must be kebab-case, e.g. tavily-search")
+
+    display_name = args.display_name or title_case_provider(provider)
+    description = args.description or (
+        f"Use {display_name} when the user asks for {display_name} or this provider's API."
+    )
+    purpose = args.purpose or (
+        f"Use {display_name} with the user-connected `custom.{provider}` credential."
+    )
+
+    helper_path = Path(HELPER_PATH)
+    if kind == "api-key" and not helper_path.exists():
+        fail(f"missing bundled auth helper: {helper_path}")
+
+    if args.output_dir:
+        skill_dir = Path(args.output_dir).expanduser()
+    else:
+        skill_dir = Path.home() / "workspace" / "skills" / skill_slug
+    skill_md = skill_dir / "SKILL.md"
+    if skill_md.exists() and not args.force:
+        fail(f"{skill_md} already exists; pass --force to overwrite it")
+
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    (skill_dir / "bin").mkdir(parents=True, exist_ok=True)
+    skill_md.write_text(
+        render_skill_md(
+            kind=kind,
+            skill_name=snake_name(skill_slug),
+            skill_slug=skill_slug,
+            provider=provider,
+            display_name=display_name,
+            description=description,
+            purpose=purpose,
+            hosts=hosts,
+        ),
+        encoding="utf-8",
+    )
+    validate_skill(skill_dir, helper_path, kind)
+
+    print(f"created: {shell_safe_path(skill_md)}")
+    if kind == "api-key":
+        print(f"helper: {HELPER_PATH}")
+    print(f"write the CLIs into {shell_safe_path(skill_dir / 'bin')}")
+
+
+if __name__ == "__main__":
+    main()
