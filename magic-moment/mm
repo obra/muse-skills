@@ -1,0 +1,630 @@
+#!/usr/bin/env python3
+"""mm — the magic-moment command line.
+
+The ONLY interface an agent needs. No sys.path bootstrapping, no heredoc
+Python, no import gymnastics — write ONE screenplay.json and run:
+
+    ./mm transcribe <video> --run <name>    -> RUN/mm_transcript.json
+    ./mm validate  <screenplay.json>        -> exit 0/1, one-line errors
+    ./mm render    <screenplay.json>        -> the internal MP4 for review
+    ./mm inspect   <screenplay.json>        -> encoded state contact sheets
+    ./mm publish   <screenplay.json>        -> reviewed, published MP4
+    ./mm example                            -> a complete screenplay.json
+
+Everything prints UNBUFFERED progress, errors are single actionable lines
+(never tracebacks), and all output lands in the screenplay's run directory.
+"""
+
+import argparse
+import uuid
+from pathlib import Path
+import json
+import os
+import shutil
+import subprocess
+import sys
+
+SKILL = os.path.dirname(os.path.abspath(__file__))
+# self-bootstrap: quiet noisy libs, and honor a LEGACY vendor dir if one
+# still exists (pre-shipped-stack installs left one; install.sh reclaims
+# it). The current stack ships with the VM — cell PIL, cell ffmpeg, node +
+# bundled playwright — so on an up-to-date VM these loops find nothing.
+sys.path.insert(0, SKILL)
+# load vendor_path by FILE, not via the cmm package: cmm/__init__ imports
+# PIL-dependent modules, and on a python without Pillow (e.g. the VM host)
+# that would crash the CLI before this bootstrap can put vendor (which
+# carries Pillow) on sys.path.
+import importlib.util  # noqa: E402
+_spec = importlib.util.spec_from_file_location(
+    "_mm_vendor_path", os.path.join(SKILL, "cmm", "vendor_path.py"))
+_vendor_path = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_vendor_path)
+vendor_dirs = _vendor_path.vendor_dirs
+for _v in vendor_dirs():
+    if os.path.isdir(_v):
+        sys.path.insert(1, _v)
+        os.environ["PATH"] = os.path.join(_v, "bin") + ":" + os.environ.get("PATH", "")
+os.environ.setdefault("PYTHONWARNINGS", "ignore")
+for bad in ("NO_PROXY", "no_proxy"):
+    # brackets in these break httpx/urllib in some stacks; nothing here needs them
+    os.environ.pop(bad, None)
+
+# Schema example: replace paths, source words and timings with the actual run.
+EXAMPLE = {
+    "name": "unique-run-name", "video": "~/workspace/user/files/source.mp4",
+    "duration": 10.0, "facts": {}, "canon": [],
+    "beats": [{"type": "bubble", "speaker": "user", "start": 1.0, "end": 4.0,
+               "text": "Use the actual source request here."}],
+    "_instructions": "Transcribe the actual source first. This illustrates schema, not a verified story."
+}
+
+
+def _die(msg):
+    print(f"ERROR: {msg}", flush=True)
+    sys.exit(1)
+
+
+def _load_screenplay(path):
+    try:
+        sp = json.load(open(os.path.expanduser(path)))
+    except FileNotFoundError:
+        _die(f"screenplay not found: {path}")
+    except json.JSONDecodeError as e:
+        _die(f"screenplay is not valid JSON: {e}")
+    if not isinstance(sp, dict):
+        _die("screenplay must be a JSON object")
+    from cmm.run_contract import run_name
+    run_name(sp.get("name"))
+    for req in ("name", "video", "beats"):
+        if not sp.get(req):
+            _die(f"screenplay needs a '{req}' field (see ./mm example)")
+    if not isinstance(sp["video"], str):
+        _die("video must be a path string")
+    sp["video"] = os.path.expanduser(sp["video"])
+    if not os.path.exists(sp["video"]):
+        _die(f"creator video not found: {sp['video']}")
+    return sp
+
+
+_VENDOR_MISSING = (
+    "the render stack ships with the VM and something in it is missing. "
+    "Run `bash install.sh` from this skill's directory (seconds, safe from "
+    "the cell, idempotent) for the exact diagnosis. NEVER pip install or "
+    "download pieces by hand — if install.sh says the stack is incomplete, "
+    "tell the user setup is not possible on this VM instead of improvising."
+)
+
+
+# Transcription submits compact audio to the daemon's sandbox API, which
+# calls inference-proxy. Model execution and Python dependencies stay in
+# hatch-local-models on the host; the cell never opens the image model tree.
+
+
+def _run_dir(name):
+    """The run directory (kept in step with cmm.compose.run_dir)."""
+    from cmm.run_contract import run_name
+    run_name(name)
+    ws = os.path.expanduser("~/workspace")
+    out_root = os.path.join(ws, ".output") if os.path.isdir(ws) else ".output"
+    run = os.path.join(out_root, name)
+    os.makedirs(run, exist_ok=True)
+    return run
+
+
+def cmd_webshots(args):
+    """The grounding record of the pages the browser drove. While the
+    browser tool operates it saves one snapshot bundle per action under
+    ~/workspace/.hatch-browser/snapshots/<task>/<ts>/ (screenshot.png +
+    manifest.json with the url). Bare: list what exists. With --copy:
+    pull the newest N captures into the run dir — read them for the real
+    item, price, and layout, and crop product images out of them (PIL)
+    for the rebuilt browser pages. The GC prunes old bundles — copy
+    early in the build."""
+    import glob as _glob
+    import shutil as _sh
+    from urllib.parse import urlparse
+    root = os.path.expanduser("~/workspace/.hatch-browser/snapshots")
+    shots = []
+    for mf in _glob.glob(os.path.join(root, "*", "*", "manifest.json")):
+        d = os.path.dirname(mf)
+        png = os.path.join(d, "screenshot.png")
+        if not os.path.isfile(png):
+            continue
+        try:
+            with open(mf, encoding="utf-8") as f:
+                m = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            m = {}
+        shots.append((m.get("ts") or os.path.basename(d),
+                      m.get("url", ""), png))
+    shots.sort(reverse=True)
+    if args.url_contains:
+        shots = [s for s in shots if args.url_contains.lower()
+                 in s[1].lower()]
+    if not shots:
+        print("no browser screenshots found (bundles are GC'd — the "
+              "browser must have worked recently); fall back to "
+              "`./mm snap <url>` to re-capture the live page")
+        return
+    if not args.copy:
+        for ts, url, _ in shots[:30]:
+            print(f"{ts}  {url}")
+        print(f"\n{len(shots)} screenshots available. NEXT: ./mm webshots "
+              "--run <run> --copy N [--url-contains <substr>] to pull "
+              "the ones your cards need")
+        return
+    run = _run_dir(args.run)
+    index = []
+    for i, (ts, url, png) in enumerate(shots[:args.copy]):
+        host = (urlparse(url).netloc or "page").replace(":", "_")
+        out = os.path.join(run, f"webshot_{i:02d}_{host}.png")
+        _sh.copyfile(png, out)
+        index.append({"file": os.path.basename(out), "url": url, "ts": ts})
+        print(f"{out}  <- {url} @ {ts}")
+    # webshots.json = the grounding record: each copied page's REAL url,
+    # so browser beats can carry true addresses instead of invented ones
+    with open(os.path.join(run, "webshots.json"), "w") as f:
+        json.dump(index, f, indent=1)
+    print("NEXT: ground ONE browser beat per journey from these — read "
+          "the real item/price/layout, crop product images (PIL) for "
+          "file:// refs, take true addresses from webshots.json — then "
+          "REBUILD each page as simplified html in the beat's 'pages'; "
+          "the renderer animates the session. Never one card per page, "
+          "never a screenshot as the viewport.")
+
+
+def cmd_avatar(args):
+    """Real avatar media for cards. Bare: print the portrait path and the
+    available status videos. With --state: extract a flipbook into the run
+    dir; --html prints a drop-in animated block for a kit avatar slot."""
+    from cmm.avatar import (STATUS_STATES, find_avatar_source,
+                            find_status_video)
+    if not args.state:
+        path, origin = find_avatar_source()
+        if not path:
+            _die("no avatar on this VM (searched workspace/avatars and the "
+                 "product reference) — cards must not ship an avatar slot")
+        print(f"portrait: {path}  (origin: {origin})")
+        for st in STATUS_STATES:
+            v, o = find_status_video(st)
+            if v:
+                print(f"{st}: {v}  (origin: {o})")
+        print("NOTE: avatar media belongs in a card only when the moment "
+              "is about the avatar itself (the avatar-generation "
+              "celebration); --state <s> --run <n> --html emits an "
+              "animated block for that use")
+        return
+    if not args.run:
+        _die("--state needs --run <name>: frames land in the run directory")
+    video, origin = find_status_video(args.state)
+    if not video:
+        _die(f"no {args.state!r} status video on this VM — pick another "
+             "state from ./mm avatar, or drop the avatar slot")
+    from cmm.compose import FFMPEG, FFPROBE
+    from PIL import Image
+    run = _run_dir(args.run)
+    out = os.path.join(run, f"avatar_{args.state}")
+    os.makedirs(out, exist_ok=True)
+    dur = float(subprocess.run(
+        [FFPROBE, "-v", "error", "-show_entries", "format=duration",
+         "-of", "csv=p=0", video],
+        capture_output=True, text=True, check=True).stdout.strip())
+    # the capture engine plays loops up to 6s; clamp the play window so
+    # long status videos (achievement is 8s) still animate end to end
+    play = min(dur, 5.5)
+    # cap the strip at 96 frames: chromium refuses images wider than
+    # 32767px (96 * 320 = 30720). Short loops keep native 24fps; the
+    # longest clamp to ~17fps, still fluid.
+    n_cap = max(2, args.frames) if args.frames else 96
+    # crop-then-scale: pre-2026-05 per-user status videos are 9:16 portrait
+    # (square avatar centered between pad bars); a bare 320:320 scale
+    # squashed the face. Centered min(iw,ih) recovers the square exactly
+    # and is a no-op on square sources.
+    vf = (f"fps={min(24.0, n_cap / play):.6f},"
+          "crop='min(iw,ih)':'min(iw,ih)',scale=320:320")
+    subprocess.run(
+        [FFMPEG, "-y", "-v", "error", "-t", f"{play:.3f}", "-i", video,
+         "-vf", vf, os.path.join(out, "f_%03d.png")], check=True)
+    frames = sorted(os.path.join(out, f) for f in os.listdir(out)
+                    if f.startswith("f_") and f.endswith(".png"))
+    n = len(frames)
+    if n < 2:
+        _die(f"extracted {n} frame(s) from {video} — not animatable")
+    # ONE sprite strip + a steps() background slide: full source fps with a
+    # single element and a single keyframes rule, instead of stacking N
+    # absolutely-positioned imgs (which forced a choppy low frame count)
+    strip = Image.new("RGBA", (320 * n, 320))
+    for i, f in enumerate(frames):
+        with Image.open(f) as fr:
+            strip.paste(fr.convert("RGBA"), (320 * i, 0))
+    strip_path = os.path.join(out, "strip.png")
+    strip.save(strip_path)
+    print(f"{n} frames @ {n / play:.0f}fps from {video} (origin {origin}, "
+          f"{play:.2f}s loop) -> {strip_path}")
+    if args.html:
+        S = args.size
+        anim = f"mmav_{args.state}"
+        print("\nDROP-IN BLOCK (place inside the card; the near-white "
+              "video blends into white surfaces; add border-radius:50% "
+              "for a circular badge):")
+        print(f'<div style="width:{S}px;height:{S}px;overflow:hidden;'
+              f"background:url('file://{strip_path}') 0 0 / {S * n}px "
+              f'{S}px no-repeat;animation:{anim} {play:.2f}s steps({n}) '
+              f'infinite"></div>'
+              f"<style>@keyframes {anim}{{to{{background-position:"
+              f"-{S * n}px 0}}}}</style>")
+
+
+def cmd_transcribe(args):
+    from cmm.transcription import clip_duration, positive_duration, transcribe
+    run = _run_dir(args.run)
+    video = os.path.expanduser(args.video)
+    if not os.path.exists(video):
+        _die(f"video not found: {video}")
+    from cmm.run_contract import digest, atomic_json
+    source_digest = digest(video)
+    if os.path.exists(os.path.join(run, "mm_transcript.json")):
+        _die("run already has an ASR transcript; use a fresh run name")
+    clip_secs = clip_duration(video)
+    print("transcribing through the host ASR service; one pass is enough…", flush=True)
+    result = transcribe(video, args.language)
+    if clip_secs is None:
+        # Streamed/browser-recorded WebM may have no container duration.
+        # Whisper's decoded duration remains a usable coverage denominator.
+        clip_secs = positive_duration(result.get("duration_seconds"))
+    if clip_secs is None:
+        _die("neither the source container nor decoded audio has a valid duration")
+    segments = result["segments"]
+    words = [word for segment in segments for word in segment["words"]]
+    out = {"source": "faster_whisper_tiny.word_timestamps",
+           "duration": clip_secs,
+           "speech_end": round(segments[-1]["end"], 2) if segments else 0,
+           "text": "".join(segment["text"] for segment in segments).strip(),
+           "words": [{"word": word["word"].strip(), "start": round(word["start"], 3),
+                      "end": round(word["end"], 3)} for word in words]}
+    tp = os.path.join(run, "mm_transcript.json")
+    from cmm.run_contract import digest, atomic_json
+    if os.path.exists(tp):
+        _die("run already has an ASR transcript; use a fresh run name")
+    if digest(video) != source_digest:
+        _die("source footage changed during transcription; use a new run")
+    out["video_sha256"] = source_digest
+    out["video"] = os.path.realpath(video)
+    atomic_json(tp, out, exclusive=True)
+    print(f"transcript: {tp}", flush=True)
+    print(f"clip: {out['duration']}s | last word at {out['speech_end']}s | "
+          f"words: {len(words)}", flush=True)
+    print(out["text"], flush=True)
+
+
+def cmd_validate(args, _quiet=False):
+    from cmm.script import validate_script, normalize_script, ScriptError
+    sp = _load_screenplay(args.screenplay)
+    from cmm.compose import run_dir
+    run = run_dir(sp["name"])
+    from cmm.run_contract import transcript, fingerprint, atomic_json
+    try:
+        sp = normalize_script(sp)
+        source = transcript(run, sp)
+        text = source["text"]
+        report = validate_script(sp, text, words=source.get("words"), duration=source["duration"])
+        sp["duration"] = source["duration"]
+        value, assets = fingerprint(sp, run)
+        report["fingerprint"] = value
+        atomic_json(os.path.join(run, "resolved_screenplay.json"), sp)
+    except ScriptError as e:
+        _die(str(e))
+    if not _quiet:
+        print(f"OK {json.dumps(report)}", flush=True)
+    return sp, run, text
+
+
+def cmd_preview(args):
+    """Capture card states before paying for a full video encode."""
+    import fcntl
+    from pathlib import Path
+    from cmm.compose import lock_path
+    from cmm.script import render_script
+    sp, run, _ = cmd_validate(args, _quiet=True)
+    with open(lock_path(), "a") as admission:
+        fcntl.flock(admission, fcntl.LOCK_EX)
+        blocks, _ = render_script(sp, capture_fps=2)
+        previews = []
+        for i, block in enumerate(blocks):
+            frames = block.get("frames_raw") or block.get("pages_img")
+            if frames:
+                selected = sorted({0, len(frames) // 2, len(frames) - 1})
+                images = [(j, frames[j]) for j in selected]
+            elif block.get("img") is not None:
+                images = [(0, block["img"])]
+            else:
+                continue
+            for j, image in images:
+                path = Path(run) / f"preview-{i}-{j}.png"
+                image = image.copy()
+                image.thumbnail((320, 640))
+                image.save(path)
+                previews.append({"start": block["start"], "state": j, "path": str(path)})
+    print(json.dumps({"previews": previews}), flush=True)
+
+
+def _parse_size(size):
+    """'WxH' -> (W, H). 9:16 only (the chrome scale derives from the width;
+    720x1280 and 1080x1920 are the proven sizes), even dims (yuv420p encodes
+    2x2 blocks)."""
+    try:
+        w, h = (int(x) for x in size.lower().split("x"))
+    except ValueError:
+        _die(f"--size must be WxH, e.g. 1080x1920 (got {size!r})")
+    if w <= 0 or h <= 0 or w % 2 or h % 2:
+        _die(f"--size {size}: both dimensions must be positive and even")
+    if w * 16 != h * 9:
+        _die(f"--size {size}: the canvas must be 9:16 "
+             "(e.g. 1080x1920 or 720x1280) — compose cover-crops the "
+             "source onto it; the canvas itself stays a vertical story")
+    return w, h
+
+
+def _native_canvas(video):
+    """Canvas sized to the source so quality survives: the creator's
+    footage renders at its own resolution (post-rotation, decoded ground
+    truth) on a 9:16 canvas, clamped to 1080..1440 wide, even dims."""
+    from cmm.compose import FFMPEG
+    import tempfile
+    probe = os.path.join(tempfile.mkdtemp(prefix="mm-canvas-"), "f.jpg")
+    subprocess.run([FFMPEG, "-v", "error", "-i", video,
+                    "-frames:v", "1", probe], check=False)
+    try:
+        from PIL import Image
+        with Image.open(probe) as pf:
+            vw, vh = pf.size
+    except Exception:  # noqa: BLE001 - fall back to the proven default
+        return 1080, 1920
+    finally:
+        try:
+            os.unlink(probe)
+        except OSError:
+            pass
+    # Orientation is decided HERE, from the decoded post-rotation frame,
+    # never by the agent: raw ffprobe width/height are PRE-rotation and
+    # call ordinary rotated phone footage "landscape" (a 1920x1440 stream
+    # with rotation metadata displays as 1440x1920 portrait — a build was
+    # falsely refused on exactly that clip). Only a frame that decodes
+    # wider than tall is really landscape, and cover-cropping it to 9:16
+    # would discard most of the picture, so refuse with the report line.
+    if vw > vh:
+        _die(f"source decodes LANDSCAPE ({vw}x{vh} after rotation): "
+             "magic-moment needs portrait footage, and cover-cropping "
+             "landscape to 9:16 discards most of the frame. Report that "
+             "a portrait clip is needed; do not work around this")
+    # fg width equals canvas width in both orientations, so native fit
+    # is simply the source's display width, clamped. Both dimensions must
+    # be even: libx264 with yuv420p refuses an odd height at startup and
+    # the render dies as a bare BrokenPipeError (e.g. a 1280-wide source
+    # gave 1280x2275 before this rounding).
+    w = max(1080, min(1440, vw))
+    w -= w % 4
+    h = w * 16 // 9
+    h -= h % 2
+    return w, h
+
+
+def cmd_render(args):
+    sp, run, _text = cmd_validate(args, _quiet=True)
+    # The landscape refusal guards EVERY render, --size included: the
+    # explicit-size branch never used to look at the video, so a
+    # landscape source rendered with --size shipped cover-cropped to a
+    # third of its width with no error. _native_canvas decodes the probe
+    # frame and refuses landscape before any branch-specific sizing.
+    video = os.path.expanduser(str(sp["video"]))
+    W, H = _native_canvas(video)
+    if args.size:
+        W, H = _parse_size(args.size)
+    else:
+        print(f"canvas: {W}x{H} (native fit)", flush=True)
+    from cmm.script import render_script
+    from cmm.compose import compose, ComposeError
+    from cmm.html_assets import HtmlRenderError
+    from cmm.card import CardVerificationError
+    from cmm.run_contract import fingerprint, semantic_review, atomic_json, digest
+    import fcntl
+    from cmm.compose import lock_path
+    value, assets = fingerprint(sp, run)
+    review = semantic_review(sp, run, value)
+    print("waiting for render admission…", flush=True)
+    admission = open(lock_path(), "a")
+    fcntl.flock(admission, fcntl.LOCK_EX)
+    atomic_json(os.path.join(run, "build_manifest.json"),
+                {"stage": "capturing", "fingerprint": value, "assets": assets})
+    print("rendering assets…", flush=True)
+    try:
+        blocks, provenance = render_script(sp)
+        report = compose(sp["video"], blocks, out_dir=run, W=W, H=H,
+                         admitted=True)
+    except (ComposeError, HtmlRenderError, CardVerificationError) as e:
+        _die(str(e))
+    except Exception as e:  # noqa: BLE001 — agents get one line, not a traceback
+        _die(f"{type(e).__name__}: {e}")
+    finally:
+        admission.close()
+    if fingerprint(sp, run)[0] != value:
+        _die("inputs changed during render; review and render the new inputs")
+    final = report["out"]
+    manifest = {"stage": "rendered", "fingerprint": value, "assets": assets,
+                "semantic_review": review, "output": final, "output_sha256": digest(final),
+                "report": report, "provenance": provenance}
+    atomic_json(os.path.join(run, "build_manifest.json"), manifest)
+    print(json.dumps(manifest), flush=True)
+    print(f"REVIEW: {final}. Inspect initial, transition and final states; then run ./mm publish {args.screenplay}", flush=True)
+
+
+def cmd_inspect(args):
+    from cmm.run_contract import inspection_sheets, atomic_json, fingerprint
+    from cmm.compose import FFMPEG
+    sp, run, _ = cmd_validate(args, _quiet=True)
+    manifest = json.loads(Path(run, "build_manifest.json").read_text())
+    if manifest["fingerprint"] != fingerprint(sp, run)[0]:
+        _die("render is stale; render current inputs before inspection")
+    inspection = inspection_sheets(sp, manifest, run, FFMPEG)
+    atomic_json(Path(run, "inspection.json"), inspection)
+    print(json.dumps(inspection), flush=True)
+
+
+def cmd_publish(args):
+    from cmm.run_contract import fingerprint, semantic_review, digest, atomic_json, review_times
+    sp, run, _ = cmd_validate(args, _quiet=True)
+    value, _ = fingerprint(sp, run)
+    semantic_review(sp, run, value)
+    manifest = json.loads(Path(run, "build_manifest.json").read_text())
+    review = json.loads(Path(run, "layout_review.json").read_text())
+    source = manifest["output"]
+    output_hash = digest(source)
+    if manifest["fingerprint"] != value or manifest["output_sha256"] != output_hash:
+        _die("render inputs or output changed; render and review again")
+    if review.get("output_sha256") != output_hash or review.get("verdict") != "pass" or not review.get("checked_states"):
+        _die("layout_review.json needs current output_sha256, verdict pass, and checked_states with times and observations")
+    checked = review["checked_states"]
+    if not isinstance(checked, list) or any(not isinstance(row, dict) or not row.get("observation")
+                                           for row in checked):
+        _die("checked_states must list {time, observation} for each inspected state")
+    if not set(review_times(sp, source)).issubset({row.get("time") for row in checked}):
+        _die("layout review must cover every time returned by ./mm inspect")
+    dest = Path(os.path.expanduser("~/workspace/your_files"))
+    dest.mkdir(parents=True, exist_ok=True)
+    final = dest / Path(source).name
+    temp = dest / (".mm-" + uuid.uuid4().hex)
+    try:
+        shutil.copyfile(source, temp)
+        if digest(temp) != output_hash:
+            _die("publication copy failed digest verification")
+        os.replace(temp, final)
+    finally:
+        temp.unlink(missing_ok=True)
+    manifest.update(stage="published", published=str(final), layout_review=review)
+    atomic_json(Path(run, "build_manifest.json"), manifest)
+    print(f"DONE: {final}", flush=True)
+
+
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="mm", add_help=True)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    t = sub.add_parser("transcribe"); t.add_argument("video")
+    # Required, not optional: the transcript is looked up by run name, so
+    # omitting it parked a transcription pass in a directory validate
+    # never reads, and the only symptom was validate saying "no transcript".
+    t.add_argument("--run", required=True,
+                   help="run name — MUST equal the screenplay's 'name'")
+    t.add_argument("--language", default="en")
+    v = sub.add_parser("validate"); v.add_argument("screenplay")
+    r = sub.add_parser("render"); r.add_argument("screenplay")
+    # Default: native-fit canvas sized from the source (1080..1440 wide,
+    # 9:16) so quality survives; pass --size WxH to force a resolution.
+    # The overlay chrome scales itself to the canvas (720-calibrated
+    # constants multiplied by W/720).
+    r.add_argument("--size", default=None, metavar="WxH",
+                   help="output canvas, 9:16 with even dims "
+                        "(default: sized from the source video)")
+    ins = sub.add_parser("inspect"); ins.add_argument("screenplay")
+    preview = sub.add_parser("preview"); preview.add_argument("screenplay")
+    pub = sub.add_parser("publish"); pub.add_argument("screenplay")
+    sub.add_parser("example")
+    av = sub.add_parser("avatar")
+    av.add_argument("--state", default=None,
+                    help="extract a status-video flipbook: idle, working, "
+                         "making_something, milestone_level_up; connecting "
+                         "aliases idle, and milestone_achievement is legacy")
+    av.add_argument("--run", default=None,
+                    help="run name; frames land in the run directory")
+    av.add_argument("--frames", type=int, default=None,
+                    help="downsample to N frames (default: native fps)")
+    av.add_argument("--size", type=int, default=240,
+                    help="pixel size of the emitted block (final canvas px)")
+    av.add_argument("--html", action="store_true",
+                    help="print a drop-in animated HTML block for the card")
+    wsh = sub.add_parser("webshots")
+    wsh.add_argument("--run", help="run name (required with --copy)")
+    wsh.add_argument("--copy", type=int, default=0,
+                     help="copy the newest N screenshots into the run dir")
+    wsh.add_argument("--url-contains", default="",
+                     help="only screenshots whose page URL contains this")
+    sn = sub.add_parser("snap")
+    sn.add_argument("document",
+                    help="the artifact's own entry HTML (a Space's "
+                         "index.html or any local page) — or an "
+                         "http(s):// URL to screenshot the LIVE site "
+                         "the browser worked on")
+    sn.add_argument("--run", required=True)
+    sn.add_argument("--width", type=int, default=760)
+    sn.add_argument("--viewport-height", type=int, help="explicit viewport crop; omitted means full page")
+    args = ap.parse_args()
+    if args.cmd == "example":
+        print(json.dumps(EXAMPLE, indent=2, ensure_ascii=False))
+    elif args.cmd == "avatar":
+        cmd_avatar(args)
+    elif args.cmd == "webshots":
+        if args.copy and not args.run:
+            ap.error("--copy requires --run")
+        cmd_webshots(args)
+    elif args.cmd == "snap":
+        # A real screenshot of a real page beats any recreation. Local
+        # documents load with their own relative assets; http(s) URLs
+        # load the LIVE site through the cell's egress proxy — the
+        # literal page the browser drove.
+        run = _run_dir(args.run)
+        if args.document.startswith(("http://", "https://")):
+            from urllib.parse import urlparse
+            from cmm.html_assets import render_url_screenshot
+            im = render_url_screenshot(
+                args.document, width=max(args.width, 1024), viewport_height=args.viewport_height)
+            base = (urlparse(args.document).netloc or "page").replace(
+                ":", "_")
+        else:
+            from cmm.html_assets import render_file_screenshot
+            im = render_file_screenshot(args.document, width=args.width, viewport_height=args.viewport_height)
+            base = (os.path.splitext(os.path.basename(args.document))[0]
+                    or "page")
+        out = os.path.join(run, f"artifact_snap_{base}_{uuid.uuid4().hex[:10]}.png")
+        im.save(out)
+        from cmm.run_contract import atomic_json, digest
+        atomic_json(out + ".json", {"kind": "current-capture", "source": args.document,
+                    "sha256": digest(out), "viewport_height": args.viewport_height,
+                    "state": "fresh browser context; verify displayed user state"})
+        print(f"{out}  ({im.width}x{im.height})")
+        print("NEXT: crop per reference/card-spec.md and use it as the "
+              "visual's 'image' (or inside the browser-chrome card)")
+    elif args.cmd == "transcribe":
+        cmd_transcribe(args)
+    elif args.cmd == "validate":
+        cmd_validate(args)
+    elif args.cmd == "preview":
+        cmd_preview(args)
+    elif args.cmd == "inspect":
+        cmd_inspect(args)
+    elif args.cmd == "publish":
+        cmd_publish(args)
+    elif args.cmd == "render":
+        cmd_render(args)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as e:
+        _die(f"{e.cmd[0]} failed (rc={e.returncode})")
+    except FileNotFoundError as e:
+        _die(f"{e.filename or e} not found — if this is ffmpeg/ffprobe: "
+             f"{_VENDOR_MISSING}")
+    except OSError as e:
+        # Disk full mid-render and permission-denied on an output path are
+        # the two that actually happen, and both used to reach the agent as
+        # a traceback from whichever subcommand tripped first — only render
+        # has a blanket handler. One line, with the path, like every other
+        # failure here.
+        _die(f"{type(e).__name__}: {e.strerror or e}"
+             + (f": {e.filename}" if e.filename else ""))
+    except (ValueError, TypeError, KeyError) as e:
+        _die(str(e))
+    except KeyboardInterrupt:
+        sys.exit(130)

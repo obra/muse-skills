@@ -1,0 +1,1854 @@
+#!/usr/bin/env python3
+"""Podcast generation helper — deterministic orchestration for podcast creation.
+
+Primary entrypoint: `generate` — takes a script file, synthesizes audio,
+manages the podcast catalog, optionally publishes to a feed.
+
+Utility sub-commands (manifest, publish, update-cover, generate-slug) are
+available for edge cases.
+"""
+
+import argparse
+import hashlib
+import http.client
+import json
+import os
+import re
+import shutil
+import socket
+import subprocess
+import sys
+import urllib.parse
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+SPOTIFY_NO_EXTERNAL_ATTEMPT_MARKER = (
+    "HATCH_SAVE_TO_SPOTIFY_NO_EXTERNAL_ATTEMPT"
+)
+
+# Filename of the per-episode provenance sidecar. It carries the trusted
+# media-artifact handles (TTS audio, media-generation cover) that a later,
+# separate `publish` invocation needs. The daemon podcast catalog is a fixed
+# typed schema and silently drops unknown fields, so these handles cannot live
+# on the episode row; they live next to the episode audio instead. A companion
+# `<cover-file>.provenance.json` records a series cover's handle so later
+# episodes that reuse the cover file also reuse its handle.
+EPISODE_PROVENANCE_FILENAME = "provenance.json"
+COVER_PROVENANCE_SUFFIX = ".provenance.json"
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="podcast-helper",
+        description="Podcast generation and management helper.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # ── generate ────────────────────────────────────────────────────
+    sp_gen = subparsers.add_parser(
+        "generate", help="Generate a podcast episode end-to-end"
+    )
+    sp_gen.add_argument("--script", required=True, help="Path to script file")
+    sp_gen.add_argument("--title", required=True, help="Episode title")
+    sp_gen.add_argument("--description", default="", help="Episode description")
+    sp_gen.add_argument(
+        "--language",
+        help="Language code for synthesis (e.g. en, es, pt, pt_BR). Defaults to "
+        "the current request locale. Write the script in the target language. "
+        "Non-English quality varies; see the tts skill's Language section.",
+    )
+    sp_gen.add_argument(
+        "--speaker",
+        action="append",
+        required=True,
+        metavar="Name=voice_id",
+        help="Speaker-to-voice mapping (repeat for each speaker)",
+    )
+    sp_gen.add_argument(
+        "--publish", action="store_true", help="Publish to podcast feed"
+    )
+    sp_gen.add_argument("--feed-title", help="Feed title (required with --publish)")
+    sp_gen.add_argument("--feed-description", default="", help="Feed description")
+    sp_gen.add_argument(
+        "--cover-image",
+        help="UNAVAILABLE: publishing takes only generated or default cover art, "
+        "so an episode published with this fails. Use --cover-prompt. Still "
+        "parsed so it can be reconnected later.",
+    )
+    sp_gen.add_argument(
+        "--cover-prompt",
+        help="Prompt for generating cover art via media-generation",
+    )
+    sp_gen.add_argument(
+        "--series-id",
+        help="Series ID for shared cover art (e.g. cron job ID). "
+        "Episodes with the same series-id reuse the same cover.",
+    )
+    sp_gen.add_argument(
+        "--topics-file",
+        help="Path to a short markdown/bulleted summary of the major topics and "
+        "key points this episode covered. Persisted alongside the episode so a "
+        "future generation can read prior coverage and avoid repeating it.",
+    )
+
+    # ── catalog ─────────────────────────────────────────────────────
+    sp_manifest = subparsers.add_parser("manifest", help="Podcast catalog operations")
+    sp_manifest_sub = sp_manifest.add_subparsers(dest="action", required=True)
+
+    sp_manifest_sub.add_parser("read", help="Read the podcast catalog")
+
+    sp_add = sp_manifest_sub.add_parser("add-episode", help="Add episode to catalog")
+    sp_add.add_argument("--slug", required=True)
+    sp_add.add_argument("--title", required=True)
+    sp_add.add_argument("--description", default="")
+    sp_add.add_argument("--duration-secs", type=int, required=True)
+    sp_add.add_argument("--path", required=True)
+    sp_add.add_argument("--chunk-count", type=int, required=True)
+
+    sp_update = sp_manifest_sub.add_parser(
+        "update-episode", help="Update episode in catalog"
+    )
+    sp_update.add_argument("--slug", required=True)
+    sp_update.add_argument("--episode-url")
+    sp_update.add_argument("--feed-url")
+    sp_update.add_argument("--feed-title")
+    sp_update.add_argument("--feed-id")
+
+    # ── publish ─────────────────────────────────────────────────────
+    sp_pub = subparsers.add_parser("publish", help="Publish episode to feed")
+    sp_pub.add_argument("--slug", required=True)
+    sp_pub.add_argument("--feed-title", required=True)
+    sp_pub.add_argument("--feed-description", default="")
+    sp_pub.add_argument(
+        "--cover-image",
+        help="UNAVAILABLE: publishing takes only generated or default cover art, "
+        "so passing this fails the publish. Still parsed so it can be "
+        "reconnected later.",
+    )
+
+    # ── save-to-spotify ─────────────────────────────────────────────
+    sp_spotify = subparsers.add_parser(
+        "save-to-spotify",
+        help="Save a generated episode to the user's personal Spotify show",
+    )
+    sp_spotify.add_argument("--slug", required=True)
+    sp_spotify.add_argument(
+        "--show-id", help="Existing Spotify show id to add the episode to"
+    )
+    sp_spotify.add_argument(
+        "--new-show", help="Create a new Spotify show with this title"
+    )
+    sp_spotify.add_argument("--title", help="Episode title (defaults to catalog)")
+    sp_spotify.add_argument(
+        "--summary", help="Episode summary (defaults to catalog description)"
+    )
+    sp_spotify.add_argument("--image", help="Cover image path (JPEG/PNG <= 1MB)")
+
+    # ── update-cover ──────────────────────────────────────────────
+    sp_cover = subparsers.add_parser(
+        "update-cover", help="Replace an episode's cover with newly generated art"
+    )
+    sp_cover.add_argument("--slug", required=True)
+    sp_cover.add_argument(
+        "--cover-prompt",
+        required=True,
+        help="Prompt for generating the new cover art via media-generation",
+    )
+
+    # ── generate-slug ───────────────────────────────────────────────
+    sp_slug = subparsers.add_parser("generate-slug", help="Generate a slug from title")
+    sp_slug.add_argument("--title", required=True)
+
+    args = parser.parse_args()
+    if args.command == "generate" and args.language is None:
+        args.language = os.environ.get("JARVIS_PRESENTATION_LOCALE", "en-US").replace(
+            "-", "_"
+        )
+
+    try:
+        if args.command == "generate":
+            cmd_generate(args)
+        elif args.command == "manifest":
+            cmd_manifest(args)
+        elif args.command == "publish":
+            cmd_publish(args)
+        elif args.command == "save-to-spotify":
+            cmd_save_to_spotify(args)
+        elif args.command == "update-cover":
+            cmd_update_cover(args)
+        elif args.command == "generate-slug":
+            cmd_generate_slug(args)
+    except Exception as e:
+        print(json.dumps({"ok": False, "error": str(e)}), file=sys.stdout)
+        sys.exit(1)
+
+
+# ── Paths ───────────────────────────────────────────────────────────
+
+
+def jarvis_home():
+    return Path(os.environ.get("JARVIS_HOME", os.path.expanduser("~")))
+
+
+def podcasts_dir():
+    return jarvis_home() / "workspace" / "podcasts"
+
+
+def covers_dir():
+    return podcasts_dir() / "covers"
+
+
+def skills_dir():
+    return Path("/opt/hatch/skills/generate_podcast")
+
+
+# Existing manifest.json and .db-sync-state.json files are intentionally left
+# untouched as rollback snapshots. Catalog operations neither read nor rewrite
+# them; Postgres remains the only active metadata authority.
+
+
+# ── Daemon metadata API (Postgres-backed catalog) ───────────────────
+# The /podcasts/* handlers we call are the unauthenticated sandbox-API twins,
+# which are served ONLY on the sandbox UDS. JARVIS_SANDBOX_API_SOCK is the
+# canonical var injected into tool subprocesses for that socket. Do NOT fall
+# back to JARVIS_HTTP_API_SOCKET / HATCH_API_SOCKET: those point at the
+# authenticated daemon HTTP listener, which rejects these no-auth POSTs.
+JARVIS_SANDBOX_API_SOCK_ENV = "JARVIS_SANDBOX_API_SOCK"
+JARVIS_PRESENTATION_LOCALE_ENV = "JARVIS_PRESENTATION_LOCALE"
+DAEMON_API_TIMEOUT_SECS = 10
+
+
+def daemon_api_socket():
+    """Resolve the sandbox API UDS path injected into tool subprocesses."""
+    value = os.environ.get(JARVIS_SANDBOX_API_SOCK_ENV)
+    if value and value.strip():
+        return value.strip()
+    return None
+
+
+class _UnixSocketHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, socket_path, timeout):
+        super().__init__("localhost", timeout=timeout)
+        self._socket_path = socket_path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self._socket_path)
+
+
+def daemon_api_request(method, path, payload=None):
+    """Request the required daemon metadata API over the sandbox UDS."""
+    socket_path = daemon_api_socket()
+    if not socket_path:
+        raise RuntimeError(
+            f"podcast catalog unavailable: {JARVIS_SANDBOX_API_SOCK_ENV} is not set"
+        )
+    body = None
+    headers = {"Accept": "application/json"}
+    presentation_locale = os.environ.get(JARVIS_PRESENTATION_LOCALE_ENV)
+    if presentation_locale and presentation_locale.strip():
+        headers["Accept-Language"] = presentation_locale.strip()
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    connection = _UnixSocketHTTPConnection(socket_path, DAEMON_API_TIMEOUT_SECS)
+    try:
+        connection.request(method, path, body=body, headers=headers)
+        response = connection.getresponse()
+        status = response.status
+        raw = response.read()
+    except (OSError, http.client.HTTPException) as error:
+        raise RuntimeError(
+            f"podcast catalog API {method} {path} failed: {error}"
+        ) from error
+    finally:
+        connection.close()
+    if status < 200 or status >= 300:
+        raise RuntimeError(
+            f"podcast catalog API {method} {path} returned HTTP {status}"
+        )
+    text = raw.decode("utf-8", errors="replace").strip()
+    if not text:
+        raise RuntimeError(
+            f"podcast catalog API {method} {path} returned an empty response"
+        )
+    try:
+        envelope = json.loads(text)
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            f"podcast catalog API {method} {path} returned invalid JSON"
+        ) from error
+    if (
+        not isinstance(envelope, dict)
+        or envelope.get("ok") is not True
+        or "result" not in envelope
+    ):
+        raise RuntimeError(
+            f"podcast catalog API {method} {path} returned an invalid response envelope"
+        )
+    return envelope["result"]
+
+
+def upsert_catalog_episode(episode):
+    daemon_api_request("POST", "/podcasts/episodes", episode)
+
+
+def upsert_catalog_feed(feed):
+    daemon_api_request("POST", "/podcasts/feed", feed)
+
+
+def review_episode_script_for_publish(audio_artifact_id):
+    """Judge the script an episode's audio was synthesized from, before a public
+    RSS/Manifold publish.
+
+    This call passes no script text. It names the trusted TTS audio handle, and
+    the daemon reviews the script the TTS worker bound to those exact bytes at
+    synthesis time -- so the reviewed script is provably the one that produced
+    the audio, and rewriting the episode row's `script` column beforehand
+    changes nothing. Returns {"allowed": bool, "message": str|None,
+    "retryable": bool}.
+
+    The daemon records its verdict against the artifact and Sentinel refuses to
+    release the audio to remote-storage without an allow, so this is the gate
+    itself rather than advice about it. When the judge is disabled the daemon
+    records an allow without judging, keeping today's behavior while the
+    structural requirement stays in force.
+
+    Fail-closed: a daemon/API error propagates as a RuntimeError and aborts the
+    publish rather than shipping unreviewed content to a public feed.
+    """
+    result = daemon_api_request(
+        "POST",
+        "/podcasts/publish-review",
+        {"audio_artifact_id": audio_artifact_id},
+    )
+    if not isinstance(result, dict):
+        raise RuntimeError("publish-review returned an invalid response")
+    return result
+
+
+# ── Artifact provenance sidecars ────────────────────────────────────
+# Publishing is provenance-bound: `remote-storage publish-episode` accepts a
+# trusted `--audio-artifact`/`--cover-artifact` handle (minted by TTS and
+# media-generation and resolved by Sentinel) or the root-owned `--default-cover`,
+# never an arbitrary caller-selected path. These sidecars carry the handles from
+# generation to a later publish. A missing/expired handle is not fatal here: the
+# legacy `--path`/`--cover-image` inputs still work until they are removed, so
+# publish degrades to them rather than failing.
+
+
+def _normalize_artifact_id(value):
+    return value if isinstance(value, str) and value else None
+
+
+def _atomic_write_json(path, record):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f".{os.getpid()}.tmp")
+    try:
+        with open(temporary, "w") as handle:
+            json.dump(record, handle)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _read_json_dict(path):
+    try:
+        with open(path) as handle:
+            value = json.load(handle)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _episode_provenance_path(slug):
+    return podcasts_dir() / slug / EPISODE_PROVENANCE_FILENAME
+
+
+def write_episode_provenance(
+    slug, audio_artifact_id, cover_artifact_id, cover_edited=False
+):
+    """Record an episode's trusted artifact handles for a later publish."""
+    record = {}
+    if _normalize_artifact_id(audio_artifact_id):
+        record["audio_artifact_id"] = audio_artifact_id
+    if _normalize_artifact_id(cover_artifact_id):
+        record["cover_artifact_id"] = cover_artifact_id
+        if cover_edited:
+            record["cover_edited"] = True
+    path = _episode_provenance_path(slug)
+    if not record:
+        # Nothing trusted to record (e.g. a legacy, non-mp3, or handle-less
+        # generation). Leave no stale sidecar that a later publish would trust.
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        return
+    _atomic_write_json(path, record)
+
+
+def read_episode_provenance(slug):
+    record = _read_json_dict(_episode_provenance_path(slug))
+    return (
+        _normalize_artifact_id(record.get("audio_artifact_id")),
+        _normalize_artifact_id(record.get("cover_artifact_id")),
+    )
+
+
+def episode_cover_edited(slug):
+    """True when the episode's current cover was set by `update-cover`."""
+    return _read_json_dict(_episode_provenance_path(slug)).get("cover_edited") is True
+
+
+def _cover_provenance_path(cover_path):
+    return Path(str(cover_path) + COVER_PROVENANCE_SUFFIX)
+
+
+def read_cover_artifact_id(cover_path):
+    if not cover_path:
+        return None
+    record = _read_json_dict(_cover_provenance_path(cover_path))
+    return _normalize_artifact_id(record.get("cover_artifact_id"))
+
+
+def write_cover_artifact_id(cover_path, cover_artifact_id):
+    if not cover_path:
+        return
+    path = _cover_provenance_path(cover_path)
+    if not _normalize_artifact_id(cover_artifact_id):
+        # A cover regenerated at this same path with no trusted handle must not
+        # inherit a prior cover's handle, or a later episode would publish
+        # --cover-artifact pointing at the previous image. Mirror the stale
+        # cleanup in write_episode_provenance.
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        return
+    _atomic_write_json(path, {"cover_artifact_id": cover_artifact_id})
+
+
+# ── Cover art generation ────────────────────────────────────────────
+
+
+IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+
+
+def generate_cover_image(prompt, output_dir, output_name):
+    """Generate cover art by shelling out to media-generation.
+
+    Returns (path, artifact_id). `artifact_id` is media-generation's trusted
+    provenance handle for the image, used to publish it without a raw path; it
+    is None when the handle can't be determined (e.g. the path was recovered
+    from the on-disk file diff rather than the JSON summary).
+    """
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    before = _image_files_in(out)
+
+    cover_prompt = (
+        f"Square podcast icon artwork. Centered simple recognizable symbol, "
+        f"clean graphic composition, high contrast, readable at small sizes. "
+        f"No text unless explicitly requested. User request: {prompt}"
+    )
+
+    # The unified `media_subagent` contract. The prompt travels as a one-entry
+    # conversation instead of a positional argument, and `--orientation` is the
+    # one legacy flag v2 still expresses: it reaches the server as
+    # `aspect_ratio`, which is what keeps the cover square. No `--num-images`,
+    # because v2 has no count field and this only ever wanted one image. No
+    # `--task-type`, because the server validates it against a closed set
+    # holding `space_icon` alone and a podcast cover asks for no server-side
+    # convention its prompt and aspect do not already state.
+    cmd = [
+        "media-generation",
+        "--caller", "podcast_cover",
+        "--media-subagent-output-type", "image",
+        "--conversation-json", json.dumps([{"text": cover_prompt}]),
+        "--orientation", "square",
+        "--output-dir", str(out),
+        "--output-name", output_name,
+        "--timeout-secs", "60",
+    ]
+    user_id = os.environ.get("JARVIS_USER_ID")
+    if user_id:
+        cmd.extend(["--user-id", user_id])
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        return None, None
+
+    # media-generation emits dense top-level `media_paths` and `artifact_ids`
+    # arrays regardless of wire contract. `media_subagent` returns exactly one
+    # image, so the cover's handle is artifact_ids[0].
+    artifact_id = None
+    try:
+        output = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        output = None
+    if isinstance(output, dict):
+        artifact_ids = output.get("artifact_ids")
+        if isinstance(artifact_ids, list) and artifact_ids:
+            artifact_id = _normalize_artifact_id(artifact_ids[0])
+        media_paths = output.get("media_paths")
+        if isinstance(media_paths, list):
+            for candidate in media_paths:
+                if isinstance(candidate, str) and os.path.isfile(candidate):
+                    return candidate, artifact_id
+
+    # Fall back to the newly created image file (diff before/after). The handle
+    # parsed above (if any) still describes that single generated image.
+    after = _image_files_in(out)
+    new_files = sorted(after - before)
+    if new_files:
+        return str(new_files[0]), artifact_id
+
+    return None, None
+
+
+def _image_files_in(directory):
+    """Return a set of image file paths in a directory."""
+    d = Path(directory)
+    if not d.is_dir():
+        return set()
+    return {
+        f
+        for f in d.iterdir()
+        if f.is_file() and f.suffix.lstrip(".").lower() in IMAGE_EXTENSIONS
+    }
+
+
+def resolve_episode_cover(args, slug, episode_dir):
+    """Resolve cover art for an episode during generation.
+
+    Returns (path, artifact_id). `artifact_id` is the trusted media-generation
+    handle when the cover was generated here (or reused from a series cover
+    generated earlier); it is None for an explicit or fallback cover, which
+    carry no provenance.
+
+    Priority:
+    1. Explicit --cover-image path
+    2. Series cover (shared across episodes with same --series-id)
+    3. Generated from --cover-prompt
+    4. Existing fallbacks (avatar, default)
+    """
+    # 1. Explicit path (user-supplied; not a trusted artifact)
+    if args.cover_image and os.path.isfile(args.cover_image):
+        return args.cover_image, None
+
+    # 2. Series cover — reuse (with its recorded handle) or generate once
+    if args.series_id:
+        series_cover = find_series_cover(args.series_id)
+        if series_cover:
+            return series_cover, read_cover_artifact_id(series_cover)
+        if args.cover_prompt:
+            cover, artifact_id = generate_cover_image(
+                args.cover_prompt,
+                str(covers_dir()),
+                f"series-{args.series_id}",
+            )
+            if cover:
+                write_cover_artifact_id(cover, artifact_id)
+                return cover, artifact_id
+
+    # 3. One-off generation from prompt
+    if args.cover_prompt and not args.series_id:
+        cover, artifact_id = generate_cover_image(
+            args.cover_prompt,
+            str(episode_dir),
+            f"{slug}-cover",
+        )
+        if cover:
+            return cover, artifact_id
+
+    # 4. Existing fallbacks (avatar, default) — no trusted handle
+    return resolve_cover_image(None), None
+
+
+def find_series_cover(series_id):
+    """Find an existing cover for a series."""
+    cdir = covers_dir()
+    if not cdir.is_dir():
+        return None
+    prefix = f"series-{series_id}"
+    for f in sorted(cdir.iterdir()):
+        if f.is_file() and f.suffix.lstrip(".").lower() in IMAGE_EXTENSIONS and prefix in f.name:
+            return str(f)
+    return None
+
+
+# ── generate ────────────────────────────────────────────────────────
+
+
+def cmd_generate(args):
+    if args.publish and not args.feed_title:
+        print(
+            json.dumps({"ok": False, "error": "--feed-title required with --publish"})
+        )
+        sys.exit(1)
+
+    catalog = read_manifest()
+    slug = make_slug(args.title)
+    published_collision = next(
+        (
+            episode
+            for episode in catalog.get("episodes", [])
+            if episode.get("slug") == slug
+            and (episode.get("episode_url") or episode.get("feed_url"))
+        ),
+        None,
+    )
+    if published_collision:
+        # A title can be regenerated more than once in one UTC day, but a
+        # published episode's identity is immutable: reusing its slug would
+        # overwrite the local catalog row and the publish guard would then
+        # refuse the corrected take. Mint a new local/feed identity before
+        # synthesis so both the original and the corrected episode survive.
+        slug = f"{slug}-{uuid.uuid4().hex[:8]}"
+    episode_dir = podcasts_dir() / slug
+    episode_dir.mkdir(parents=True, exist_ok=True)
+
+    script_src = Path(args.script)
+    if not script_src.is_file():
+        print(
+            json.dumps(
+                {"ok": False, "error": f"script file not found: {args.script}"}
+            )
+        )
+        sys.exit(1)
+
+    script_dst = episode_dir / "script.txt"
+    shutil.copy2(str(script_src), str(script_dst))
+
+    # The speaker-labeled source script is persisted alongside the audio so the
+    # episode record round-trips its own transcript.
+    script_text = script_src.read_text(encoding="utf-8")
+
+    # Optional topics summary: the major topics/key points this episode covered,
+    # for future-episode dedup. Passed by path so multi-line bullets need no
+    # shell escaping. A named-but-missing file is a caller error, not a silent
+    # drop.
+    topics_text = None
+    if args.topics_file:
+        topics_src = Path(args.topics_file)
+        if not topics_src.is_file():
+            print(
+                json.dumps(
+                    {"ok": False, "error": f"topics file not found: {args.topics_file}"}
+                )
+            )
+            sys.exit(1)
+        topics_text = topics_src.read_text(encoding="utf-8").strip() or None
+
+    output_path = episode_dir / f"{slug}.mp3"
+
+    tts_cmd = [
+        "tts",
+        "synthesize-script",
+        "--script",
+        str(script_dst),
+        "--output",
+        str(output_path),
+        "--language",
+        args.language,
+    ]
+    for speaker_mapping in args.speaker:
+        tts_cmd.extend(["--speaker", speaker_mapping])
+
+    result = subprocess.run(tts_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr.strip() if result.stderr else "unknown error"
+        print(json.dumps({"ok": False, "error": f"tts failed: {stderr}"}))
+        sys.exit(1)
+
+    tts_output = json.loads(result.stdout)
+    duration_secs = tts_output.get("duration_secs", 0)
+    chunk_count = tts_output.get("chunk_count", 0)
+    audio_bytes = tts_output.get("bytes", 0)
+    audio_artifact_id = _normalize_artifact_id(tts_output.get("artifact_id"))
+
+    # Resolve cover art for this episode
+    cover_path, cover_artifact_id = resolve_episode_cover(args, slug, episode_dir)
+
+    # Persist the trusted handles so a later, separate `publish` can resolve the
+    # provenance-bound audio/cover instead of a raw path.
+    write_episode_provenance(slug, audio_artifact_id, cover_artifact_id)
+
+    episode_entry = {
+        "slug": slug,
+        "title": args.title,
+        "description": args.description,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "duration_secs": duration_secs,
+        "path": str(output_path),
+        "chunk_count": chunk_count,
+        "script": script_text,
+    }
+    if cover_path:
+        episode_entry["cover"] = cover_path
+    if topics_text:
+        episode_entry["topics"] = topics_text
+
+    catalog.setdefault("episodes", [])
+
+    existing = [e for e in catalog["episodes"] if e.get("slug") == slug]
+    if existing:
+        existing[0].update(episode_entry)
+    else:
+        catalog["episodes"].append(episode_entry)
+
+    upsert_catalog_episode(episode_entry)
+
+    output = {
+        "ok": True,
+        "slug": slug,
+        "title": args.title,
+        "path": str(output_path),
+        "duration_secs": duration_secs,
+        "chunk_count": chunk_count,
+        "bytes": audio_bytes,
+        "published": False,
+    }
+    if cover_path:
+        output["cover"] = cover_path
+
+    if args.publish:
+        pub_result = do_publish(
+            slug,
+            args.feed_title,
+            args.feed_description,
+            args.cover_image,
+            catalog=catalog,
+            audio_artifact_id=audio_artifact_id,
+            cover_artifact_id=cover_artifact_id,
+        )
+        if pub_result.get("ok"):
+            output["published"] = True
+            output["feed_url"] = pub_result.get("feed_url")
+            output["episode_url"] = pub_result.get("episode_url")
+            output["subscription_links"] = pub_result.get("subscription_links")
+        else:
+            output["publish_error"] = pub_result.get("error") or "publish failed"
+            if "blocked" in pub_result:
+                output["blocked"] = bool(pub_result["blocked"])
+            if "retryable" in pub_result:
+                output["retryable"] = bool(pub_result["retryable"])
+
+    print(json.dumps(output))
+
+
+# ── update-cover ────────────────────────────────────────────────────
+
+
+def cmd_update_cover(args):
+    """Replace an episode's cover art with a newly generated image.
+
+    The new artwork is generated to a fresh unique path and the episode's
+    catalog `cover` reference is updated to it. The previous cover file is
+    never overwritten, moved, or deleted: already-delivered chat previews and
+    library rows reference it by path, and clients cache by path, so rewriting
+    its bytes would silently change what was already shown. For a series
+    episode this diverges only that episode; the shared series cover and the
+    other episodes keep pointing at the previous file.
+    """
+    catalog = read_manifest()
+    episode = next(
+        (e for e in catalog.get("episodes", []) if e.get("slug") == args.slug),
+        None,
+    )
+    if not episode:
+        print(
+            json.dumps(
+                {"ok": False, "error": f"episode '{args.slug}' not found"}
+            )
+        )
+        sys.exit(1)
+
+    already_published = bool(episode.get("episode_url") or episode.get("feed_url"))
+
+    episode_dir = podcasts_dir() / args.slug
+    episode_dir.mkdir(parents=True, exist_ok=True)
+
+    # A fresh output name per edit: reusing the generation-time
+    # `<slug>-cover` would land the new art on the already-presented file.
+    cover, artifact_id = generate_cover_image(
+        args.cover_prompt,
+        str(episode_dir),
+        f"{args.slug}-cover-{uuid.uuid4().hex[:8]}",
+    )
+    if not cover:
+        print(json.dumps({"ok": False, "error": "cover generation failed"}))
+        sys.exit(1)
+    if artifact_id is None:
+        # A handle-less cover cannot travel the trusted publish path: the next
+        # publish would ignore the new art and ship fallback art instead, while
+        # the catalog claimed the change. Abort before touching either state so
+        # the current cover and its handle stay intact, removing the orphan
+        # file this generation just created.
+        try:
+            Path(cover).unlink(missing_ok=True)
+        except OSError:
+            pass
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "cover generation returned no trusted handle; "
+                    "leaving the current cover unchanged",
+                }
+            )
+        )
+        sys.exit(1)
+
+    previous_cover = episode.get("cover")
+    if previous_cover and Path(cover) == Path(previous_cover):
+        # The generator reused the presented path despite the uniquified
+        # output name. Abort before touching either store, and do not
+        # unlink: this file may be the original, not an orphan.
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error": "cover generation reused the presented path; "
+                    "leaving the current cover unchanged",
+                }
+            )
+        )
+        sys.exit(1)
+
+    # Sidecar first, catalog second: the two stores share no transaction, so a
+    # failed catalog write restores the old sidecar. A crash between the two
+    # writes is not covered and leaves the new handle paired with the old
+    # reference (the reverse order would have the mirror-image window).
+    old_audio_artifact_id, old_cover_artifact_id = read_episode_provenance(
+        args.slug
+    )
+    old_cover_edited = episode_cover_edited(args.slug)
+    write_episode_provenance(
+        args.slug, old_audio_artifact_id, artifact_id, cover_edited=True
+    )
+    try:
+        episode["cover"] = cover
+        upsert_catalog_episode(episode)
+    except Exception as catalog_error:
+        # The POST can commit before its response times out. Re-read before
+        # deleting anything: leaving an orphan is recoverable, while deleting
+        # a file the committed catalog now references leaves broken artwork.
+        try:
+            fresh_catalog = read_manifest()
+        except Exception as read_error:
+            raise RuntimeError(
+                f"catalog update failed ({catalog_error}) and its outcome "
+                f"could not be verified ({read_error}); leaving the generated "
+                "cover and provenance in place"
+            ) from catalog_error
+        stored_episode = next(
+            (
+                item
+                for item in fresh_catalog.get("episodes", [])
+                if item.get("slug") == args.slug
+            ),
+            None,
+        )
+        if stored_episode is None:
+            raise RuntimeError(
+                f"catalog update response failed ({catalog_error}), and the "
+                "episode was absent on re-read; leaving the generated cover "
+                "and provenance in place"
+            ) from catalog_error
+        stored_cover = stored_episode.get("cover")
+        if stored_cover != previous_cover:
+            state = "committed" if stored_cover == cover else "changed concurrently"
+            raise RuntimeError(
+                f"catalog update response failed ({catalog_error}), but the "
+                f"stored cover is {state}; leaving the generated cover and "
+                "provenance in place"
+            ) from catalog_error
+
+        # A successful re-read confirmed that the catalog still points at the
+        # previous cover, so rolling back the sidecar and new file is safe.
+        try:
+            Path(cover).unlink(missing_ok=True)
+        except OSError:
+            pass
+        try:
+            write_episode_provenance(
+                args.slug,
+                old_audio_artifact_id,
+                old_cover_artifact_id,
+                cover_edited=old_cover_edited,
+            )
+        except Exception as restore_error:
+            raise RuntimeError(
+                f"catalog update failed ({catalog_error}) and provenance "
+                f"restore failed ({restore_error}): stores diverged: the "
+                "sidecar points at the new cover handle while the catalog "
+                "keeps the old reference; manual repair required"
+            ) from restore_error
+        raise
+
+    result = {"ok": True, "slug": args.slug, "cover": cover}
+    if already_published:
+        result["already_published"] = True
+        result["note"] = (
+            "episode is already published; the public feed keeps the previous "
+            "art (no cover-only refresh exists)"
+        )
+    print(json.dumps(result))
+
+
+# ── catalog commands ────────────────────────────────────────────────
+
+
+def cmd_manifest(args):
+    if args.action == "read":
+        print(json.dumps(read_manifest()))
+
+    elif args.action == "add-episode":
+        catalog = read_manifest()
+        catalog.setdefault("episodes", [])
+
+        if any(e.get("slug") == args.slug for e in catalog["episodes"]):
+            print(
+                json.dumps(
+                    {"ok": False, "error": f"episode '{args.slug}' already exists"}
+                )
+            )
+            sys.exit(1)
+
+        episode = {
+            "slug": args.slug,
+            "title": args.title,
+            "description": args.description,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "duration_secs": args.duration_secs,
+            "path": args.path,
+            "chunk_count": args.chunk_count,
+        }
+        upsert_catalog_episode(episode)
+        print(json.dumps({"ok": True, "slug": args.slug}))
+
+    elif args.action == "update-episode":
+        catalog = read_manifest()
+        episode = next(
+            (e for e in catalog.get("episodes", []) if e.get("slug") == args.slug),
+            None,
+        )
+        if not episode:
+            print(
+                json.dumps(
+                    {"ok": False, "error": f"episode '{args.slug}' not found"}
+                )
+            )
+            sys.exit(1)
+
+        if args.episode_url:
+            episode["episode_url"] = args.episode_url
+        if args.feed_url:
+            episode["feed_url"] = args.feed_url
+
+        upsert_catalog_episode(episode)
+
+        if args.feed_title or args.feed_id or args.feed_url:
+            feed = catalog.get("feed", {})
+            # A feed write carrying `cover` restamps every episode of that
+            # feed, so re-sending the stored show cover would undo
+            # `update-cover`. An absent cover leaves the stored one as is.
+            feed.pop("cover", None)
+            if args.feed_title:
+                feed["feed_title"] = args.feed_title
+            if args.feed_id:
+                feed["feed_id"] = args.feed_id
+            if args.feed_url:
+                feed["feed_url"] = args.feed_url
+            if feed.get("feed_title"):
+                upsert_catalog_feed(feed)
+
+        print(json.dumps({"ok": True, "slug": args.slug}))
+
+
+def read_catalog_from_db():
+    """Return the daemon-owned podcast catalog.
+
+    `feed` is the show published most recently; `feeds` is every show this VM
+    publishes into, keyed by feed id. The two are separate because `feed` is a
+    retained single-feed surface that older daemons are the only writers of,
+    and a user with two shows has two live RSS feeds it can only name one of.
+    """
+    episodes_response = daemon_api_request("GET", "/podcasts/episodes")
+    feed_response = daemon_api_request("GET", "/podcasts/feed")
+    if not isinstance(episodes_response, dict) or not isinstance(feed_response, dict):
+        raise RuntimeError("podcast catalog API returned an invalid response")
+
+    episodes = episodes_response.get("episodes")
+    if not isinstance(episodes, list) or "feed" not in feed_response:
+        raise RuntimeError("podcast catalog API returned an invalid response")
+    feed = feed_response["feed"]
+    if feed is not None and not isinstance(feed, dict):
+        raise RuntimeError("podcast catalog API returned an invalid feed")
+
+    catalog = {"episodes": episodes}
+    if feed is not None:
+        catalog["feed"] = feed
+    catalog["feeds"] = read_feeds_from_db()
+    return catalog
+
+
+def read_feeds_from_db():
+    """Return every feed in the catalog, or [] when the daemon predates them.
+
+    Degrades rather than fails: a daemon without the route leaves publishing on
+    the single-feed behavior it has always had, which is correct for the one
+    show that daemon can name.
+    """
+    try:
+        response = daemon_api_request("GET", "/podcasts/feeds")
+    except Exception:
+        return []
+    if not isinstance(response, dict):
+        return []
+    feeds = response.get("feeds")
+    if not isinstance(feeds, list):
+        return []
+    return [feed for feed in feeds if isinstance(feed, dict)]
+
+
+def read_manifest():
+    return read_catalog_from_db()
+
+
+# ── publish ─────────────────────────────────────────────────────────
+
+
+def cmd_publish(args):
+    result = do_publish(
+        args.slug, args.feed_title, args.feed_description, args.cover_image
+    )
+    print(json.dumps(result))
+
+
+# Host-independent feed path prefix, matched the same way the Rust side matches
+# the media path: a feed URL recorded before a podcast-domain migration carries
+# its original host but the same path.
+FEED_URL_PATH = "/podcasts/feed/"
+
+
+def feed_id_from_feed_url(feed_url):
+    """Recover a feed's id from its public RSS URL, or "" if it is not one.
+
+    Feed URLs are `.../podcasts/feed/{user_id}/{feed_id}`; anything with a
+    different shape yields "" rather than a guess.
+    """
+    if not isinstance(feed_url, str) or FEED_URL_PATH not in feed_url:
+        return ""
+    segments = feed_url.split(FEED_URL_PATH, 1)[1].split("/")
+    if len(segments) != 2:
+        return ""
+    return segments[1].strip()
+
+
+def resolve_publish_feed_id(catalog, existing_feed, feed_title):
+    """Recover THIS SHOW's feed id from already-known state, or "" if unknown.
+
+    A feed id is random and persisted, not derived from the feed title, so it
+    has to be carried forward explicitly: publishing without it into a feed that
+    already exists would land the episode in a second, freshly minted feed and
+    strand every existing subscriber.
+
+    The title is what identifies the show. It is matched against every feed in
+    the catalog, not only the most recently published one: a user who alternates
+    between two shows publishes into a feed the single-feed view has since been
+    overwritten past, and matching only that view returned "" for a show that
+    demonstrably exists -- minting a second feed under the same title and
+    splitting its episodes away from its subscribers, once per alternation.
+
+    Matching on title is also what keeps the carry-forward from becoming a
+    merge. An id belongs to one show, so inheriting it for a different
+    `feed_title` publishes the new show into the old show's feed: subscribers
+    receive an episode of a podcast they never subscribed to, and the published
+    RSS keeps the old title, since the manifest title is only set when the feed
+    is created. A different title is a different show, so return "" and let
+    `remote-storage` resolve it from scratch.
+
+    This never mints one. A second source of randomness is a second way to fork
+    the feed, so when nothing here knows the id, `remote-storage` decides — it
+    adopts a pre-existing legacy feed if it finds one and otherwise mints.
+    """
+    wanted_title = str(feed_title or "").strip()
+    if not wanted_title:
+        return ""
+
+    # Every feed the catalog knows, most recent first, so a title that somehow
+    # names two feeds resolves to the one in current use rather than at random.
+    known_feeds = list(catalog.get("feeds") or [])
+    if existing_feed:
+        known_feeds.append(existing_feed)
+
+    for known in known_feeds:
+        if not isinstance(known, dict):
+            continue
+        stored_title = str(known.get("feed_title") or "").strip()
+        if not stored_title or stored_title.casefold() != wanted_title.casefold():
+            continue
+        feed_id = str(known.get("feed_id") or "").strip()
+        if feed_id:
+            return feed_id
+        feed_id = feed_id_from_feed_url(known.get("feed_url"))
+        if feed_id:
+            return feed_id
+
+    stored_title = str(existing_feed.get("feed_title") or "").strip()
+    if not stored_title or stored_title.casefold() != wanted_title.casefold():
+        return ""
+
+    # A feed row written before the id was recorded still carries it inside the
+    # feed URL stamped on every episode this user has published.
+    #
+    # Only trust that when the episodes agree. The title gate above proves the
+    # feed ROW names this show; it proves nothing about any individual episode,
+    # which carries no show of its own -- and one catalog can hold episodes from
+    # several feeds. Taking the first match would hand back whichever show was
+    # published most recently (episodes arrive newest-first), letting a new show
+    # inherit an old show's feed: the same cross-show merge the title gate
+    # exists to prevent, and one the CLI cannot catch, since its existence check
+    # passes for any feed that is real. On disagreement return "" and let
+    # remote-storage resolve from scratch instead of guessing.
+    candidates = set()
+    for episode in catalog.get("episodes") or []:
+        if not isinstance(episode, dict):
+            continue
+        candidate = feed_id_from_feed_url(episode.get("feed_url"))
+        if candidate:
+            candidates.add(candidate)
+    if len(candidates) == 1:
+        return candidates.pop()
+
+    return ""
+
+
+def do_publish(
+    slug,
+    feed_title,
+    feed_description,
+    cover_image,
+    catalog=None,
+    audio_artifact_id=None,
+    cover_artifact_id=None,
+):
+    if catalog is None:
+        catalog = read_manifest()
+    episode = next(
+        (e for e in catalog.get("episodes", []) if e.get("slug") == slug), None
+    )
+    if not episode:
+        return {"ok": False, "error": f"episode '{slug}' not found in catalog"}
+
+    # Publishing is append-only at the feed layer: remote-storage mints a
+    # fresh episode id per call, so republishing would duplicate the episode
+    # in every subscriber's feed while the catalog row (keyed by slug) forgot
+    # the original. Refuse rather than rely on callers remembering that.
+    if episode.get("episode_url") or episode.get("feed_url"):
+        return {
+            "ok": False,
+            "error": (
+                f"episode '{slug}' is already published; publish appends a "
+                "new feed entry and would duplicate it. There is no "
+                "cover-only refresh yet; cover edits stay local."
+            ),
+        }
+
+    audio_path = episode.get("path")
+    if not audio_path:
+        return {"ok": False, "error": f"episode '{slug}' has no audio path"}
+
+    # A standalone publish (separate invocation from generate) has no in-process
+    # handles; recover them from the sidecar the generate step recorded.
+    #
+    # This runs BEFORE the content review, because the review is keyed on the
+    # audio handle: what gets judged is the script bound to those exact bytes,
+    # not a separately-stored copy.
+    sidecar_audio, sidecar_cover = read_episode_provenance(slug)
+    audio_artifact_id = _normalize_artifact_id(audio_artifact_id) or sidecar_audio
+    cover_artifact_id = _normalize_artifact_id(cover_artifact_id) or sidecar_cover
+
+    if not audio_artifact_id:
+        # No trusted handle, so there is nothing publishable and nothing to
+        # review. Say so here rather than shelling out: remote-storage takes
+        # only --audio-artifact, so the alternative is an argument-parsing
+        # failure that reads like a bug.
+        return {
+            "ok": False,
+            "error": (
+                f"episode '{slug}' has no trusted audio handle, so it cannot be "
+                "published to the public feed. Generate the episode again and "
+                "publish that."
+            ),
+        }
+
+    # Content review gate. Only the remote-storage RSS/Manifold publish path is
+    # judged; save-to-spotify (a personal Spotify show, on the user's own
+    # authenticated account) is intentionally not.
+    #
+    # This is authoritative, not advisory: Sentinel will not release the audio
+    # to remote-storage without the allow this call records, so skipping it
+    # fails the publish rather than bypassing the judge.
+    review = review_episode_script_for_publish(audio_artifact_id)
+    if not review.get("allowed", False):
+        return {
+            "ok": False,
+            # `retryable` distinguishes "the judge said no" from "the judge
+            # could not run"; the latter leaves the episode unreviewed and a
+            # later publish can still succeed.
+            "blocked": not review.get("retryable", False),
+            "retryable": bool(review.get("retryable", False)),
+            "error": review.get("message") or "This episode can't be published.",
+        }
+
+    existing_feed = catalog.get("feed", {})
+
+    cmd = [
+        "remote-storage",
+        "publish-episode",
+        "--title",
+        episode.get("title") or slug,
+        "--description",
+        episode.get("description", ""),
+        "--feed-title",
+        feed_title,
+        "--feed-description",
+        feed_description,
+    ]
+
+    feed_id = resolve_publish_feed_id(catalog, existing_feed, feed_title)
+    if feed_id:
+        cmd.extend(["--feed-id", feed_id])
+
+    # Audio: a trusted TTS handle when we have one, else the raw path (legacy,
+    # still accepted until it is removed). There is no trusted-audio fallback, so
+    # a handle-less episode necessarily rides the legacy path.
+    if audio_artifact_id:
+        cmd.extend(["--audio-artifact", audio_artifact_id])
+    else:
+        cmd.extend(["--path", audio_path])
+
+    duration = episode.get("duration_secs")
+    if duration:
+        cmd.extend(["--duration-secs", str(duration)])
+
+    # Cover selection preserves the prior fallback chain (explicit override,
+    # then user avatar, then bundled default) while routing each source through
+    # a provenance-safe transport where one exists. Priority: explicit user
+    # override > trusted generated cover > user avatar > bundled default. The
+    # explicit override and the avatar are raw paths sent via the legacy
+    # --cover-image input, still accepted until it is removed; the generated
+    # cover uses its trusted handle and the bundled default uses --default-cover.
+    # `feed_cover` is the local path recorded for the library UI, mirroring the
+    # cover just published.
+    default_cover = str(skills_dir() / "default-cover.jpg")
+    explicit_cover = cover_image if (cover_image and os.path.isfile(cover_image)) else None
+    episode_cover = episode.get("cover")
+    # The cover this show already records, matched by feed id or, for a row
+    # written before ids were recorded, by the id inside its feed URL.
+    stored_cover = next(
+        (
+            known["cover"]
+            for known in [*(catalog.get("feeds") or []), existing_feed]
+            if isinstance(known, dict)
+            and known.get("cover")
+            and feed_id
+            and (known.get("feed_id") or feed_id_from_feed_url(known.get("feed_url")))
+            == feed_id
+        ),
+        None,
+    )
+    # A series show keeps its series art, and an episode whose cover
+    # `update-cover` set never replaces an existing show's art (a feed has one
+    # cover). Such an episode publishes with no cover flag, so the feed keeps
+    # its art, and no episode is restamped.
+    keep_show_cover = (
+        not explicit_cover
+        and bool(stored_cover)
+        and bool(episode_cover)
+        and os.path.isfile(episode_cover)
+        and episode_cover != stored_cover
+        and (Path(stored_cover).parent == covers_dir() or episode_cover_edited(slug))
+    )
+    if explicit_cover:
+        cmd.extend(["--cover-image", explicit_cover])
+        feed_cover = explicit_cover
+    elif keep_show_cover:
+        feed_cover = stored_cover
+    elif cover_artifact_id:
+        cmd.extend(["--cover-artifact", cover_artifact_id])
+        if episode_cover and os.path.isfile(episode_cover):
+            feed_cover = episode_cover
+        else:
+            existing_cover = existing_feed.get("cover")
+            feed_cover = (
+                existing_cover
+                if existing_cover and os.path.isfile(existing_cover)
+                else None
+            )
+    else:
+        # Handle-less cover (a legacy episode, or one generated without a
+        # prompt): keep the prior avatar -> bundled-default fallback.
+        fallback = resolve_cover_image(None)
+        if fallback and fallback != default_cover:
+            cmd.extend(["--cover-image", fallback])  # user avatar (legacy)
+            feed_cover = fallback
+        elif os.path.isfile(default_cover):
+            cmd.append("--default-cover")
+            feed_cover = default_cover
+        else:
+            feed_cover = None
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        stderr = result.stderr.strip() if result.stderr else "unknown error"
+        return {"ok": False, "error": f"remote-storage failed: {stderr}"}
+
+    response = json.loads(result.stdout)
+
+    episode["episode_url"] = response.get("episode_url")
+    episode["feed_url"] = response.get("feed_url")
+
+    feed = {
+        "feed_title": feed_title,
+        "feed_id": response.get("feed_id", ""),
+        "feed_url": response.get("feed_url", ""),
+    }
+    # Preserve a Spotify show link recorded by `save-to-spotify` so a later RSS
+    # publish (which rebuilds the feed object) does not wipe it.
+    for key in ("spotify_show_url", "spotify_show_id"):
+        if existing_feed.get(key):
+            feed[key] = existing_feed[key]
+    # A feed write carrying `cover` restamps every episode of that feed. Unify
+    # only to a NEW show cover: re-sending the stored one would undo any
+    # `update-cover` since that cover was published.
+    restamp = bool(feed_cover) and feed_cover != stored_cover
+    if restamp:
+        feed["cover"] = feed_cover
+    elif feed_cover and not keep_show_cover:
+        # Restamping would have covered the episode being published.
+        episode["cover"] = feed_cover
+
+    upsert_catalog_episode(episode)
+    upsert_catalog_feed(feed)
+    if feed_cover and not restamp:
+        # Record the show's cover without `feed_url`, which the daemon scopes
+        # restamping by, so every catalog view of this feed carries it.
+        upsert_catalog_feed(
+            {
+                "feed_title": feed_title,
+                "feed_id": feed["feed_id"] or feed_id,
+                "cover": feed_cover,
+            }
+        )
+
+    feed_url = response.get("feed_url", "")
+    subscription_links = build_subscription_links(
+        feed_url, feed.get("spotify_show_url")
+    )
+
+    return {
+        "ok": True,
+        **{k: v for k, v in response.items() if k != "ok"},
+        "subscription_links": subscription_links,
+    }
+
+
+def resolve_cover_image(explicit_path):
+    if explicit_path and os.path.isfile(explicit_path):
+        return explicit_path
+
+    avatar_state = jarvis_home() / "workspace" / "avatars" / "avatar-state.json"
+    if avatar_state.is_file():
+        try:
+            with open(avatar_state) as f:
+                state = json.load(f)
+            img = state.get("image_path", "")
+            if img and os.path.isfile(img):
+                return img
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    fallback = skills_dir() / "default-cover.jpg"
+    if fallback.is_file():
+        return str(fallback)
+
+    return None
+
+
+def build_subscription_links(feed_url, spotify=None):
+    """Build the subscription-link set for a feed.
+
+    RSS-derived players (Apple/Overcast/Pocket Casts) are synthesized from the
+    feed URL. Spotify cannot be derived — it is a personal-show link minted by
+    `save-to-spotify` — so it is only included when explicitly provided.
+    """
+    links = {}
+    if feed_url:
+        no_scheme = feed_url.replace("https://", "").replace("http://", "")
+        encoded = urllib.parse.quote(feed_url, safe="")
+        links = {
+            "rss": feed_url,
+            "apple_podcasts": f"podcast://{no_scheme}",
+            "overcast": f"overcast://x-callback-url/add?url={encoded}",
+            "pocket_casts": f"pktc://subscribe/{no_scheme}",
+        }
+    if spotify:
+        links["spotify"] = spotify
+    return links
+
+
+# ── save-to-spotify ─────────────────────────────────────────────────
+#
+# Personal Spotify save: uploads a generated episode to the user's OWN Spotify
+# show via the bundled `save-to-spotify` CLI (privsep wrapper; shared Spotify
+# auth). Unlike RSS publishing this does not touch remote-storage/Manifold, but
+# it DOES record the resulting public show link in the Postgres catalog so the
+# library UI can offer a Spotify subscribe link. See references/save-to-spotify.md
+# for the CLI flow.
+
+SPOTIFY_COVER_MAX_BYTES = 1024 * 1024
+SPOTIFY_UPLOAD_RECEIPTS_DIR = ".spotify-upload-receipts"
+
+
+def _spotify_upload_receipt_path(slug):
+    digest = hashlib.sha256(slug.encode("utf-8")).hexdigest()
+    return podcasts_dir() / SPOTIFY_UPLOAD_RECEIPTS_DIR / f"{digest}.json"
+
+
+def _fsync_directory(path):
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    directory_fd = os.open(path, flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _read_spotify_upload_receipt(slug):
+    path = _spotify_upload_receipt_path(slug)
+    if not path.exists():
+        return None
+    try:
+        with open(path) as receipt_file:
+            receipt = json.load(receipt_file)
+    except (json.JSONDecodeError, OSError) as error:
+        raise RuntimeError(
+            f"Spotify upload receipt for '{slug}' is unreadable; refusing to retry"
+        ) from error
+    if not isinstance(receipt, dict) or receipt.get("slug") != slug:
+        raise RuntimeError(
+            f"Spotify upload receipt for '{slug}' is invalid; refusing to retry"
+        )
+    return receipt
+
+
+def _create_spotify_upload_receipt(slug, receipt):
+    path = _spotify_upload_receipt_path(slug)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {**receipt, "slug": slug}
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        return False
+    try:
+        with os.fdopen(descriptor, "w") as receipt_file:
+            json.dump(record, receipt_file)
+            receipt_file.write("\n")
+            receipt_file.flush()
+            os.fsync(receipt_file.fileno())
+        _fsync_directory(path.parent)
+    except Exception:
+        try:
+            path.unlink()
+        except OSError:
+            pass
+        raise
+    return True
+
+
+def _write_spotify_upload_receipt(slug, receipt):
+    path = _spotify_upload_receipt_path(slug)
+    record = {**receipt, "slug": slug}
+    temporary = path.with_suffix(f".{os.getpid()}.tmp")
+    try:
+        with open(temporary, "w") as receipt_file:
+            json.dump(record, receipt_file)
+            receipt_file.write("\n")
+            receipt_file.flush()
+            os.fsync(receipt_file.fileno())
+        os.replace(temporary, path)
+        _fsync_directory(path.parent)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _clear_spotify_upload_receipt(slug):
+    path = _spotify_upload_receipt_path(slug)
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+    _fsync_directory(path.parent)
+
+
+def cmd_save_to_spotify(args):
+    result = do_save_to_spotify(
+        args.slug, args.show_id, args.new_show, args.title, args.summary, args.image
+    )
+    print(json.dumps(result))
+
+
+def do_save_to_spotify(slug, show_id, new_show, title, summary, image):
+    if not show_id and not new_show:
+        return {"ok": False, "error": "one of --show-id or --new-show is required"}
+
+    catalog = read_manifest()
+    episode = next(
+        (e for e in catalog.get("episodes", []) if e.get("slug") == slug), None
+    )
+    if not episode:
+        return {"ok": False, "error": f"episode '{slug}' not found in catalog"}
+
+    audio_path = episode.get("path")
+    if not audio_path:
+        return {"ok": False, "error": f"episode '{slug}' has no audio path"}
+
+    receipt = _read_spotify_upload_receipt(slug)
+    existing_episode_uri = episode.get("spotify_episode_uri")
+    if receipt is None and existing_episode_uri:
+        feed = catalog.get("feed") or {}
+        return {
+            "ok": True,
+            "slug": slug,
+            "episode_id": existing_episode_uri.rsplit(":", 1)[-1],
+            "episode_uri": existing_episode_uri,
+            "spotify_show_id": feed.get("spotify_show_id"),
+            "spotify_show_url": feed.get("spotify_show_url"),
+        }
+
+    if receipt is not None:
+        if receipt.get("state") != "uploaded":
+            return {
+                "ok": False,
+                "error": (
+                    f"a previous Spotify upload for '{slug}' has an uncertain "
+                    "outcome; refusing to retry and create a duplicate. Check "
+                    "Spotify before clearing the upload receipt at "
+                    f"{_spotify_upload_receipt_path(slug)}"
+                ),
+            }
+        upload = receipt.get("upload")
+        show_id = receipt.get("show_id")
+        new_show = receipt.get("new_show")
+        upload_title = receipt.get("upload_title")
+        if (
+            not isinstance(upload, dict)
+            or not isinstance(upload_title, str)
+            or not upload_title
+            or not (show_id or new_show)
+        ):
+            raise RuntimeError(
+                f"Spotify upload receipt for '{slug}' is invalid; refusing to retry"
+            )
+    else:
+        # Guardrail beyond the skill guidance: resolve the user's shows up front
+        # so we fail before streaming the upload. The read remains best-effort;
+        # the upload command surfaces connection errors itself.
+        existing_shows = _list_spotify_shows()
+        if existing_shows is not None:
+            if show_id and not any(_show_id(s) == show_id for s in existing_shows):
+                return {
+                    "ok": False,
+                    "error": (
+                        f"Spotify show '{show_id}' not found in your shows. Run "
+                        "`save-to-spotify --json shows` to list them, or pass "
+                        "--new-show to create one."
+                    ),
+                }
+            if new_show:
+                duplicate = next(
+                    (
+                        show
+                        for show in existing_shows
+                        if isinstance(show, dict)
+                        and new_show in (show.get("title"), show.get("name"))
+                    ),
+                    None,
+                )
+                if duplicate is not None:
+                    return {
+                        "ok": False,
+                        "error": (
+                            f"A Spotify show titled '{new_show}' already exists. "
+                            f"Reuse it with --show-id {_show_id(duplicate)}, or "
+                            "choose a different --new-show title."
+                        ),
+                    }
+
+        upload_title = title or episode.get("title") or slug
+        upload_summary = (
+            summary if summary is not None else episode.get("description", "")
+        )
+        cover = resolve_cover_image(image if image else episode.get("cover"))
+
+        cmd = [
+            "save-to-spotify",
+            "--json",
+            "upload",
+            audio_path,
+            "--title",
+            upload_title,
+        ]
+        if upload_summary:
+            cmd.extend(["--summary", upload_summary])
+        # Spotify rejects covers that are not JPEG/PNG <= 1MB; skip a bad cover
+        # rather than fail the whole upload (the show can be saved without art).
+        if cover and _spotify_cover_ok(cover):
+            cmd.extend(["--image", cover])
+        if show_id:
+            cmd.extend(["--show-id", show_id])
+        else:
+            cmd.extend(["--new-show", new_show])
+
+        intent = {
+            "state": "uploading",
+            "show_id": show_id,
+            "new_show": new_show,
+            "upload_title": upload_title,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if not _create_spotify_upload_receipt(slug, intent):
+            return {
+                "ok": False,
+                "error": (
+                    f"a Spotify upload for '{slug}' is already in progress or "
+                    "awaiting reconciliation; refusing to create a duplicate"
+                ),
+            }
+
+        # The wrapper rejects raw uploads without this already-fsynced receipt.
+        # It is consumed only by the Hatch wrapper and never forwarded to the
+        # vendored Spotify CLI.
+        cmd.extend(["--hatch-upload-receipt", str(_spotify_upload_receipt_path(slug))])
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except OSError:
+            _clear_spotify_upload_receipt(slug)
+            raise
+        if result.returncode != 0:
+            stderr = result.stderr or ""
+            no_external_attempt = SPOTIFY_NO_EXTERNAL_ATTEMPT_MARKER in stderr
+            stderr = stderr.replace(
+                SPOTIFY_NO_EXTERNAL_ATTEMPT_MARKER, ""
+            ).strip()
+            if no_external_attempt:
+                _clear_spotify_upload_receipt(slug)
+                outcome = " before the external upload started"
+                retry_guidance = ""
+            else:
+                _write_spotify_upload_receipt(
+                    slug, {**intent, "state": "uncertain"}
+                )
+                outcome = " with an uncertain external outcome"
+                retry_guidance = ". Check Spotify before retrying"
+            return {
+                "ok": False,
+                "error": (
+                    f"save-to-spotify upload failed{outcome}: "
+                    f"{stderr or 'unknown error'}{retry_guidance}"
+                ),
+            }
+
+        upload = _parse_json_output(result.stdout) or {}
+        episode_uri = upload.get("episode_uri") or upload.get("uri")
+        if not episode_uri:
+            _write_spotify_upload_receipt(slug, {**intent, "state": "uncertain"})
+            return {
+                "ok": False,
+                "error": (
+                    "save-to-spotify accepted the upload without returning an "
+                    "episode URI; refusing to retry and create a duplicate"
+                ),
+            }
+        _write_spotify_upload_receipt(
+            slug, {**intent, "state": "uploaded", "upload": upload}
+        )
+
+    episode_id = upload.get("episode_id") or upload.get("id")
+    episode_uri = upload.get("episode_uri") or upload.get("uri")
+
+    resolved_show_id, show_url = _resolve_spotify_show(show_id, new_show, upload)
+
+    if episode_uri:
+        episode["spotify_episode_uri"] = episode_uri
+
+    feed = catalog.get("feed") or {}
+    # Never re-send the stored show cover: it would restamp every episode of
+    # the feed and undo `update-cover`.
+    feed.pop("cover", None)
+    if not feed.get("feed_title"):
+        # Ensure a feed object exists so the library subscribe panel renders
+        # even when the user has not RSS-published.
+        feed["feed_title"] = new_show or upload_title
+    if show_url:
+        feed["spotify_show_url"] = show_url
+    if resolved_show_id:
+        feed["spotify_show_id"] = resolved_show_id
+    upsert_catalog_episode(episode)
+    upsert_catalog_feed(feed)
+    _clear_spotify_upload_receipt(slug)
+
+    return {
+        "ok": True,
+        "slug": slug,
+        "episode_id": episode_id,
+        "episode_uri": episode_uri,
+        "spotify_show_id": resolved_show_id,
+        "spotify_show_url": show_url,
+    }
+
+
+def _spotify_cover_ok(path):
+    ext = os.path.splitext(path)[1].lstrip(".").lower()
+    if ext not in ("jpg", "jpeg", "png"):
+        return False
+    try:
+        return os.path.getsize(path) <= SPOTIFY_COVER_MAX_BYTES
+    except OSError:
+        return False
+
+
+def _parse_json_output(text):
+    if not text or not text.strip():
+        return None
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+def _list_spotify_shows():
+    """Return the user's Spotify shows as a list, or None if unavailable.
+
+    Best-effort: a not-connected/token error, non-zero exit, or unparseable
+    output yields None so callers fall back rather than hard-failing on a read.
+    """
+    listing = subprocess.run(
+        ["save-to-spotify", "--json", "shows"], capture_output=True, text=True
+    )
+    if listing.returncode != 0:
+        return None
+    data = _parse_json_output(listing.stdout)
+    shows = data.get("shows") if isinstance(data, dict) else data
+    return shows if isinstance(shows, list) else None
+
+
+def _show_id(show):
+    if not isinstance(show, dict):
+        return None
+    for key in ("id", "show_id", "showId"):
+        value = show.get(key)
+        if isinstance(value, str) and value:
+            return value
+    # The `save-to-spotify --json shows` shape is {"show_uri":"spotify:show:<id>",
+    # "title":...}; accept show_uri/uri and strip the URI prefix.
+    for key in ("show_uri", "uri"):
+        value = show.get(key)
+        if isinstance(value, str) and value.startswith("spotify:show:"):
+            return value.rsplit(":", 1)[-1]
+    return None
+
+
+def _show_url(show):
+    if not isinstance(show, dict):
+        return None
+    for key in ("show_url", "url", "external_url"):
+        value = show.get(key)
+        if isinstance(value, str) and value:
+            return value
+    external = show.get("external_urls")
+    if isinstance(external, dict) and isinstance(external.get("spotify"), str):
+        return external["spotify"]
+    return None
+
+
+def _resolve_spotify_show(show_id, new_show, upload):
+    """Resolve (show_id, public_show_url) for the show the episode landed in.
+
+    The exact field names emitted by the vendored `save-to-spotify` CLI are not
+    guaranteed, so parse defensively: prefer ids/urls in the upload response,
+    fall back to the authoritative `shows` listing, and finally construct the
+    canonical open.spotify.com URL from the id.
+    """
+    show_obj = upload.get("show") if isinstance(upload.get("show"), dict) else upload
+    sid = show_id or _show_id(show_obj)
+    url = _show_url(show_obj)
+
+    if not (sid and url):
+        # Fetch the shows list fresh here (post-upload) so a just-created
+        # --new-show is present.
+        shows = _list_spotify_shows()
+        if shows is not None:
+            match = None
+            if sid:
+                match = next((s for s in shows if _show_id(s) == sid), None)
+            if match is None and new_show:
+                match = next(
+                    (
+                        s
+                        for s in shows
+                        if isinstance(s, dict)
+                        and new_show in (s.get("title"), s.get("name"))
+                    ),
+                    None,
+                )
+            if match is None and len(shows) == 1:
+                match = shows[0]
+            if match:
+                sid = sid or _show_id(match)
+                url = url or _show_url(match)
+
+    if sid and not url:
+        url = f"https://open.spotify.com/show/{sid}"
+    return sid, url
+
+
+# ── generate-slug ──────────────────────────────────────────────────
+
+
+def cmd_generate_slug(args):
+    slug = make_slug(args.title)
+    print(json.dumps({"ok": True, "slug": slug}))
+
+
+def make_slug(title):
+    slug = title.lower().strip()
+    slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+    slug = re.sub(r"[\s]+", "-", slug)
+    slug = re.sub(r"-+", "-", slug)
+    slug = slug.strip("-")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return f"{slug}-{today}"
+
+
+if __name__ == "__main__":
+    main()

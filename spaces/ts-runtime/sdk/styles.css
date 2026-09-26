@@ -1,0 +1,53 @@
+:root {
+  color-scheme: light dark;
+
+  /* Defaults for the tailwindcss-safe-area variables so every Space can use
+   * `var(--twsa-safe-area-inset-*)` regardless of whether the Tailwind plugin
+   * is imported. The plugin's own definitions (which carry platform shims,
+   * e.g. for Android) win via later cascade order when the plugin is loaded. */
+  --twsa-safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --twsa-safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --twsa-safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --twsa-safe-area-inset-left: env(safe-area-inset-left, 0px);
+}
+
+html,
+[data-generated-space-root] {
+  height: 100%;
+  min-height: 100%;
+}
+
+[data-generated-space-root] {
+  inset: 0;
+  overflow: auto;
+  position: fixed;
+  scrollbar-width: none;
+}
+
+.hatch-space-root[data-hatch-space-root] {
+  --hatch-space-bottom-padding: calc(
+    var(--bottom-padding, 0px) + env(safe-area-inset-bottom, 0px)
+  );
+  box-sizing: border-box;
+  min-height: calc(
+    100% + var(--header-height, 0px) + var(--hatch-space-bottom-padding)
+  );
+  min-height: calc(
+    100dvh + var(--header-height, 0px) + var(--hatch-space-bottom-padding)
+  );
+  padding-top: var(--header-height, 0px);
+  padding-bottom: var(--hatch-space-bottom-padding);
+  background: var(--bg, #f4f7fb);
+  color: var(--text, #0f172a);
+}
+
+@media (prefers-color-scheme: dark) {
+  .hatch-space-root[data-hatch-space-root] {
+    background: var(--bg, #0c111b);
+    color: var(--text, #e5eef9);
+  }
+}
+
+[data-generated-space-root]::-webkit-scrollbar {
+  display: none;
+}
