@@ -89,6 +89,25 @@ arrival gate changes as alert candidates only when they affect a connection or
 pickup. Treat equipment changes as alert candidates only when they affect
 cabin, seat, or itinerary facts. Keep final landing silent unless the user
 asked for landing notification or a pickup or connection impact remains.
+Keep a first gate or terminal assignment, an on-time status, boarding, taxiing,
+departure, and in-flight progress silent; none of them is a change. Name only
+the current gate in a departure gate alert. From 90 minutes before departure,
+send each departure gate change on the run that finds it. Earlier, send at most
+one departure gate alert per leg per hour: record a newer gate that arrives
+within the hour in
+`~/workspace/goals/<goal-slug>/hidden_files/travel/flight.json` and send the
+then-current gate on the first run after the hour. Stay silent when the gate
+returns to the last notified gate, and fold a gate change into a concurrent
+delay or cancellation message instead of sending it separately. In a scheduled
+run, keep an unconfirmed cancellation silent: record it in
+`~/workspace/goals/<goal-slug>/hidden_files/travel/flight.json`, recheck the
+exact dated leg, and seek confirmation from an airline or airport source. A
+cancellation is confirmed only when FlightAware's `cancelled` flag and status
+text agree, or an airline or airport source confirms it. Notify as soon as it
+is confirmed, and keep checking on later runs while it stays unconfirmed.
+Write these silence rules, including the gate timing and the cancellation
+confirmation test, into the cron body with the other alert rules; the cron
+worker does not receive this skill.
 Persist the fingerprint before sending a message. Add one Tracking activity
 before sending a message. Do not add another activity or message for the same
 fingerprint. Keep unchanged checks silent. After three consecutive expected
@@ -117,7 +136,7 @@ The flows above cover the common cases. For anything else, run `flightaware --he
 ## Rules
 - Use the airline's ICAO flight number when you can (`UAL123`, not `UA123`). If the user's flight number is ambiguous, resolve it with `canonical-flight` first.
 - For "where is my flight", get the flight first, pick the right date and leg, then look up its position or track. Do not guess an `fa_flight_id`.
-- A cancellation is a high-impact terminal claim. Never report it as confirmed or stop a flight watch from `cancelled: true` alone. If the flight carries `muse_cancellation_evidence.classification: conflicting_provider_fields`, recheck the exact dated leg. If the fields still conflict, seek confirmation from an airline or airport source; otherwise say the cancellation is unconfirmed and keep monitoring. Only treat the cancellation as confirmed when FlightAware's boolean and status text agree, or an independent source confirms it.
+- A cancellation is a high-impact terminal claim. Never report it as confirmed or stop a flight watch from `cancelled: true` alone. If the flight carries `muse_cancellation_evidence.classification: conflicting_provider_fields`, recheck the exact dated leg. If the fields still conflict, seek confirmation from an airline or airport source. Without it, say the cancellation is unconfirmed when answering the user directly, and keep a scheduled monitoring run silent until it is confirmed; keep monitoring either way. Only treat the cancellation as confirmed when FlightAware's boolean and status text agree, or an independent source confirms it.
 - If FlightAware says a flight or aircraft is blocked or has no data, tell the user plainly and do not try to work around it.
 - Flight reads preserve AeroAPI's raw times and add semantic UTC/user-local fields such as `scheduled_gate_departure_at`, `estimated_takeoff_at`, `actual_landing_at`, and `scheduled_gate_arrival_at`. Prefer their `user_local` values in replies. Position samples similarly add `position_observed_at`.
 - FlightAware does not cover airline policies, terminal maps, baggage, booking, or customer service. For those, use web search and make clear which details came from the web rather than FlightAware.

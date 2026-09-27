@@ -1,42 +1,71 @@
 # Browser Checkout
 
-Use this route for a purchase through a product page. Follow Purchasing Flow for preparation, missing item choices, payment setup, and final confirmation. Use Payments & Wallet for wallet operations.
+Use browser checkout when the Purchase workflow sends a product through its
+product page. Follow Purchasing Flow for item choices, shipping, payment, final
+review, and confirmation. Follow Payments & Wallet for wallet setup and saved
+payment methods.
 
-Call `browser.spawn_task` with a self-contained assignment:
+## Start the browser task
+
+Call `browser.spawn_task` with the product URLs and every choice already made
+for this purchase:
 
 ```json
 {
-  "task": "Prepare the purchase of <items and exact product URLs>. Follow these requirements: <the user's requirements>. Use these supplied details: <name, delivery address, contact details, item variants and quantities>. Follow Purchasing Flow and report the proposed purchase and any remaining setup requirements. Wait for the user's confirmation before submitting.",
+  "task": "Open <exact product URLs> and prepare the purchase of <items>. Use these choices: <variants, quantities, delivery details, payment choice, and other requirements>. Ask only for missing required choices. Report the final items, shipping, total, and payment setup before submitting. Follow Purchasing Flow for confirmation."
+}
+```
+
+Include a payment choice, a Stripe Link refusal, or a checkout failure when one
+has already occurred. Do not include card details in the initial task.
+
+## Add catalog route information
+
+Some products returned by `shopping product-details` include a
+`hatch_telemetry_context`. For those products, add `shopping_checkout` to the
+browser task. Copy each product's complete `hatch_telemetry_context` into
+`products` without changing it. This information records why browser checkout
+was used. It does not change the checkout.
+
+Set `stage` and `reason` from the situation that started the browser task:
+
+| Situation | `stage` | `reason` |
+|---|---|---|
+| Agentic checkout creation was unavailable, and `checkout create` was not called | `checkout_start` | `agentic_creation_ineligible` |
+| The user chose browser checkout before `checkout create` was called | `checkout_start` | `user_selected_browser` |
+| Shop Pay must finish in the browser | `payment_lane` | `shop_pay_selected` |
+| `checkout create` failed | `agentic_fallback` | `agentic_create_failed` |
+| The user chose browser checkout after `checkout create` | `agentic_fallback` | `user_selected_browser` |
+| The selected provider requires browser checkout | `agentic_fallback` | `provider_requires_browser` |
+| Agentic checkout completion was unavailable | `agentic_fallback` | `agentic_completion_ineligible` |
+| The browser must collect required buyer details | `agentic_fallback` | `buyer_details_required` |
+| Stripe Link was unavailable for agentic completion | `agentic_fallback` | `stripe_link_unavailable` |
+
+Do not add `shopping_checkout` for a product found only by the browser.
+
+Example:
+
+```json
+{
+  "task": "<self-contained browser checkout task>",
   "shopping_checkout": {
-    "products": [<each product hatch_telemetry_context, copied verbatim>],
+    "products": [<complete hatch_telemetry_context for each catalog product>],
     "stage": "checkout_start",
     "reason": "agentic_creation_ineligible"
   }
 }
 ```
 
-Include `shopping_checkout` only for Meta catalog products with a
-`hatch_telemetry_context`. Copy each context whole — it carries the eligibility
-snapshot that chose the route, so a route row without it records unknown
-eligibility. For an initial route that never called `checkout create`, use
-`stage: "checkout_start"` with `agentic_creation_ineligible` or
-`user_selected_browser`. For the Shop Pay handoff, use
-`stage: "payment_lane"` with `shop_pay_selected`. After any other
-create attempt, use `stage: "agentic_fallback"` with `agentic_create_failed`,
-`user_selected_browser`, `stripe_link_unavailable`, `provider_requires_browser`,
-`agentic_completion_ineligible`, or `buyer_details_required`. Browser-discovered
-products have no catalog eligibility snapshot, so omit this object for them.
+## Continue the purchase
 
-Include any payment choice, Link refusal, or technical failure already established for this purchase. Keep card details out of the initial task. Follow the spawn tool's acknowledgment and asynchronous delivery instructions. Resolve payment setup when the browser returns the purchase review. Continue the same task with `browser.steer_task` as directed by Purchasing Flow.
+Follow the acknowledgment returned by `browser.spawn_task`. When the browser
+task requests information or reports the purchase review, follow Purchasing
+Flow and Payments & Wallet. Continue the same task with `browser.steer_task`.
 
-When that payment setup selects Shop Pay, identify the chosen card to the
-browser task with the exact opaque `payment_method_id` and masked label from the
-fresh `wallet.list_payment_methods` result. Copy the ID verbatim instead of
-deriving or guessing it from the label. BrowserTask cannot read the wallet;
-the trusted checkout tool revalidates the supplied ID against a fresh wallet
-read before creating approval.
-If the user switches cards in the approval sheet, report the masked
-`approved_card` returned by BrowserTask as the card actually used, not the
-originally selected card.
+If the user selects Shop Pay, call `wallet.list_payment_methods` and pass the
+selected card's exact `payment_method_id` and masked label to the browser task.
+Do not derive the ID from the label. If the Shop Pay approval returns a
+different `approved_card`, report that masked card as the card used.
 
-For multiple purchases, run browser tasks in parallel only on different sites. Two checkouts on one site share the same cart.
+For multiple purchases, run browser tasks in parallel only on different sites.
+Two checkouts on one site share the same cart.
