@@ -1,7 +1,7 @@
 version: 1
 connector: gmail
 display_name: Gmail
-description: Manage and organize your inbox
+description: You can give read-only or read and write access
 request_quota:
   mode: enforce
   workers:
@@ -279,5 +279,5 @@ consent_screen:
       title: "Keep an eye on things"
       text: "Muse may take unexpected actions. Monitor it carefully."
   footer_paragraphs:
-    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://www.facebook.com/privacy/genai/)"
+    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
     - "Muse will exchange info with Gmail. To learn more, view their [terms](https://policies.google.com/terms) and [privacy policy](https://policies.google.com/privacy)."
