@@ -47,3 +47,11 @@ consent_screen:
   footer_paragraphs:
     - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
     - "Muse will exchange info with Outlook Mail. To learn more, view their [terms](https://www.microsoft.com/servicesagreement) and [privacy policy](https://privacy.microsoft.com/privacystatement)."
+
+cli:
+  binary: outlook-mail
+  skill: outlook-mail
+commands:
+  list: messages.list
+  search: messages.list
+  get: messages.get

@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `f0d2492c178a8ca295ce4cb8856d7cc416a6b366eab3ea181890fbab8b51ffab`.
+Migration-set fingerprint: `867b3ad0ed1128734bce0431b9249a01cef57f9430067d587c7b4e506f3e4085`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -3605,6 +3605,10 @@ Keys and relationships:
 | `onboarding_tour_body` | `text` | yes |  |  |
 | `pending_terminal_result_json` | `text` | yes |  |  |
 | `worker_approval_wait_json` | `text` | yes |  |  |
+| `device_read_state_json` | `text` | yes |  |  |
+| `device_snapshot_hash` | `text` | yes |  |  |
+| `device_authority_hash` | `text` | yes |  |  |
+| `worker_timeouts_json` | `text` | yes |  |  |
 
 Keys and relationships:
 
@@ -3642,6 +3646,8 @@ Keys and relationships:
 | `blocked_dependency` | `text` | yes |  |  |
 | `blocked_at_utc` | `bigint` | yes |  |  |
 | `next_blocked_probe_at_utc` | `bigint` | yes |  |  |
+| `device_authority_hash` | `text` | yes |  |  |
+| `device_read_checkpoints_json` | `text` | no | `'{}'::text` |  |
 
 Keys and relationships:
 
