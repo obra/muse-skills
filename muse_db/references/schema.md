@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `867b3ad0ed1128734bce0431b9249a01cef57f9430067d587c7b4e506f3e4085`.
+Migration-set fingerprint: `bc6a72e038ff28beb0109b52d447bcdc06b0a5db012ce1b6d552d13f80a7b100`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -48,7 +48,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `audit_id` | `self_improvement.connector_read_audit.audit_id` |
 | `backfill_day_run_id` | `self_improvement.backfill_day_runs.backfill_day_run_id` |
 | `batch_id` | `device.media_upload_batches.batch_id` |
-| `binding_id` | `runtime.channel_message_bindings.binding_id` |
+| `binding_id` | `chat.message_bindings.binding_id` |
 | `brief_id` | `self_improvement.relationship_briefs.brief_id` |
 | `briefing_id` | `goals.briefings.briefing_id` |
 | `calibration_id` | `self_improvement.calibration_records.calibration_id` |
@@ -57,7 +57,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `cancellation_confirmation_response_message_id` | `runtime.messages.message_id` |
 | `canonical_idea_id` | `ideas.ideas.idea_id` |
 | `carrier_message_id` | `runtime.messages.message_id` |
-| `channel` | `runtime.event_channels.channel` |
+| `chat_id` | `chat.chats.chat_id` |
 | `checkpoint_key` | `runtime.checkout_spend_checkpoints.checkpoint_key` |
 | `child_agent_id` | `agent.agents.agent_id` |
 | `child_message_id` | `runtime.messages.message_id` |
@@ -82,7 +82,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `current_full_sync_requester_root_session_id` | `agent.sessions.session_id` |
 | `data_source` | `device.data_sync_state.data_source` |
 | `decision_id` | `agent.subagent_monitor_decisions.decision_id` |
-| `delivery_key` | `runtime.channel_deliveries.delivery_key`<br>`scheduler.delivery_outbox.delivery_key` |
+| `delivery_key` | `scheduler.delivery_outbox.delivery_key` |
 | `delivery_submission_id` | `agent.message_mailbox.submission_id` |
 | `descendant_id` | `agent.agent_ancestors.descendant_id` |
 | `descriptions_digest` | `ideas.icon_embeddings.descriptions_digest` |
@@ -92,7 +92,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `entry_id` | `runtime.raw_signal_entries.entry_id` |
 | `event_id` | `agent.subagent_progress_message_events.event_id`<br>`agent.subagent_progress_tool_events.event_id`<br>`goals.engagement_events.event_id`<br>`ideas.bandit_folded_events.event_id`<br>`ideas.idea_events.event_id`<br>`ingest.data_source_events.event_id` |
 | `event_payload_field_id` | `runtime.event_payload_fields.event_payload_field_id` |
-| `event_seq` | `runtime.chat_event_derived_write_backlog.event_seq`<br>`runtime.event_channels.event_seq`<br>`runtime.events.event_seq` |
+| `event_seq` | `chat.event_transports.event_seq`<br>`runtime.chat_event_derived_write_backlog.event_seq`<br>`runtime.events.event_seq` |
 | `event_type` | `agent.recovery_owner_terminal_events.event_type` |
 | `execute_message_id` | `runtime.messages.message_id` |
 | `exif_value_id` | `media.exif_values.exif_value_id` |
@@ -162,6 +162,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `progress_id` | `agent.subagent_progress.progress_id` |
 | `prompt_id` | `feed.promptless_unit_orders.prompt_id`<br>`feed.prompts.prompt_id` |
 | `proposal_id` | `spaces.proposals.proposal_id` |
+| `provider` | `chat.event_transports.provider` |
 | `record_value_id` | `health.record_values.record_value_id` |
 | `recovery_class` | `agent.recovery_owner_terminal_events.recovery_class`<br>`agent.recovery_owners.recovery_class` |
 | `recovery_owner_id` | `agent.recovery_owners.owner_id` |
@@ -726,30 +727,6 @@ Keys and relationships:
 - FOREIGN KEY `session_memory_capture_deadlines_root_session_id_fkey`: `root_session_id` → `agent.agents` (`agent_id`)
 - PRIMARY KEY `session_memory_capture_deadlines_pkey`: `root_session_id`
 
-#### `agent.session_metadata`
-
-| Column | Type | Nullable | Default | Key / identifier meaning |
-|---|---|---:|---|---|
-| `session_id` | `text` | no |  | Local row identifier (primary key). |
-| `origin` | `text` | no |  |  |
-| `lifecycle` | `text` | no |  |  |
-| `status` | `text` | no |  |  |
-| `thread_title` | `text` | yes |  |  |
-| `source_session_id` | `text` | yes |  | Soft local reference → `agent.sessions.session_id`. |
-| `source_prompt_seq_upper_bound` | `bigint` | yes |  |  |
-| `source_message_id_boundary` | `text` | yes |  |  |
-| `created_at` | `bigint` | no |  |  |
-| `updated_at` | `bigint` | no |  |  |
-| `pinned` | `boolean` | no | `false` |  |
-| `channel` | `text` | yes |  |  |
-| `channel_conversation_id` | `text` | yes |  | External channel-provider conversation identifier; no Muse PostgreSQL owner table. |
-| `channel_delivery_target` | `text` | yes |  |  |
-| `pinned_order` | `bigint` | yes |  |  |
-
-Keys and relationships:
-
-- PRIMARY KEY `session_metadata_pkey`: `session_id`
-
 #### `agent.sessions`
 
 | Column | Type | Nullable | Default | Key / identifier meaning |
@@ -861,7 +838,7 @@ Keys and relationships:
 | `completed_at` | `bigint` | yes |  |  |
 | `prompt` | `text` | yes |  |  |
 | `requester_source` | `text` | yes |  |  |
-| `requester_channel_context_json` | `text` | yes |  |  |
+| `requester_chat_context_json` | `text` | yes |  |  |
 | `seen_at` | `bigint` | yes |  |  |
 | `child_depth` | `integer` | no | `0` |  |
 | `agent_type` | `text` | yes |  |  |
@@ -908,6 +885,65 @@ Keys and relationships:
 Keys and relationships:
 
 - PRIMARY KEY `volatile_context_pins_pkey`: `agent_id`, `variant_hash`
+
+### `chat`
+
+#### `chat.chats`
+
+Canonical chat metadata. chat_id is the existing root session UUID.
+
+| Column | Type | Nullable | Default | Key / identifier meaning |
+|---|---|---:|---|---|
+| `chat_id` | `text` | no |  | Local row identifier (primary key). |
+| `origin` | `text` | no |  |  |
+| `lifecycle` | `text` | no |  |  |
+| `status` | `text` | no |  |  |
+| `thread_title` | `text` | yes |  |  |
+| `source_session_id` | `text` | yes |  | Soft local reference → `agent.sessions.session_id`. |
+| `source_prompt_seq_upper_bound` | `bigint` | yes |  |  |
+| `source_message_id_boundary` | `text` | yes |  |  |
+| `created_at` | `bigint` | no |  |  |
+| `updated_at` | `bigint` | no |  |  |
+| `pinned` | `boolean` | no | `false` |  |
+| `pinned_order` | `bigint` | yes |  |  |
+
+Keys and relationships:
+
+- PRIMARY KEY `chats_pkey`: `chat_id`
+
+#### `chat.event_transports`
+
+| Column | Type | Nullable | Default | Key / identifier meaning |
+|---|---|---:|---|---|
+| `provider` | `text` | no |  | Local row identifier (primary key). |
+| `event_seq` | `bigint` | no |  | FK → `runtime.events.event_seq` |
+
+Keys and relationships:
+
+- FOREIGN KEY `event_transports_event_seq_fkey`: `event_seq` → `runtime.events` (`event_seq`)
+- PRIMARY KEY `event_transports_pkey`: `provider`, `event_seq`
+
+#### `chat.message_bindings`
+
+| Column | Type | Nullable | Default | Key / identifier meaning |
+|---|---|---:|---|---|
+| `binding_id` | `bigint` | no | `nextval('chat.message_bindings_binding_id_seq'::regclass)` | Local row identifier (primary key). |
+| `transport_message_id` | `text` | yes |  | Provider-native channel message identifier; no Muse PostgreSQL owner table. |
+| `transport` | `text` | yes |  |  |
+| `jarvis_message_id` | `text` | no |  | Soft local reference → `runtime.messages.message_id`. |
+| `provider` | `text` | yes |  |  |
+| `native_conversation_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
+| `native_message_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
+| `created_at_ms` | `bigint` | yes |  |  |
+| `created_at` | `timestamp with time zone` | no | `now()` |  |
+| `chat_id` | `text` | yes |  | Soft local reference → `chat.chats.chat_id`. |
+| `binding_epoch` | `bigint` | yes |  |  |
+| `admitted_at` | `timestamp with time zone` | yes |  |  |
+
+Keys and relationships:
+
+- PRIMARY KEY `message_bindings_pkey`: `binding_id`
+- UNIQUE `message_bindings_chat_identity`: `chat_id`, `binding_epoch`, `transport`, `transport_message_id`
 
 ### `device`
 
@@ -2637,7 +2673,7 @@ Keys and relationships:
 | `status` | `text` | no |  |  |
 | `title` | `text` | no | `'Browser task'::text` |  |
 | `step_count` | `integer` | no | `0` |  |
-| `channel_context_json` | `text` | yes |  |  |
+| `chat_context_json` | `text` | yes |  |  |
 | `latest_action_id` | `text` | yes |  | Browser-runtime action identifier; no Muse PostgreSQL owner table. |
 | `latest_tab_json` | `text` | yes |  |  |
 | `latest_screenshot_json` | `text` | yes |  |  |
@@ -2651,7 +2687,7 @@ Keys and relationships:
 | `tool_call_id` | `text` | yes |  | For agent-created tasks, including historical null `owner_kind`, soft local reference → `runtime.tool_calls.call_id` (the text correlation identifier, not its numeric `tool_call_id`). When `owner_kind` is `user`, repeats this row's `task_id`; no tool call or owner row. |
 | `request_trace_context_json` | `text` | yes |  |  |
 | `requester_source` | `text` | yes |  |  |
-| `requester_channel` | `text` | yes |  |  |
+| `requester_transport` | `text` | yes |  |  |
 | `requester_model` | `text` | yes |  |  |
 | `requester_effective_model` | `text` | yes |  |  |
 | `request_mode_json` | `text` | yes |  |  |
@@ -2682,49 +2718,6 @@ Keys and relationships:
 Keys and relationships:
 
 - PRIMARY KEY `browser_tasks_pkey`: `task_id`
-
-#### `runtime.channel_deliveries`
-
-| Column | Type | Nullable | Default | Key / identifier meaning |
-|---|---|---:|---|---|
-| `delivery_key` | `text` | no |  | Local row identifier (primary key). |
-| `delivery_kind` | `text` | no |  |  |
-| `surface` | `text` | no |  |  |
-| `target` | `text` | yes |  |  |
-| `payload_json` | `text` | no |  |  |
-| `state` | `text` | no |  |  |
-| `dispatch_boot_generation` | `text` | yes |  |  |
-| `attempt_count` | `integer` | no | `0` |  |
-| `next_attempt_at_utc` | `bigint` | no |  |  |
-| `result_json` | `text` | yes |  |  |
-| `last_error` | `text` | yes |  |  |
-| `created_at_utc` | `bigint` | no |  |  |
-| `updated_at_utc` | `bigint` | no |  |  |
-| `terminal_at_utc` | `bigint` | yes |  |  |
-
-Keys and relationships:
-
-- PRIMARY KEY `channel_deliveries_pkey`: `delivery_key`
-
-#### `runtime.channel_message_bindings`
-
-| Column | Type | Nullable | Default | Key / identifier meaning |
-|---|---|---:|---|---|
-| `binding_id` | `bigint` | no | `nextval('runtime.channel_message_bindings_binding_id_seq'::regclass)` | Local row identifier (primary key). |
-| `channel_message_id` | `text` | yes |  | Provider-native channel message identifier; no Muse PostgreSQL owner table. |
-| `channel` | `text` | yes |  |  |
-| `jarvis_message_id` | `text` | no |  | Soft local reference → `runtime.messages.message_id`. |
-| `provider` | `text` | yes |  |  |
-| `provider_channel_id` | `text` | yes |  | External/provider identifier; no Muse PostgreSQL owner table. |
-| `provider_message_id` | `text` | yes |  | External/provider identifier; no Muse PostgreSQL owner table. |
-| `created_at_ms` | `bigint` | yes |  |  |
-| `created_at` | `timestamp with time zone` | no | `now()` |  |
-
-Keys and relationships:
-
-- PRIMARY KEY `channel_message_bindings_pkey`: `binding_id`
-- UNIQUE `channel_message_bindings_channel_message_id_channel_key`: `channel_message_id`, `channel`
-- UNIQUE `channel_message_bindings_provider_provider_channel_id_provi_key`: `provider`, `provider_channel_id`, `provider_message_id`
 
 #### `runtime.chat_event_derived_write_backlog`
 
@@ -2828,18 +2821,6 @@ Keys and relationships:
 
 - PRIMARY KEY `dev_notice_watermark_pkey`: `singleton`
 
-#### `runtime.event_channels`
-
-| Column | Type | Nullable | Default | Key / identifier meaning |
-|---|---|---:|---|---|
-| `channel` | `text` | no |  | Local row identifier (primary key). |
-| `event_seq` | `bigint` | no |  | FK → `runtime.events.event_seq` |
-
-Keys and relationships:
-
-- FOREIGN KEY `event_channels_event_seq_fkey`: `event_seq` → `runtime.events` (`event_seq`)
-- PRIMARY KEY `event_channels_pkey`: `channel`, `event_seq`
-
 #### `runtime.event_hook_space_owners`
 
 | Column | Type | Nullable | Default | Key / identifier meaning |
@@ -2897,7 +2878,7 @@ Keys and relationships:
 | `display_text_ready` | `boolean` | no | `true` |  |
 | `created_at` | `timestamp with time zone` | no | `now()` |  |
 | `payload_json` | `text` | yes |  |  |
-| `channel_context_json` | `text` | yes |  |  |
+| `chat_context_json` | `text` | yes |  |  |
 
 Keys and relationships:
 
@@ -3423,9 +3404,9 @@ Keys and relationships:
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
 | `completed_at` | `timestamp with time zone` | yes |  |  |
 | `launch_mode` | `text` | no | `'sync'::text` |  |
-| `terminal_handoff_channel` | `text` | yes |  |  |
+| `terminal_handoff_transport` | `text` | yes |  |  |
 | `terminal_handoff_delivery_target` | `text` | yes |  |  |
-| `terminal_handoff_channel_context_json` | `jsonb` | yes |  |  |
+| `terminal_handoff_chat_context_json` | `jsonb` | yes |  |  |
 | `terminal_handoff_message_id` | `text` | yes |  | Soft local reference → `runtime.messages.message_id`. |
 | `terminal_handoff_delivered_at` | `timestamp with time zone` | yes |  |  |
 | `terminal_handoff_attempt_count` | `integer` | no | `0` |  |
@@ -3807,6 +3788,8 @@ Keys and relationships:
 | `updated_at` | `timestamp with time zone` | no | `now()` |  |
 | `source_root_agent_id` | `text` | yes |  | Soft local reference → `agent.agents.agent_id`. |
 | `selector_priority` | `smallint` | yes |  |  |
+| `chat_id` | `text` | yes |  | Soft local reference → `chat.chats.chat_id`. |
+| `chat_binding_epoch` | `bigint` | yes |  |  |
 
 Keys and relationships:
 
@@ -4116,6 +4099,12 @@ Keys and relationships:
 | `share_disclosure_review` | `jsonb` | yes |  |  |
 | `is_promoted` | `boolean` | no | `false` | UI placement: false means Library; true means Spaces in the sidebar. Independent of runtime kind and pinning. |
 | `artifact_audit_review` | `jsonb` | yes |  | Runtime-owned artifact review record for the current build: bounded recent public chat turns that authorize the artifact, reviewed-coverage identities, and retained critic verdicts. |
+| `saved_at_ms` | `bigint` | yes |  |  |
+| `publisher_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
+| `publisher_name` | `text` | yes |  |  |
+| `saved_record_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
+| `saved_available` | `boolean` | yes |  |  |
+| `saved_target_shortcode` | `text` | yes |  |  |
 
 Keys and relationships:
 

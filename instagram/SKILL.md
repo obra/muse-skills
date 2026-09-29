@@ -158,7 +158,7 @@ shares. Do not assign account-level totals to individual posts.
 
 ### Global options
 - `--account-id <user_own_fbid>` selects the account. Use the user's own `user_fbid` from Account Linking. Do not pass another user's ID.
-- `--retries <N>` retries transient failures. The default is 0. Nonzero values are unsupported for `post-story`, `post-feed`, and `set-profile-picture`.
+- `--retries <N>` retries transient failures. The default is 0. Nonzero values are unsupported for `post-story`, `post-feed`, `set-profile-picture`, and `profile-banner`.
 - `--after <cursor>` supplies the pagination cursor from the previous response, except for `own-stories-archive`, which uses `--max-id`. Omit the cursor to fetch the first page.
 
 For `fetch-post-comments` and `fetch-post-likers`, pagination is per
@@ -205,6 +205,7 @@ Available commands:
 - `post-story`
 - `set-profile-picture`
 - `update-bio`
+- `profile-banner`
 
 ### Accounts
 List the Instagram accounts linked to the user.
@@ -235,6 +236,21 @@ most 150 characters. Pass an empty string to clear the bio.
 ```sh
 instagram-cli update-bio --account-id <user_own_fbid> --bio "<bio>"
 ```
+
+### Muse profile banner
+Add or remove the user's Muse banner on their Instagram profile. This shows as a
+pill on the user's profile beneath their bio. This does not change their profile
+picture or bio.
+
+```sh
+instagram-cli profile-banner --account-id <user_own_fbid> --action add
+instagram-cli profile-banner --account-id <user_own_fbid> --action remove
+```
+
+Do not supply media or a profile URL. Report completion only when the result
+contains `success: true`; `success: false` is not a completed update. Automatic
+retries are disabled; after an ambiguous failure, do not claim success or
+silently repeat the mutation.
 
 ### Current interests
 Fetch topics the user is interested in or uninterested in. Show the topic and its type without distinguishing inferred from explicit interests.

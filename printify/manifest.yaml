@@ -8,6 +8,16 @@ request_quota:
     - printify
   queries_per_minute: 300
   burst: 50
+# Raw GET requests reach the same Printify API that serves order data, so
+# `api.read` is an orders DATA CLASS emitter. While "Access orders" is
+# deny/ask, Sentinel attaches an exclusion constraint and the trusted worker
+# refuses raw reads whole: a path-level projection cannot prove a raw read
+# avoids the class.
+data_classes:
+  orders:
+    governed_by: orders.list
+    emitted_by:
+      - api.read
 actions:
   read:
     default: allow

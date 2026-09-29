@@ -1,5 +1,6 @@
 version: 1
 connector: google_drive
+category: productivity
 display_name: Google Drive
 description: Search and manage your files and documents
 request_quota:

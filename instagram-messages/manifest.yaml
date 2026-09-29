@@ -1,5 +1,6 @@
 version: 1
 connector: instagram_messages
+category: social
 display_name: Instagram Messages
 description: Catch up on messages and manage your inbox
 actions:

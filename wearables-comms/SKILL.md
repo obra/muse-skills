@@ -157,10 +157,11 @@ the cross-device recovery below. Otherwise follow the clarification rules.
 
 Call `device.invoke` on the selected wearable with command
 `wearables.comms.provider.call`. Set `params_json.phone_number` to the supplied
-or resolved number and `params_json.provider` to `phone`; include
-`params_json.contact_name` when a named contact was resolved. Do not call
-`device.describe` first. Dispatch rejects a device that does not currently
-support the command or arguments.
+or resolved number and `params_json.provider` to `phone`. Always set
+`params_json.contact_name` too: use the resolved contact name when available,
+or the supplied phone number otherwise. Do not call `device.describe` first.
+Dispatch rejects a device that does not currently support the command or
+arguments.
 
 ## Send a message
 

@@ -95,12 +95,14 @@ Count mail by tallying real results in one of the ways below, and report the con
 Tell the user what you counted in plain words, like "unread in your Primary inbox," so the number and its scope match what they see in Gmail.
 
 ### Write and send
+For raw API calls to send, insert, or import a message, or create or update a draft, write the complete email to a file and pass `--upload <absolute-path>`. Include the headers, a blank line, and the body. The wrapper captures the file for approval and handles base64 encoding. Files can be up to 32 MiB. Use `--json` only for metadata such as thread IDs; `raw` and `message.raw` are rejected.
+
 Compose new mail, replies, and forwards with the commands below, and send only after the user approves the exact text:
 - Send a new message: `+send --to <a> --subject <s> --body <b>`.
 - Reply: `+reply --message-id <id> --body <b>` (or `+reply-all`).
 - Forward: `+forward --message-id <id> --to <a> [--body <b>]`.
 - New draft: when the user wants an email saved to keep or edit rather than send now, create a real Gmail draft with `+draft` (a new message, or a reply or forward to an existing message via `--reply`/`--forward --message-id <id>`). It saves to Drafts and stops, so draft in Gmail, not just in chat.
-- Revise a draft: edit the same draft in place with `users drafts update`. It replaces the whole draft, so pass the full updated message as base64url `raw`: `--params '{"userId":"me","id":"<draft-id>"}' --json '{"message":{"raw":"<encoded>"}}'`.
+- Revise a draft: edit the same draft in place with `users drafts update`. It replaces the whole draft, so pass the complete updated email file: `--params '{"userId":"me","id":"<draft-id>"}' --upload /tmp/revised-email.eml`.
 - Prefer `+send`, `+reply`, or `+forward`. Sending an existing draft by id resolves its current content before approval; the approved content is frozen for execution.
 - Compose flags, shared by `+send`, `+reply`, `+forward`, and `+draft` (run `+draft --help` for the full list): `--to`/`--cc`/`--bcc` take comma-separated addresses for multiple recipients, `--html` treats the body as HTML, and `--attach <path>` adds a file. Replies and forwards reuse the source subject, so don't set one.
 - Single-quote the subject and body so the shell passes them through literally (otherwise a `$` or backtick gets altered or run). Write an apostrophe in the text as `'\''`.

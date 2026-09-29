@@ -1,13 +1,28 @@
 version: 1
 connector: notion
+category: productivity
 display_name: Notion
 description: Collaborate and stay organized
+cli:
+  binary: notion-cli
+  skill: notion
 request_quota:
   mode: enforce
   workers:
     - notion-cli
   queries_per_minute: 180
   burst: 50
+# The AI-search and database/meeting-notes query tools are keyed to
+# search.read but return page and database CONTENT "Access content"
+# (pages.read) governs, so search.read is a page-content DATA CLASS emitter.
+# While pages.read is deny/ask, Sentinel attaches an exclusion constraint and
+# the trusted worker refuses those content-bearing tools; plain search returns
+# titles and links and proceeds.
+data_classes:
+  page_content:
+    governed_by: pages.read
+    emitted_by:
+      - search.read
 actions:
   read:
     default: allow

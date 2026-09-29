@@ -1,0 +1,91 @@
+version: 1
+connector: vercel
+display_name: Vercel
+description: Manage deployments for websites and web apps
+icon: vercel
+request_quota:
+  mode: shadow
+  workers: [vercel]
+  queries_per_minute: 50
+  burst: 10
+cli:
+  binary: vercel
+  skill: vercel
+  service: vercel
+actions:
+  read:
+    default: allow
+    label: Read permissions
+    methods:
+      projects.read:
+        label: Read teams and projects
+        approval_phrase: read teams and projects in Vercel
+      deployments.read:
+        label: Read deployments
+        approval_phrase: read deployments in Vercel
+      observability.read:
+        label: Read build and runtime logs
+        approval_phrase: read logs in Vercel
+      agent_runs.read:
+        label: Read agent runs
+        approval_phrase: read agent runs in Vercel
+      analytics.read:
+        label: Read web analytics
+        approval_phrase: read web analytics in Vercel
+      documentation.read:
+        label: Search Vercel documentation
+        approval_phrase: search Vercel documentation
+      domains.read:
+        label: Check domains and prices
+        approval_phrase: check domain availability and prices in Vercel
+      toolbar.read:
+        label: Read toolbar threads
+        approval_phrase: read toolbar threads in Vercel
+  write:
+    default: ask
+    label: Write permissions
+    methods:
+      deployments.publish:
+        label: Deploy to Vercel
+        approval_phrase: publish a deployment to Vercel
+      projects.manage:
+        label: Pause or unpause projects
+        approval_phrase: pause or unpause projects in Vercel
+      security.manage:
+        label: Change deployment protection
+        approval_phrase: change deployment protection in Vercel
+      projects.import:
+        label: Import designs
+        approval_phrase: import designs into Vercel
+      purchases.execute:
+        label: Make purchases
+        approval_phrase: make a purchase through Vercel
+      protected_content.fetch:
+        label: Fetch protected Vercel content
+        approval_phrase: fetch protected content from Vercel
+      toolbar.manage:
+        label: Reply to or change toolbar threads
+        approval_phrase: reply to or change toolbar threads in Vercel
+commands:
+  status: null
+  authorize-url: null
+  exchange-code: null
+  refresh: null
+  disconnect: null
+  list-tools: projects.read
+  # Each reviewed provider tool selects its own method at runtime.
+  call-tool: null
+consent_screen:
+  bullets:
+    - icon: data_types
+      title: "Level up with Vercel"
+      text: "Muse will access things like projects, deployments, Git repository info and domains."
+    - icon: info
+      title: "You choose what Muse can do"
+      text: "By default, Muse will ask before taking actions it thinks need review. Disconnect at any time in Settings."
+    - icon: caution
+      title: "Keep an eye on things"
+      text: "Muse may take unexpected actions. Monitor it carefully."
+  footer_paragraphs:
+    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+    - "Muse will exchange info with Vercel. To learn more, view their [terms](https://vercel.com/legal/terms) and [privacy policy](https://vercel.com/legal/privacy-policy)."

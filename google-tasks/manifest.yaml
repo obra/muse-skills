@@ -1,5 +1,6 @@
 version: 1
 connector: google_tasks
+category: productivity
 display_name: Google Tasks
 description: Manage and track your to-do lists and tasks
 request_quota:

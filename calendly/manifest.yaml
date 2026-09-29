@@ -1,5 +1,6 @@
 version: 1
 connector: calendly
+category: productivity
 display_name: Calendly
 description: View and manage calendar events and scheduling
 request_quota:

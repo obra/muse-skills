@@ -1,7 +1,11 @@
 version: 1
 connector: granola
+category: productivity
 display_name: Granola
 description: Find and review your meeting notes
+cli:
+  binary: granola-cli
+  skill: granola
 request_quota:
   mode: enforce
   workers:

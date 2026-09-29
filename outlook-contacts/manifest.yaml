@@ -1,5 +1,6 @@
 version: 1
 connector: outlook_contacts
+category: productivity
 display_name: Outlook Contacts
 description: Search and manage your contacts and address book
 request_quota:

@@ -1,5 +1,6 @@
 version: 1
 connector: gmail
+category: productivity
 display_name: Gmail
 description: You can give read-only or read and write access
 request_quota:
@@ -98,6 +99,22 @@ declarable_scopes:
   - https://www.googleapis.com/auth/gmail.compose
   - https://www.googleapis.com/auth/gmail.modify
   - https://www.googleapis.com/auth/gmail.settings.basic
+# Drafts are a DATA CLASS, not an API surface: a Gmail draft is an ordinary
+# message carrying the system DRAFT label, so message and thread reads return
+# full draft content even while the dedicated drafts methods are denied.
+# Declaring the class makes Sentinel attach an exclusion constraint to every
+# allowed messages read while "Access drafts" is deny/ask; the trusted
+# hatch_gws_cli worker enforces it (query rewrite on list surfaces, DRAFT
+# labelId filtering on reads) and fails closed on constraints it does not
+# implement. Aliased raw methods (users.threads.*, users.history.list,
+# users.messages.attachments.get) authorize as these two canonical keys, so
+# listing the keys covers every aliased spelling.
+data_classes:
+  drafts:
+    governed_by: users.drafts.list
+    emitted_by:
+      - users.messages.list
+      - users.messages.get
 actions:
   read:
     default: allow

@@ -1,5 +1,6 @@
 version: 1
 connector: outlook_mail
+category: productivity
 display_name: Outlook Mail
 description: Manage and organize your inbox
 request_quota:
@@ -8,6 +9,16 @@ request_quota:
     - outlook-mail
   queries_per_minute: 600
   burst: 50
+# Graph list/search responses carry `bodyPreview` — a slice of the message
+# content "Access messages" governs — so the list method is a message-content
+# DATA CLASS emitter. While "Access messages" is deny/ask, Sentinel attaches
+# an exclusion constraint to allowed list/search calls and the trusted worker
+# strips the preview slice from every returned row.
+data_classes:
+  message_content:
+    governed_by: messages.get
+    emitted_by:
+      - messages.list
 actions:
   read:
     default: allow

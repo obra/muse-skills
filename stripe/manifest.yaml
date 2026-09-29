@@ -1,0 +1,233 @@
+version: 1
+connector: stripe
+display_name: Stripe
+description: Manage payments, customers and subscriptions
+icon: connectorStripe
+request_quota:
+  mode: shadow
+  workers: [stripe]
+  queries_per_minute: 50
+  burst: 10
+cli:
+  binary: stripe
+  skill: stripe
+  service: stripe
+actions:
+  read:
+    default: allow
+    label: Read Stripe data
+    methods:
+      api.discover:
+        label: Inspect Stripe API capabilities
+        approval_phrase: inspect available Stripe API capabilities
+      data.read:
+        label: Read Stripe data
+        approval_phrase: read data from Stripe
+      account.read:
+        label: Read account information
+        approval_phrase: read Stripe account information
+      analytics.read:
+        label: Analyze Stripe data
+        approval_phrase: analyze Stripe data
+      balances.read:
+        label: Read balances
+        approval_phrase: read balances in Stripe
+      documentation.read:
+        label: Search Stripe guidance
+        approval_phrase: search Stripe documentation and implementation guidance
+      invoices.preview:
+        label: Preview invoices
+        approval_phrase: preview invoices in Stripe
+  write:
+    default: ask
+    label: Change Stripe data
+    methods:
+      customers.create:
+        label: Create customers
+        approval_phrase: create customers in Stripe
+      customers.update:
+        label: Update customers
+        approval_phrase: update customers in Stripe
+      customer_balances.manage:
+        label: Manage customer balances
+        approval_phrase: change customer balances in Stripe
+      payment_methods.attach:
+        label: Attach payment methods
+        approval_phrase: attach payment methods to customers in Stripe
+      payment_methods.update:
+        label: Update payment methods
+        approval_phrase: update customer payment methods in Stripe
+      payment_methods.verify:
+        label: Verify payment methods
+        approval_phrase: verify customer payment methods in Stripe
+      funding_instructions.create:
+        label: Create funding instructions
+        approval_phrase: create customer funding instructions in Stripe
+      customer_tax_ids.create:
+        label: Create customer tax IDs
+        approval_phrase: create customer tax IDs in Stripe
+      disputes.update:
+        label: Update disputes
+        approval_phrase: update disputes in Stripe
+      disputes.close:
+        label: Close disputes
+        approval_phrase: close disputes in Stripe
+      invoices.create:
+        label: Create invoices
+        approval_phrase: create invoices in Stripe
+      invoices.update:
+        label: Update invoices
+        approval_phrase: update invoices and line items in Stripe
+      invoices.attach_payment:
+        label: Attach invoice payments
+        approval_phrase: attach payments to invoices in Stripe
+      invoices.finalize:
+        label: Finalize invoices
+        approval_phrase: finalize invoices in Stripe
+      invoices.mark_uncollectible:
+        label: Mark invoices uncollectible
+        approval_phrase: mark invoices as uncollectible in Stripe
+      invoices.pay:
+        label: Pay invoices
+        approval_phrase: pay invoices in Stripe
+      invoices.send:
+        label: Send invoices
+        approval_phrase: send invoices from Stripe
+      invoices.void:
+        label: Void invoices
+        approval_phrase: void invoices in Stripe
+      payments.create:
+        label: Create payment intents
+        approval_phrase: create payment intents in Stripe
+      payments.update:
+        label: Update payment intents
+        approval_phrase: update payment intents in Stripe
+      payments.reconcile:
+        label: Apply customer balances
+        approval_phrase: apply customer balances to payments in Stripe
+      payments.cancel:
+        label: Cancel payment intents
+        approval_phrase: cancel payment intents in Stripe
+      payments.capture:
+        label: Capture payments
+        approval_phrase: capture payments in Stripe
+      payments.confirm:
+        label: Confirm payments
+        approval_phrase: confirm payments in Stripe
+      payments.increment_authorization:
+        label: Increase payment authorizations
+        approval_phrase: increase payment authorizations in Stripe
+      payments.verify:
+        label: Verify payment microdeposits
+        approval_phrase: verify payment microdeposits in Stripe
+      payment_links.create:
+        label: Create payment links
+        approval_phrase: create payment links in Stripe
+      payment_links.update:
+        label: Update payment links
+        approval_phrase: update payment links in Stripe
+      payouts.create:
+        label: Create payouts
+        approval_phrase: create payouts in Stripe
+      payouts.update:
+        label: Update payouts
+        approval_phrase: update payouts in Stripe
+      payouts.cancel:
+        label: Cancel payouts
+        approval_phrase: cancel payouts in Stripe
+      payouts.reverse:
+        label: Reverse payouts
+        approval_phrase: reverse payouts in Stripe
+      prices.create:
+        label: Create prices
+        approval_phrase: create prices in Stripe
+      prices.update:
+        label: Update prices
+        approval_phrase: update prices in Stripe
+      products.create:
+        label: Create products
+        approval_phrase: create products in Stripe
+      products.update:
+        label: Update products
+        approval_phrase: update products in Stripe
+      product_features.attach:
+        label: Attach product features
+        approval_phrase: attach features to products in Stripe
+      refunds.create:
+        label: Create refunds
+        approval_phrase: refund payments in Stripe
+      refunds.update:
+        label: Update refunds
+        approval_phrase: update refunds in Stripe
+      refunds.cancel:
+        label: Cancel refunds
+        approval_phrase: cancel refunds in Stripe
+      subscriptions.create:
+        label: Create subscriptions
+        approval_phrase: create subscriptions in Stripe
+      subscriptions.update:
+        label: Update subscriptions
+        approval_phrase: update subscriptions in Stripe
+      subscriptions.migrate:
+        label: Migrate subscriptions
+        approval_phrase: migrate subscriptions in Stripe
+      subscriptions.pause:
+        label: Pause subscriptions
+        approval_phrase: pause subscriptions in Stripe
+      subscriptions.resume:
+        label: Resume subscriptions
+        approval_phrase: resume subscriptions in Stripe
+      feedback.send:
+        label: Send feedback to Stripe
+        approval_phrase: send feedback to Stripe
+  delete:
+    default: ask
+    label: Delete Stripe data
+    methods:
+      customers.delete:
+        label: Delete customers
+        approval_phrase: delete customers in Stripe
+      payment_methods.delete:
+        label: Delete payment methods
+        approval_phrase: delete customer payment methods in Stripe
+      discounts.delete:
+        label: Delete discounts
+        approval_phrase: delete customer or subscription discounts in Stripe
+      customer_tax_ids.delete:
+        label: Delete customer tax IDs
+        approval_phrase: delete customer tax IDs in Stripe
+      invoices.delete:
+        label: Delete draft invoices
+        approval_phrase: delete draft invoices in Stripe
+      products.delete:
+        label: Delete products
+        approval_phrase: delete products in Stripe
+      product_features.delete:
+        label: Remove product features
+        approval_phrase: remove features from products in Stripe
+      subscriptions.cancel:
+        label: Cancel subscriptions
+        approval_phrase: cancel subscriptions in Stripe
+commands:
+  status: null
+  authorize-url: null
+  exchange-code: null
+  refresh: null
+  disconnect: null
+  list-tools: api.discover
+  # Each reviewed provider tool selects its own method at runtime.
+  call-tool: null
+consent_screen:
+  bullets:
+    - icon: data_types
+      title: "Level up with Stripe"
+      text: "Muse will access things like customer info, payments, subscriptions and invoices."
+    - icon: info
+      title: "You choose what Muse can do"
+      text: "By default, Muse will ask before taking actions it thinks need review. Disconnect at any time in Settings."
+    - icon: caution
+      title: "Keep an eye on things"
+      text: "Muse may take unexpected actions. Monitor it carefully."
+  footer_paragraphs:
+    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+    - "Muse will exchange info with Stripe. To learn more, view their [terms](https://stripe.com/legal/ssa) and [privacy policy](https://stripe.com/privacy)."

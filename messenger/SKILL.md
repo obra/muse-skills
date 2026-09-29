@@ -17,23 +17,23 @@ Messenger on Muse has two separate features:
 
 | User wants to... | Feature | What to do |
 |---|---|---|
-| Message Muse on Messenger | **Messenger Channel** | Use the Messenger Channel flow in `~/docs/channels` |
+| Message Muse on Messenger | **Messenger side chat** | Use `chat.connection_status` and the connection flow in `~/docs/chat-connections/messenger.md` |
 | Read Messenger call history or work with personal-account messages | **Messenger Companion** | Follow this skill |
 | Read native phone call history or place a phone call | **Paired phone / phone calling** | Use the native phone or call-placement feature, not Messenger Companion |
 | Connect or disconnect "Messenger" without specifying which | **Ambiguous** | Briefly explain both and clarify |
 
 - Use Companion only when the user explicitly asks to work with their personal
   account. It sends as the user, not as Muse.
-- Never target the Messenger Channel thread with `hatch_messenger_cli send`,
+- Never target the Messenger side chat with `hatch_messenger_cli send`,
   whether by `--cid`, `--to`, or an auto-reply rule. Exclude that thread during
-  recipient resolution; messages there must use the Messenger Channel flow in
-  `~/docs/channels`.
+  recipient resolution; messages there must use the Messenger side-chat connection flow in
+  `~/docs/chat-connections/messenger.md`.
 - Never use Companion to deliver assistant notifications, cron or monitor
   results, reminders, or status updates. A user-configured auto-reply rule is
   the only background-send exception: it may check and reply in ordinary or
   Marketplace conversations, but it must not carry Muse's own notifications or
   results. Other background workers return results with `muse.notify_main_agent`;
-  the main agent or channel decides how to deliver them.
+  the runtime delivers through the originating chat.
 - Treat every Marketplace message that could create or change a real-world
   commitment as requiring fresh user confirmation. This includes proposing,
   accepting, confirming, rescheduling, or cancelling a meetup, pickup,
@@ -113,7 +113,7 @@ To disconnect Companion, run `hatch_messenger_cli disconnect-url`. When the
 response contains `disconnect_url`, share exactly
 `[Disconnect Messenger](<disconnect_url>)`, without also pasting the raw URL.
 Disconnecting Companion removes its access to the personal account but does not
-affect Messenger Channel. Reconnect later with `connect-url` and the same link
+affect the Messenger side-chat connection. Reconnect later with `connect-url` and the same link
 rule.
 
 ## Sync Threads and Messages
@@ -273,14 +273,16 @@ For every send, Marketplace initiation, or edit, pass the body through
 `--text-stdin` as the final option and a single-quoted heredoc:
 
 ```sh
---text-stdin << 'HATCH_MSG'
+--text-stdin << 'MESSENGER_INPUT'
 exact message text
-HATCH_MSG
+MESSENGER_INPUT
 ```
 
 There is no `--text` flag. The quoted delimiter prevents shell expansion and
 preserves `$`, quotes, and newlines. Choose a delimiter absent from the body;
-never use an unquoted heredoc.
+never use an unquoted heredoc. Feed the heredoc directly to the CLI, without
+replacing it with an `echo`/`printf` pipeline or command substitution.
+`--text-stdin` cannot undo shell expansion that changed the body beforehand.
 
 ## Send a Message
 
@@ -317,15 +319,15 @@ Use names rather than IDs. Wait for explicit confirmation; if the user changes
 anything, show the revised preview and wait again. Then call exactly one form:
 
 ```sh
-hatch_messenger_cli send --cid '<CONVERSATION_ID>' [--attach <FILE>] --text-stdin << 'HATCH_MSG'
+hatch_messenger_cli send --cid '<CONVERSATION_ID>' [--attach <FILE>] --text-stdin << 'MESSENGER_INPUT'
 message text
-HATCH_MSG
+MESSENGER_INPUT
 ```
 
 ```sh
-hatch_messenger_cli send --to '<FACEBOOK_USER_ID>' [--attach <FILE>] --text-stdin << 'HATCH_MSG'
+hatch_messenger_cli send --to '<FACEBOOK_USER_ID>' [--attach <FILE>] --text-stdin << 'MESSENGER_INPUT'
 message text
-HATCH_MSG
+MESSENGER_INPUT
 ```
 
 For attachments, use a readable local path. If the source is outside the
@@ -368,9 +370,9 @@ rule:
 ```sh
 hatch_messenger_cli marketplace initiate \
   --listing-id <LISTING_ID> \
-  --text-stdin << 'HATCH_MSG'
+  --text-stdin << 'MESSENGER_INPUT'
 message text
-HATCH_MSG
+MESSENGER_INPUT
 ```
 
 `created: true` means a new thread was created and the message was sent.
@@ -473,9 +475,9 @@ and **After:** with the exact replacement, each as a Markdown blockquote. If
 the requested replacement changes, preview again.
 
 ```sh
-hatch_messenger_cli edit [--cid '<CONVERSATION_ID>'] --mid '<MESSAGE_ID>' --text-stdin << 'HATCH_MSG'
+hatch_messenger_cli edit [--cid '<CONVERSATION_ID>'] --mid '<MESSAGE_ID>' --text-stdin << 'MESSENGER_INPUT'
 replacement text
-HATCH_MSG
+MESSENGER_INPUT
 ```
 
 The replacement must exactly match the confirmed Message Text Input body.
