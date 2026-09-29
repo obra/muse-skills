@@ -1,5 +1,6 @@
 version: 1
 connector: google_calendar
+category: productivity
 display_name: Google Calendar
 description: Manage calendar events and scheduling
 request_quota:
@@ -15,6 +16,17 @@ cli:
 declarable_scopes:
   - https://www.googleapis.com/auth/calendar.readonly
   - https://www.googleapis.com/auth/calendar
+# A freeBusy query returns the start/end of every event in the window — the
+# complete timing skeleton of the schedule "Access events" governs — so it is
+# an event-schedule DATA CLASS emitter. While "Access events" is deny/ask,
+# Sentinel attaches an exclusion constraint to allowed free_busy.query calls
+# and the trusted hatch_gws_cli worker refuses them (freeBusy has no partial
+# projection to filter: its entire response is the class).
+data_classes:
+  event_schedule:
+    governed_by: events.list
+    emitted_by:
+      - free_busy.query
 actions:
   read:
     default: allow

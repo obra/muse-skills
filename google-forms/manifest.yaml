@@ -1,5 +1,6 @@
 version: 1
 connector: google_forms
+category: productivity
 display_name: Google Forms
 description: Build, send and analyze form responses and survey data
 request_quota:

@@ -62,3 +62,10 @@ Use `outlook-mail --status` for connector state and link management. The binary 
 7. If the CLI reports an auth failure or disconnected state, stop and route the user through the `--status` connect flow before retrying.
 8. Never surface raw Graph identifiers (message ids, conversation ids) or other internal response fields (change keys, `@odata` fields, page/skip tokens, raw JSON) in text shown to the user — including in summaries, lists, or per-item annotations. Reuse the ids only internally to chain follow-up commands (rule 2). The sole exceptions are when the user explicitly asks for a raw id or you must show one to troubleshoot a failure.
 9. The compatibility `date` field is Outlook's message-received time. Prefer `message_received_at.user_local` when presenting it. It is not the time of an event described inside the email; never infer a delivery, payment, trip, meeting, or other event time from it.
+- Permission-withheld fields: a `list`/`search` result carrying a `withheld`
+  entry had those fields removed by the user's "Access messages" permission —
+  they are NOT empty. Answer from the remaining fields and mention that the
+  permission hides the rest. Only when the user actually needs a withheld
+  field for one specific message and `withheld.reason` is `requires_approval`,
+  read that message with `get`, which shows the user the approval prompt.
+  Never `get` during routine browsing just to fill previews.

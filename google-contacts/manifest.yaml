@@ -1,5 +1,6 @@
 version: 1
 connector: google_contacts
+category: productivity
 display_name: Google Contacts
 description: Search and manage your contacts and address book
 request_quota:

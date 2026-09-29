@@ -1,5 +1,6 @@
 version: 1
 connector: plaid
+category: productivity
 display_name: Finances (Plaid)
 description: Securely connect to institutions to access financial data
 actions:
@@ -26,6 +27,7 @@ commands:
   exchange-code: null
   disconnect: null
   accounts: accounts.read
+  transactions-get: transactions.read
   transactions-sync: transactions.read
   investments-holdings: investments.read
   investments-transactions: investments.read

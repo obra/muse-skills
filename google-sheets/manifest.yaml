@@ -1,5 +1,6 @@
 version: 1
 connector: google_sheets
+category: productivity
 display_name: Google Sheets
 description: Access and edit your spreadsheets
 request_quota:

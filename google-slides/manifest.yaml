@@ -1,5 +1,6 @@
 version: 1
 connector: google_slides
+category: productivity
 display_name: Google Slides
 description: Create and manage presentation slides
 request_quota:

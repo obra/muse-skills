@@ -63,3 +63,11 @@ For disconnect requests, run `outlook-calendar disconnect`. When `disconnect_url
 9. Never use the shared connector helper CLI for Outlook Calendar; status and linking must go through `outlook-calendar --status`.
 10. Never surface raw Graph identifiers (event ids, calendar ids) or other internal response fields (change keys, page/skip tokens, raw JSON) in text shown to the user — including in summaries, lists, or per-item annotations. Reuse the ids only internally to chain follow-up commands (rule 8). The sole exceptions are when the user explicitly asks for a raw id or you must show one to troubleshoot a failure.
 11. For timed events, prefer `event_starts_at.user_local` and `event_ends_at.user_local`; the raw Graph fields remain for compatibility. All-day values are calendar dates, not instants, and must not be timezone-shifted.
+- Permission-withheld fields: a `list` result carrying a `withheld` entry had
+  organizer and attendees removed by the user's "Access events" permission —
+  the meeting is NOT guest-less. Answer from the remaining fields and mention
+  that the permission hides the guest list. Only when the user actually needs
+  a withheld field for one specific event and `withheld.reason` is
+  `requires_approval`, read that event with `get`, which shows the user the
+  approval prompt. Never `get` during routine browsing just to fill guest
+  lists.
