@@ -1,7 +1,7 @@
 ---
 name: "meta_ads"
 title: "Meta Ads"
-description: "Create, write, or manage Meta ads and assets: ad copy, campaigns, spend, reports, audiences, catalogs, product feeds, feed refresh schedules, experiments, and policy. Always load for any question asking what a Meta, Facebook, or Instagram advertising policy means, allows, prohibits, or requires, including a standalone policy-definition question with no account context. Those questions must use ads_policy_tool, never browser search or memory. Load for ad-copy requests, including sensitive categories. Load for a specifically named catalog or feed with an upload or refresh-schedule request; use Ads reads to resolve ownership before writing. Generic unnamed feeds need context. Whether an image, claim or piece of copy may be used in an ad is ALWAYS a Meta Ads task — 'can I use this in an ad', 'is it allowed', 'is this against policy', and any rights, likeness, celebrity, logo or trademark question about advertising with an image, including a follow-up about one just generated. Those are ads-policy questions, not general legal ones. An ad request uses the campaign workflow unless explicitly only an image or organic post."
+description: "Create, write, or manage Meta ads and assets: ad copy, campaigns, spend, reports, audiences, catalogs, product feeds, feed refresh schedules, experiments, and policy. Always load for any request to create or write an ad, or to advertise a product or service, even when no platform is named; this includes sensitive or restricted categories. Always load for any question asking what a Meta, Facebook, or Instagram advertising policy means, allows, prohibits, or requires, including a standalone policy-definition question with no account context. Those questions must use ads_policy_tool, never browser search or memory. Load for a specifically named catalog or feed with an upload or refresh-schedule request; use Ads reads to resolve ownership before writing. Generic unnamed feeds need context. Whether an image, claim or piece of copy may be used in an ad is ALWAYS a Meta Ads task — 'can I use this in an ad', 'is it allowed', 'is this against policy', and any rights, likeness, celebrity, logo or trademark question about advertising with an image, including a follow-up about one just generated. Those are ads-policy questions, not general legal ones. An ad request uses the campaign workflow unless explicitly only an image or organic post."
 icon: "meta_ads"
 metadata: { "includeInPrompt": true }
 ---
@@ -30,8 +30,8 @@ with `describe-tool`, and invoke them with `call-tool`, including
 
 Treat any question about what a Meta, Facebook, or Instagram advertising policy
 means, allows, prohibits, or requires as a Meta Ads task, even when it names no
-account, campaign, or ad. Load `references/policy.md`, select the exact canonical
-policy title from its catalogue, and call `ads_policy_tool` before answering.
+account, campaign, or ad. Load `references/policy.md`, pass the user's policy
+question to `ads_policy_tool`, and call it before answering.
 Browser search, a public policy page, and model memory are not substitutes for
 the canonical tool result. If the tool is unavailable or returns `N/A`, say the
 policy could not be confirmed instead of answering from another source.
@@ -146,6 +146,10 @@ retired `disconnect` command, which belonged to connector OAuth.
 /opt/hatch/bin/meta-ads-cli render-campaign-success --success-json '<json-object>'
 /opt/hatch/bin/meta-ads-cli render-chart --chart-json '<json-object>'
 ```
+
+Before any `estimate-budget` invocation, read `references/campaign-budget.md`;
+its typed flag grammar is complete. Never substitute `--help` or raw MCP-schema
+arguments.
 
 The three render commands are local and credential-free. Pass each returned
 `widget.kind` and `widget.data` to `widget.create` unchanged; never replace the
@@ -336,7 +340,7 @@ approval permits and what may be claimed after a write.
    campaign ledger. A read-only Ads request permits only reads; user-requested
    output artifacts are the sole exception.
 9. **Never fabricate a metric value.** Report only figures a tool returned, copied exactly, and never compute, average, or extrapolate one. `references/evidence.md` and `references/response-style.md` carry the detail.
-10. **Never state what a Meta ad policy says without retrieving it this turn, and read `references/policy.md` before any `ads_policy_tool` call.** Its `query` is a catalogue title, not a question.
+10. **Never state what a Meta ad policy says without retrieving it this turn, and read `references/policy.md` before any `ads_policy_tool` call.** Pass the user's policy question as `query`; the tool resolves it against the current live catalogue.
 11. **Never claim readiness from credential presence alone.** Say Meta Ads is connected and ready only after `meta-ads-cli status` returns `authenticated: true` together with a `tools` catalogue.
 12. **Never invent an audience.** Do not infer age, gender, geography,
     interests, exclusions, or lookalikes from business or account context.

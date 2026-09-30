@@ -19,7 +19,7 @@ when present (see the note at the end of this file).
 - Use one accurate image per concept. Omit an image rather than reusing a mismatched one.
 - Never disable TLS certificate verification to make a fetch succeed.
 - When the document plots data, read `/opt/hatch/skills/artifacts/references/charts.md` first: it owns where the numbers come from, how to render a chart for a PDF, and the encoding rules that apply everywhere.
-- Build factual maps, routes, choropleths, and geospatial diagrams deterministically from coordinates, GeoJSON, or map tiles with Python/geospatial tooling. Do not use `media.generate_image` for maps that represent real places or data; use it only for clearly decorative or fictional map artwork, and still set `output_dir` to `artifact_media_dir`.
+- For maps of real places or geographic data, read `/opt/hatch/skills/artifacts/references/maps.md` first; it decides how a PDF's map is rendered and stored. `media.generate_image` is only for decorative or fictional map art.
 - Check content completeness before rendering: if a table or schedule names N items, the body should have N matching detail sections.
 - Avoid emojis in PDF HTML; many PDF font stacks render them as boxes.
 - Use ASCII hyphens instead of uncommon dash code points (U+2011 non-breaking hyphen and kin): the installed faces lack their glyphs and render boxes. En dashes in ranges are fine in Noto and Liberation, but any unusual glyph must be confirmed rendered in the PNG pass, never assumed.

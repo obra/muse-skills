@@ -25,6 +25,7 @@ nothing else.
 | Design and layout | `/opt/hatch/skills/artifacts/presentation/references/visual.md` |
 | Theme generation or application | `/opt/hatch/skills/artifacts/presentation/references/theme.md` |
 | Slides that plot data | `/opt/hatch/skills/artifacts/references/charts.md` (shared) |
+| Slides that show a place or a map | `/opt/hatch/skills/artifacts/references/maps.md` (shared) |
 
 ## Scripts
 

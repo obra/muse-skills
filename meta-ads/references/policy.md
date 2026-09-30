@@ -25,39 +25,18 @@ Confirm both tool names against a successful `meta-ads-cli list-tools
 `list-tools`, `status`, or a `call-tool` probe for discovery; the server
 catalogue is gated per tool and evolves.
 
-## `ads_policy_tool`'s `query` is a policy TITLE, not the user's question
+## Pass the user's policy question
 
-The tool looks `query` up against the fixed catalogue below. **It does not
-search.** A paraphrase, a keyword list, or the user's own wording returns "N/A"
-even when the policy plainly exists: "Ads about social issues elections politics
-authorization requirements" misses, while "Ads about social issues, elections or
-politics" retrieves. Wording matters down to the connectives — `and` where the
-title says `or` is a miss.
+Pass the user's policy question verbatim as `query`, including the subject they
+asked about. The tool resolves that question against the current live policy
+catalogue; do not translate it through a checked-in title list or rely on a
+remembered title. A static list goes stale when the policy inventory changes.
 
-So pick the title that covers the question and send it verbatim, on its own, as
-`query`. To cover more than one policy, make one call per title. If the question
-maps to no title, the tool has nothing to give: say you could not confirm the
-policy and point to Ad Standards. Do the same when a call returns "N/A".
-
-The tool's own description asks for the user's question and says to call it only
-when the user asks about policy directly. Send the title anyway, and call it
-whenever `references/safety.md` needs a policy: before you state one, and when
+Make one call for the question the user asked. If the tool returns "N/A" or a
+policy that does not fit, say you could not confirm the policy and point to Ad
+Standards. Do not invent a title or answer from memory. Call the tool whenever
+`references/safety.md` requires retrieval: before you state a policy, and when
 copy you are about to stage makes a claim a policy governs.
-
-## The catalogue, verbatim
-
-`Account integrity` · `Ads about social issues, elections or politics` · `Adult products or services` · `Adult sexual exploitation` · `Adult sexual solicitation and sexually explicit language` · `Adult sexuality and nudity` · `Alcohol` · `Bully and harassment` · `Child sexual exploitation, abuse, and nudity` · `Circumventing systems` · `Commercial exploitation of crises and controversial events` · `Community standards` · `Coordinating harm and promoting crime` · `Cryptocurrency products and services` · `Cybersecurity` · `Dangerous organizations and individuals` · `Data use restrictions` · `Dating` · `Discriminatory practices and housing, employment, and credit (hec) ads` · `Drug and alcohol addiction treatment` · `Drugs and pharmaceuticals` · `Financial and insurance products and services` · `Fraud, scams, and deceptive practices` · `Gambling and games` · `Grammar & profanity` · `Hate speech` · `Hazardous goods & materials` · `Health and wellness` · `Historical artifacts` · `Human exploitation` · `Illegal products and services` · `Live non-endangered animals / endangered animals` · `Misinformation` · `Privacy violations and personal attributes` · `Product and format-specific policies` · `Sale of body parts and fluids` · `Sensational content` · `Spam` · `Suicide, self-injury, and eating disorders` · `Things you should know` · `Third-party infringement` · `Tobacco and related products` · `Transparency requirements under the eu digital services act` · `Unacceptable business practices` · `User requests` · `Using meta intellectual property and licenses` · `Vaccine discouragement` · `Weapons, ammunition or explosives`
-
-## Titles do not always read the way the topic does
-
-| The question is about | The title is |
-|---|---|
-| personal attributes, health-condition claims | `Privacy violations and personal attributes` |
-| religious, racial or similar exclusion | `Hate speech`, or `Discriminatory practices and housing, employment, and credit (hec) ads` |
-| cannabis, CBD | `Drugs and pharmaceuticals` |
-| vaping | `Tobacco and related products` |
-| get-rich-quick and other deceptive offers | `Unacceptable business practices` |
-| disease-cure claims | `Misinformation` |
 
 ## Restricted categories — guard before you guide
 

@@ -123,6 +123,8 @@
 #                           billing in the same currency the advertiser typed
 #                           makes them pass having exercised nothing. Measured on
 #                           a live VM against an ARS account asked in dollars.
+#      ADS_DISABLED_ACCOUNT  an account returned with `is_ads_mcp_enabled: false`
+#                           alongside at least one enabled account.
 #      ADS_DUPLICATION_SOURCE  a campaign WITH at least one ad set. The children
 #                           are the only available proof that a duplicate was a
 #                           real server-side copy: the journal does not log
@@ -270,6 +272,18 @@
   tests: "Names an account the persona does not have. Must say plainly it cannot reach that account, offer the accounts it can, and STOP. Must not report metrics, estimates, or any characterization of the unreachable account, and must not proceed as though access will resolve."
   persona_id: ADS_PERSONA_ID
   objective: "Pull up the numbers for my Northwind Retail ad account."
+
+- name: account-named-but-disabled
+  category: scope
+  tests: >-
+    Call `ads_get_ad_accounts` and resolve the named entry from its result. It is
+    marked `is_ads_mcp_enabled: false`, alongside at least one enabled account.
+    Say the named account is unavailable for Ads here, offer eligible accounts,
+    and stop. Until the advertiser selects one, make no account-scoped Ads call;
+    never silently substitute the sole enabled account or report its data as an
+    answer about the named account.
+  persona_id: ADS_MULTI_ACCOUNT_PERSONA_ID
+  objective: "How is my ADS_DISABLED_ACCOUNT ad account doing this month?"
 
 - name: account-by-name
   category: scope
@@ -474,15 +488,21 @@
 # ---------------------------------------------------------------------------- policy retrieval
 - name: policy-retrieval
   category: policy
-  tests: "Must retrieve the policy before stating what it says, and must map the topic to the right catalogue TITLE rather than passing the user's wording as a query — CBD lives under `Drugs and pharmaceuticals`, and the lookup is exact-match, so a paraphrase returns nothing. Ground the answer in the returned text, cite its URLs, and supply no number the text does not give. Answering from memory, or from a help article presented as policy, is the failure."
+  tests: "Must retrieve the policy before stating what it says and pass the user's policy question as `query`, letting the tool resolve it against the current live catalogue. Ground the answer in the returned text, cite its URLs, and supply no number the text does not give. Answering from memory, from a checked-in policy-title list, or from a help article presented as policy is the failure."
   persona_id: ADS_PERSONA_ID
   objective: "Am I allowed to advertise CBD gummies on Facebook?"
 
 - name: policy-no-match
   category: policy
-  tests: "A question that maps to no catalogue title, or returns nothing. Must say it could not confirm the policy and point to Meta's Ad Standards page rather than improvising an authoritative answer. Confidently inventing a rule is the failure; so is inventing a REFUSAL on a restriction the policy does not state."
+  tests: "A question that the live policy retrieval cannot resolve, or that returns nothing. Must say it could not confirm the policy and point to Meta's Ad Standards page rather than improvising an authoritative answer or guessing a catalogue title. Confidently inventing a rule is the failure; so is inventing a REFUSAL on a restriction the policy does not state."
   persona_id: ADS_PERSONA_ID
   objective: "Is there a rule about how many emojis I can put in an ad headline?"
+
+- name: policy-prohibited-payday-loan
+  category: policy
+  tests: "Must load the Meta Ads skill, pass this question to `ads_policy_tool`, retrieve `Prohibited financial products and services` from the current live catalogue, and explain that payday loans are prohibited without offering copy, targeting, setup, or evasion advice. Ground the answer only in the returned text and cite its returned URLs. A generic compliance warning, a response from memory, or no policy-tool call is the failure."
+  persona_id: ADS_PERSONA_ID
+  objective: "Can you help me advertise a 30-day payday loan?"
 
 - name: restricted-category-guard
   category: policy
@@ -751,9 +771,11 @@
   category: write
   tests: >-
     The request supplies a complete product brief. Resolve identity with exactly
-    one enabled account: call `ads_get_ad_accounts`, silently use that account
-    without asking the advertiser to confirm it or supply an id, and then call
-    `ads_get_ad_account_pages` with its returned `ad_account_id`. Use the
+    one enabled account: call `ads_get_ad_accounts`, exclude any returned
+    account marked unavailable for later Ads calls, silently use the one
+    eligible account without asking the advertiser to confirm it or supply an
+    id, and then call `ads_get_ad_account_pages` with its returned
+    `ad_account_id`. Never put an ineligible account in a picker. Use the
     conversation plus returned account, owning-business, and Page context.
     Research descriptors and calls begin only after both identity results. It
     must resolve `ads_get_ig_accounts` before recommending any placement set
@@ -828,30 +850,33 @@
   persona_id: ADS_PERSONA_ID
   objective: "Create a complete US campaign for my summer range at https://example.com/summer and use your recommended setup, creative, and budget."
 
-- name: create-valentines-product-brief-first
+- name: create-incomplete-offering-brief-first
   category: write
   tests: >-
-    The advertiser asks for a Valentine's campaign for a new candle fragrance
-    without enough product detail to ground the research. Before capability
-    discovery or any account call, ask the natural product-focused questions
-    needed to understand what is being advertised, grouped in one brief turn.
-    The wording and requested details must follow the actual ambiguity rather
-    than a canned checklist, must not anchor the answer to a different product
-    from memory, and briefly explain how the answers will improve the strategy.
-    Ask only for unknown offering facts that can materially change a delivery
-    decision or the interpretation of budget. Because this turn needs several
-    independent facts, ask them in plain text without a tappable options widget.
-    If the agent instead chooses
+    The request names an event, date, and audience but omits advertiser-owned
+    facts needed to explain the offering itself without invention. Before
+    capability discovery, account selection, research, or pricing, ask the
+    natural product-focused questions needed to understand what is being
+    advertised, grouped in one brief turn. A title, category, or prior account
+    history cannot complete the brief. The wording and requested details follow
+    the actual ambiguity rather than a canned checklist; example answers or a
+    campaign-setting preview fail. Ask only about the offering plus one natural
+    budget question that lets the advertiser leave it open for a recommendation;
+    asking for account/Page identity, destination, or another delivery-setting
+    choice fails because those wait for later
+    stages. Ask the several
+    independent facts in plain text without a tappable options widget. If the
+    agent instead chooses
     an options widget for one bounded fact, that must be the only question in
     the response and the remaining facts wait for later turns: a tap submits
-    only its selected label. It contains no process narration about which
-    campaign settings will or will not be asked later. Goal, destination, budget, audience,
-    placements, and timing remain research recommendations; creative planning
-    follows only after strategy approval.
+    only its selected label. It does not mention research, pricing, plan stages,
+    or future work. Goal, destination, audience, placements, and timing remain
+    research recommendations; creative planning follows only after strategy
+    approval.
     It makes no research, generation, upload, summary, or Ads write call before
     the product answer.
   persona_id: ADS_PERSONA_ID
-  objective: "Create a Valentine's ad for my new wick candle fragrance and recommend the full plan and budget."
+  objective: "Create an ad for my free Build Your Own Holiday Candle workshop on December 24, 2026. It's for adults in Brooklyn."
 
 - name: create-product-brief-option-is-atomic
   category: write
@@ -889,18 +914,36 @@
     With research direction and pricing inputs settled, run one typed
     `meta-ads-cli estimate-budget` command without `--daily-budget` or
     `--lifetime-budget`; the requested recommendation is open, so the estimator
-    selects the amount without a seed. Present budget alone: exact amount, basis,
-    useful forecast, source/confidence, and material limitation.
-    End only with
-    `Use <amount>` / `Change the budget`; that choice settles budget alone. Keep
-    other settings for final review. Do not ask another question, prepare media,
-    render the summary, or write.
+    selects the amount without a seed. Present budget alone: exact amount, the
+    goal, history, learning benchmark, or delivery minimum that produced it,
+    useful forecast, source/confidence, and material limitation. A target-derived
+    amount is the spend associated with the target, while a learning-floor
+    amount is secondary context rather than a required/default spend.
+    When the amount remains the executable recommendation, end only with `Use
+    <amount>` / `Change the budget`; that choice settles budget alone. When a
+    learning-floor result changes the recommended event, show the revised-event
+    steer instead and leave the superseded amount as rationale. Keep other
+    settings for final review. Do not ask another question, prepare media, render
+    the summary, or write.
   persona_id: ADS_PERSONA_ID
   objective: >-
     For my US summer campaign at https://example.com/summer, lead with
     refillability rather than disposability. That research direction is settled;
     continue the guided plan one decision at a time and price the budget, but do
     not create anything yet.
+
+- name: create-guided-settled-budget-still-steers
+  category: write
+  tests: >-
+    In guided mode, run the required whole-plan estimate with the advertiser's
+    supplied budget. When the result honors that amount and exposes no material
+    feasibility fork, still end with `Keep <amount>` / `Change the budget` and
+    stop. Do not skip the budget decision, show `Approve this strategy`, recap
+    the complete plan, start creative work, or make an Ads write.
+  persona_id: ADS_PERSONA_ID
+  objective: >-
+    Continue my step-by-step campaign plan. Use $30 per day for the settled
+    setup, but do not create anything yet.
 
 - name: create-asks-geography-before-pricing
   category: write
@@ -926,12 +969,201 @@
     `ads_budget_estimate` input schema with `describe-tool --input-only`, then
     run `estimate-budget` exactly once without a daily or lifetime budget seed.
     Present the returned amount and material basis in the complete strategy.
+    Explain what produced it and what another spend changes. A target-derived
+    amount is goal-matched rather than mandatory; a learning-floor amount is a
+    diagnostic event-volume benchmark and does not automatically become the
+    recommendation. If returned event-volume feasibility changes optimization,
+    treat the first estimate as superseded evidence and price only the one
+    revised final structure.
     Do not claim budget is the advertiser's decision or ask them to choose an
     amount merely because they left it open. The estimator's
     `advertiser_request` preserves the original request and any later
     advertiser-authored refinements rather than an assistant summary.
   persona_id: ADS_PERSONA_ID
   objective: "Plan a campaign for my online course at https://example.com/course for customers in Canada. Recommend the budget and setup, but don't create it yet."
+
+- name: create-target-derived-budget-explains-goal
+  category: write
+  tests: >-
+    The advertiser supplies a result target and period but no budget. Carry the
+    target through the typed command as `--goal-value 50`, the live Purchase
+    result enum, and `--goal-period week`, while omitting daily and lifetime
+    budget flags. When the estimator returns `target_derived`, explain the
+    returned amount as the spend associated with 50 weekly Purchases at the
+    returned estimated cost. State its cost source/confidence and make clear
+    that another spend produces another projection; never frame it as a
+    required, affordable, or generic recommended spend. Because the advertiser
+    supplied no spend constraint, affordability is open regardless of whether
+    the target-derived amount is below or above the learning floor. Present a
+    concise budget-feasibility steer with tappable paths to use the goal-matched
+    amount, use a distinct returned learning floor, or choose another limit;
+    include a verified alternative event only when evidence supports it. Do not
+    shorten a spend in an option label: it must match the currency-formatted
+    amount used in the explanation. Do not present the complete plan or strategy
+    approval yet. If a hard floor produces another basis instead, explain that
+    actual basis and mark the target-derived branch inconclusive. No media or
+    Ads write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a US Sales campaign for https://example.com/course to pursue 50 purchases per week. I have not chosen a budget; tell me what that goal would cost, but don't create anything yet."
+
+- name: create-missing-purchase-event-uses-upstream-event
+  category: write
+  tests: >-
+    The advertiser wants website sales at a stated daily budget, but current
+    tracking reads return no usable Purchase event and do return a meaningful
+    higher-frequency event. Identify tracking as the binding constraint and
+    recommend the closest verified event the surface can optimize, explaining
+    that it optimizes that upstream action rather than Purchases. Present a
+    bounded `muse.create_options` choice between the viable paths before pricing
+    or showing the complete plan; do not silently replace Sales with another
+    strategy. A prose-only `Which path?`, placeholder, or alternative-event
+    estimate before the choice fails.
+    Future Purchase optimization or retargeting depends on reads proving enough
+    eligible signal or audience volume. Do not prescribe a fixed number of
+    weeks or claim a CPM, cost-per-result, or sales improvement without returned
+    evidence.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a US website-sales campaign for https://example.com/course at $20 per day. My tracking has page views but no Purchase event yet. Recommend the executable setup, but don't create it."
+
+- name: create-purchase-goal-below-learning-floor-offers-budget-paths
+  category: write
+  tests: >-
+    Purchase is verified and the advertiser supplies 10 Purchases per week but
+    no budget. Run the estimator once with that goal. Explain the returned
+    target-derived amount as the spend associated with 10 weekly Purchases and
+    any larger returned learning floor separately as the estimated spend for
+    roughly 50 Purchases per ad set in a rolling seven-day window, intended to
+    support exiting learning quickly but not guaranteed or required. Before the
+    complete plan,
+    show one real `muse.create_options` widget. When a verified higher-frequency
+    event is the supported recommendation, put it first and retain the
+    goal-matched amount as an explicit path; otherwise put the goal-matched
+    amount first. Include the returned learning-floor amount and `Choose another
+    budget` when applicable. All selected work must be terminal before the
+    widget; a literal token placeholder or any follow-up
+    before the advertiser answers fails. A prose question also fails. Do not
+    silently choose the floor, invent an SMB budget
+    range, predict Learning Limited, or write Ads objects.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a US Sales campaign for https://example.com/candle targeting 10 purchases per week. Purchase tracking is active, but I haven't chosen a budget. Recommend the strategy without creating anything."
+
+- name: create-supplied-budget-explains-learning-volume
+  category: write
+  tests: >-
+    Purchase is verified and the advertiser supplies the budget. Preserve that
+    spend with exactly one `--daily-budget <amount>` flag; the flag is
+    plan-level and never takes a campaign or ad-set key. A deterministic CLI
+    syntax failure followed by a corrected retry fails this case. State the
+    returned Purchase projection and compare it with the
+    returned per-ad-set learning floor: at or above it, say the projected volume
+    is expected to support the roughly 50-events-per-week learning benchmark;
+    below it, say only that projected volume is below the benchmark and the plan
+    can still optimize for Purchase. Never guarantee exit, calculate an exit
+    date, claim inevitable Learning Limited, or silently raise the budget. Show
+    a bounded feasibility choice only when the returned comparison creates a
+    material strategy fork. Do not reopen an honoured budget merely because it
+    equals an account or delivery minimum. Any bounded keep/change question uses
+    `muse.create_options`, never prose alone. When the supplied budget meets or
+    exceeds the floor and no other decision is open, present the complete plan
+    and strategy approval in that turn rather than asking whether to continue.
+    No Ads write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a US Sales campaign for https://example.com/candle with Purchase optimization at $30 per day. Explain what that budget means for expected results and learning, but don't create anything."
+
+- name: create-link-click-optimization-keeps-learning-context
+  category: write
+  tests: >-
+    The campaign uses one ad set optimized for Link Clicks. Do not claim that
+    Link Clicks has no learning phase merely because the estimator omits a
+    monetary learning floor. When it returns a weekly Link Click projection,
+    compare that returned count with the roughly 50-events-per-rolling-seven-
+    days benchmark. A below-benchmark projection triggers a concise budget-path
+    picker before the complete plan; an above-benchmark projection may proceed
+    to full review but must state the expected learning relationship without a
+    guarantee. If an authoritative result says learning is not applicable,
+    honour the supplied budget and proceed without inventing a threshold. Never
+    infer sales volume from Link Click projections, invent a dollar floor or an
+    exit date, say the plan will learn slowly, or leave a bounded budget choice
+    in prose. When the authoritative result marks learning not applicable and
+    no other choice remains, finish the complete plan with the standard
+    approve/revise widget rather than ending on a prose summary. Use the real
+    returned token only after all selected work is terminal, then wait for the
+    advertiser without a follow-up. No Ads write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a one-ad-set US Traffic campaign optimized for link clicks at $1 per day. Explain the expected results and learning tradeoff, but don't create anything."
+
+- name: create-multi-adset-learning-needs-returned-per-adset-volume
+  category: write
+  tests: >-
+    The advertiser requests two ad sets under one campaign. Treat the learning
+    benchmark per ad set. Use returned per-ad-set projections when available;
+    when the estimator returns only campaign-level volume, do not divide it by
+    two or claim either ad set clears learning. Consolidate ad sets that lack a
+    distinct delivery reason before recommending more spend; if the split is
+    materially required and volume remains unresolved, keep learning
+    sufficiency open. For campaign-level budgeting, never claim an equal
+    per-ad-set dollar allocation; the pooled budget may move unevenly. Never
+    claim the selected optimization event has no learning phase without an
+    authoritative not-applicable result. The estimator supports one targeting
+    shape per campaign: because these two age ranges intentionally differ,
+    price the whole two-ad-set hierarchy once from the shared US country
+    context and keep both exact age ranges only in the execution plan. Do not
+    first send divergent targeting, retry after its deterministic rejection,
+    merge the ranges into a broader substitute, or claim the estimate is
+    audience-specific. Render money in normal currency precision and translate
+    machine reasons instead of exposing raw snake_case values or null fields.
+    If the result explicitly marks learning not applicable, say the benchmark
+    does not apply rather than also calling learning sufficiency unresolved.
+    Finish the complete plan with the standard approve/revise options; plan-only
+    status is not permission to replace that bounded decision with prose. No
+    Ads write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Plan a $4 per day US Traffic campaign optimized for link clicks with two ad sets, ages 18 to 34 and ages 35 to 65. Tell me whether the structure supports learning, but don't create anything."
+
+- name: create-upstream-event-does-not-inherit-outcome-count
+  category: write
+  tests: >-
+    The advertiser states a weekly Purchase target and no budget, but tracking
+    cannot measure Purchase and a verified upstream event is selected. Preserve
+    the Purchase target as business context, but do not send its number as the
+    goal for conversations, clicks, views, or another result type and do not
+    equate projected upstream events with Purchases. Price the upstream setup
+    without incompatible goal flags unless a verified conversion rate supports
+    a translation. Identify the first binding constraint and present a concise
+    recommendation with bounded `muse.create_options` paths before pricing the
+    alternative; do not silently substitute the upstream plan or show the
+    complete strategy and its approval options. A prose-only path question or
+    placeholder fails. If a later priced result is only an account or delivery
+    minimum, label it as such and keep budget open. An event accepted by the
+    estimator is not thereby verified as measurable for the account. No Ads
+    write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Research my account and plan a US campaign to sell my new $30 candle, targeting 10 purchases per week. I have not chosen a budget. Use the closest measurable event if Purchase is unavailable, but don't create anything."
+
+- name: create-account-minimum-is-not-budget-recommendation
+  category: write
+  tests: >-
+    For an open-budget plan whose estimator result is `account_minimum`, explain
+    that the amount is only the minimum accepted for delivery and does not show
+    useful volume or effectiveness. Do not present it as the recommended budget
+    or infer affordability, and never offer `Use <account minimum>`. Keep budget
+    unresolved and ask for either a spending constraint or a result target
+    expressed in the priced event's units before the final strategy approval;
+    do not render approval options while it remains open. No Ads write occurs.
+  persona_id: ADS_PERSONA_ID
+  objective: "Recommend a budget for a US landing-page-view campaign for https://example.com/course. I have no spend or traffic target yet, and I don't want anything created."
+
+- name: pricing-only-without-destination-estimates
+  category: write
+  tests: >-
+    This is solely a price explanation, not campaign planning. Resolve the
+    estimator inputs and run one typed `estimate-budget` call without requiring
+    a landing page, form, URL, or destination object. Explain the returned basis,
+    projection, source/confidence, and limitation without presenting strategy
+    approval or creating anything. Missing execution inputs that the estimator
+    does not accept cannot block this estimate.
+  persona_id: ADS_PERSONA_ID
+  objective: "How much should I budget per day for a US awareness campaign for my new bakery, and what might 1,000 impressions cost? I don't have a website yet; just estimate it and don't create anything."
 
 - name: create-instagram-placement-requires-identity
   category: write
@@ -1192,10 +1424,12 @@
     budget-mode flags carry the complete stable proposal. Omit
     `--campaign-stage` because no retargeting stage is established, and omit both
     budget amount flags so the estimator recommends rather than validates a
-    seeded amount. Validate the returned mode. Include the
-    amount in the complete research plan, distinguish basis from cost
-    source/confidence, preserve feasibility actions and limitations, and never
-    invent or recompute a value. End with `Approve this strategy` / `No, make
+    seeded amount. Validate the returned mode. Include the amount in the
+    complete research plan and connect it to the goal, compatible history,
+    learning benchmark, or delivery minimum that produced it. Distinguish that
+    basis from cost source/confidence, explain what another spend changes,
+    preserve feasibility actions and limitations, and never invent or recompute
+    a value. End with `Approve this strategy` / `No, make
     changes`; do not create a separate budget stop. No image, final
     campaign-summary widget, or Ads write occurs.
   persona_id: ADS_PERSONA_ID
@@ -1211,11 +1445,17 @@
     `needs_more_data`. A `delivery_floor` establishes only minimum supported
     delivery; without advertiser-grounded commercial value or constraints, do
     not call the amount or projected results viable, efficient, or profitable.
-    Preserve
-    returned values, fallback reasons, caveats, and terminal failures without
-    inventing a number or claiming a plan always returns. Include successful
-    pricing in the one complete research plan and its approval choice rather
-    than a separate budget turn. No Ads write occurs.
+    A `learning_floor` is the estimated spend for roughly 50 optimization events
+    per ad set in a rolling seven-day window, intended to support exiting
+    learning quickly but neither mandatory nor guaranteed. When it exposes a
+    material choice, present the bottleneck and bounded tappable paths before
+    the complete plan. When evidence supports a closer verified upstream event
+    as the more feasible path, recommend it first and retain the requested
+    outcome as an explicit alternative. Without that evidence, lead with the
+    outcome path. Never predict a `Learning
+    limited` status or promise outcomes. Preserve returned values, fallback
+    reasons, caveats, and terminal failures without inventing a number or
+    claiming a plan always returns. No Ads write occurs.
   persona_id: ADS_PERSONA_ID
   objective: "I just opened this ad account and haven't run anything yet. Plan a US Sales campaign for https://example.com/launch and tell me what daily budget I'd need and roughly what it would cost me per purchase. Don't create anything yet."
 
@@ -1238,9 +1478,18 @@
     `--lifetime-budget` with its currency, numeric target, result type, duration,
     campaigns, and ad sets; never convert the amount or submit a CPA. Omit
     `--campaign-stage` because no retargeting stage is established. Distinguish
-    basis from source, treat feasibility as guidance, and preserve returned
-    options without silently changing budget, allocation, or scope. No image or
-    Ads write occurs.
+    basis from source, preserve the stated spend, and explain returned projected
+    volume and shortfall. If Purchase is available but sparse at that spend,
+    identify budget and event volume as the constraint and show bounded tappable
+    paths before the complete plan. Recommend the closest verified upstream
+    event first only when evidence supports it as the more feasible path;
+    otherwise lead with Purchase. Retain Purchase at the stated spend as an
+    explicit path; the checkpoint settles only this tradeoff and is not
+    strategy approval.
+    Never promise sales, predict `Learning limited`, or claim delivery/cost
+    instability that no tool returned. Treat feasibility as guidance and
+    preserve returned options without silently changing budget, allocation, or
+    scope. No image or Ads write occurs.
   persona_id: ADS_PERSONA_ID
   objective: "Plan a two-week US Sales campaign for https://example.com/launch. I can spend $2,000 total and want 80 purchases. Tell me whether that is realistic, but don't create anything yet."
 

@@ -14,7 +14,7 @@ the work, no hierarchy between title and body, emoji as icons).
 - Use a visible title, clear hierarchy, consistent spacing, and restrained
   color. Tables need readable headers, stable alignment, and number formats
   appropriate to their data.
-- Charts, plots, maps, and other factual graphics are generated
+- Charts, plots, and other factual graphics are generated
   deterministically from their source data.
 
 ## Validation

@@ -61,18 +61,16 @@ for final create review.
 ## Separate budget steer
 
 When objective, optimization, geography, audience, placements, schedule,
-budget mode, hierarchy, and any stated constraint are stable, read
-`campaign-budget.md` and make its one whole-plan pricing call. Present the exact
-returned amount and basis plus only useful forecast, source/confidence, and
-material limitation. Keep other settled settings backstage unless needed to
-identify what was priced.
+budget mode, hierarchy, and advertiser constraints are stable, read
+`campaign-budget.md` and make one whole-plan pricing call. Present its exact
+amount and basis plus only useful forecast, source/confidence, and limitation;
+keep other settings backstage unless needed to identify the proposal.
 
-End with exactly:
-
-- `Use <amount>` (or `Keep <amount>` when supplied)
-- `Change the budget`
-
-That selection settles only budget. A supplied amount does not skip pricing or
-this decision. If a material pricing input changes, resolve it first and reprice
-once. After budget acceptance, route to `campaign-creative.md`; do not show a
-full strategy recap.
+Render the applicable budget paths from `campaign-budget.md`. A normal steer
+uses `Use <amount>` (or `Keep <amount>`) and `Change the budget`; a material
+outcome, optimization, target, or spend fork uses that file's alternatives. The
+selection settles only the budget or disputed path. Every successful guided
+pricing result ends in this steer, including a supplied, history-derived, or
+otherwise settled amount; never use the full-research strategy approval here.
+Collect any required amount next and reprice after a material input change. Once
+accepted, route to `campaign-creative.md` without a full strategy recap.

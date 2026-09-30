@@ -27,8 +27,13 @@ refines the preceding search.
   category or venue name, area, radius, and ranking preference in natural
   language. For example, search for "best sushi restaurants in San Francisco
   within five miles", not just "sushi".
-- Preserve "near me" or "nearby" in the query when that is what the user asked so
-  that device location is used; never invent or guess a location.
+- Put "near me" or "nearby" in a browser.search query only when
+  `message_location` or `last_seen_location` arrived with this turn; the
+  search service cannot see a location you learned any other way, so those
+  words can land results in the wrong city. When the location came from the
+  user, a device read, or their home on file, put the area's name in the
+  query. If no location is available, ask the user; never invent or guess a
+  location.
 - One call covers one area. When the user names multiple cities or
   neighborhoods, run a separate call for each and cover each in the answer.
 - For category discovery, include the category and area in the query. For a

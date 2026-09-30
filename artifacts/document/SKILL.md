@@ -15,6 +15,7 @@ source for future revisions, and the binary is always regenerated from it.
 | Design and structure | `/opt/hatch/skills/artifacts/document/references/visual.md` |
 | What the words say: outline, headings, tone, the prose read-back | `/opt/hatch/skills/artifacts/references/prose.md` (shared) |
 | Content formatting (tables, lists, emphasis) | `/opt/hatch/skills/artifacts/references/markdown.md` (shared) |
+| The document shows a place or a map | `/opt/hatch/skills/artifacts/references/maps.md` (shared) |
 | Edit an existing or uploaded .docx/.dotx, tracked changes, comments, extract/read content, legacy .doc | `/opt/hatch/skills/artifacts/document/references/editing.md` |
 
 Set a non-empty `document.core_properties.title`, use a human-readable

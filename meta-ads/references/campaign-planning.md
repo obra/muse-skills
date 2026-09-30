@@ -29,21 +29,35 @@ after strategy approval.
 ## Establish the product brief
 
 Before discovery, decide whether the conversation explains what is being
-advertised well enough to research it accurately. If yes, continue immediately.
-If not, ask the natural product-focused questions needed to remove the actual
-ambiguity, grouped into one brief turn. Do not use a canned intake checklist or
-narrate internal stages. Research—not the advertiser—will recommend goal,
-destination type, budget, audience, placements, hierarchy, and schedule; exact
-execution inputs still require advertiser or tool provenance.
+advertised or tested well enough to research it without adding facts. If
+describing what the audience receives, how the offering is delivered, or what a
+requested test changes would require invention, the brief is incomplete.
+Account names, campaign labels, and history cannot fill that gap unless the
+advertiser explicitly asks to reuse or duplicate a prior setup. A name, date,
+audience, or price alone does not establish the substance of the offering. Ask
+the natural product- or test-scope questions needed to remove the actual
+ambiguity, grouped into one brief turn. Do not supply example answers or preview
+any campaign setting. The response contains only a short reason and the
+questions; do not mention research, pricing, planning, or future workflow.
+Research—not the advertiser—will recommend goal, destination type, audience,
+placements, hierarchy, and schedule. It also recommends budget when the
+advertiser leaves affordability open; exact execution inputs still require
+advertiser or tool provenance.
 
 Ask now only for facts needed to understand the advertised offering or to run
 delivery research. A detail needed only to write or render the ad belongs in
-the creative stage and must not block strategy research.
+the creative stage and must not block strategy research. This turn contains only
+offering or test-scope questions plus the budget question below; account, Page,
+destination, and other delivery-setting decisions belong to later stages. When
+this clarification turn is already required and no spend constraint is known,
+it must include one natural budget question. Let the advertiser leave budget
+open for the estimator; never require them to invent an amount.
 
-The brief is sufficient only when remaining unknown product facts cannot change
-a delivery decision or how budget should be interpreted. Ask only for facts
-that resolve such a dependency, without anchoring the answer to another product;
-otherwise continue and state the resulting limitation.
+The brief is sufficient only when remaining unknown advertiser-owned facts
+cannot change a delivery decision or how budget should be interpreted. The
+instruction to minimize intake applies only after this test passes. Ask only for
+facts that resolve such a dependency, without anchoring the answer to another
+product; otherwise continue and state the resulting limitation.
 
 Use options only when one bounded question is sufficient. When several related
 facts are missing, ask them together in plain text. Begin discovery and the
@@ -51,11 +65,10 @@ first research call in the same turn after the brief is complete. One brief,
 natural status is fine while research continues; the final response contains a
 finding, blocker, or decision rather than troubleshooting narration.
 
-An omitted budget is not an advertiser-owned blocker when
-`ads_budget_estimate` can recommend one. Once the other pricing inputs are
-stable, call the estimator without a budget seed and present its recommendation
-for approval. Ask only when the advertiser must clarify cadence, currency, a
-hard spending constraint, or another input the estimator cannot determine.
+An omitted budget alone does not create an upfront clarification turn. When the
+brief is otherwise sufficient, continue; after other pricing inputs stabilize,
+call `ads_budget_estimate` without a seed and resolve its returned basis under
+`campaign-budget.md`.
 
 ## Resolve identity
 
@@ -91,7 +104,9 @@ Reuse stable, same-context choices by name. Refresh a prior campaign through
 `ads_get_ad_entities` only when the request refers to that campaign. Do not
 carry one-off offers, URLs, seasons, assets, IDs, capability results, or live
 delivery state into a new context. Carried choices are defaults, not standing
-permission to spend.
+permission to spend. Never use history to complete an insufficient current
+brief; a prior reference authorizes carry-forward only when the advertiser asks
+to reuse or duplicate it.
 
 ## Run decision-bearing research
 
@@ -148,8 +163,10 @@ Evidence constrains choices: missing or failed evidence may rule out a setting,
 but does not establish an alternative. Recommend objective, destination, and
 audience from stated intent, affirmative evidence, or a supported safe default
 shown as an assumption; otherwise keep the decision open. Execution-bound URLs
-and targeting values must come from the advertiser or a tool result. Describe
-the audience as only what the executable targeting encodes; personas or
+and targeting values must come from the advertiser or a tool result. The chosen
+destination is stable for pricing only when its required URL or object identity
+is supplied or returned; never price a hypothetical destination.
+Describe the audience as only what the executable targeting encodes; personas or
 interests used only to shape messaging are creative direction, not configured
 targeting.
 
@@ -160,6 +177,9 @@ collection explicitly returns empty. Use the documented fallback read when a
 missing fact could change a concrete decision.
 
 Choose objective and optimization only after destination and tracking facts.
+Never silently replace the requested outcome. If its measurement event is
+unavailable, finish useful non-pricing research and go directly to the
+binding-constraint checkpoint before pricing an alternative.
 Then apply compliance and resolve any creation-bound targeting. A country code
 is already canonical. For any interest, language, or other location, read
 `campaign-targeting.md` before the first lookup, then call
@@ -171,18 +191,40 @@ do not price a partial audience, substitute a nearby place, widen its radius,
 or omit geography from executable targeting. Price only after every requested
 geography resolves or the advertiser accepts a revised geography.
 
-Evaluate whether each campaign or ad set earns its own budget; consolidation is
-preferred to unsupported fragmentation. Resolve identities and capabilities
-required by the proposed placements before pricing. Once objective,
-optimization, geography, audience, placements, schedule, budget mode,
-hierarchy, and advertiser constraints are stable, read `campaign-budget.md`
-and price the whole structure once. A later change to any input invalidates the
-estimate; reprice the final structure once.
+Evaluate whether each campaign or ad set earns its own budget; prefer
+consolidation to unsupported fragmentation. After all pricing inputs,
+identities, and required capabilities stabilize, price the whole structure once
+under `campaign-budget.md`. An estimate that prompts an optimization change is
+feasibility evidence, not final pricing. Any accepted input change invalidates
+it; reprice only the final structure.
 
 Finally check coherence across all seven settings. Repair evidence-resolvable
 conflicts. If one genuinely advertiser-owned blocker remains, finish available
 research, explain that blocker, and ask only for it instead of presenting an
 approvable plan.
+
+After research, end with exactly one controller state: a binding-choice widget,
+one genuinely unbounded next question, or the complete strategy with embedded
+approve/revise options—even for plan-only requests. Never stop at an
+informational campaign or budget summary.
+
+## Resolve a binding constraint before full review
+
+Before complete review, stop when evidence makes the request unexecutable or
+creates a material outcome, optimization, target, or spend fork. Name the first
+constraint correctly: an unavailable measurement event is tracking; a buildable
+event whose projected volume or required spend conflicts with the advertiser's
+target or limit is budget feasibility.
+
+Show only evidence → consequence → one recommendation, followed by one bounded
+widget under the interaction contract. Keep the requested outcome as an option
+when executable, name alternatives clearly, include a spend or target revision
+when it resolves the constraint, and order the recommendation first. Do not
+preview the complete plan or ask for strategy approval.
+
+The selection settles only the disputed path. Collect any required free-form
+value next, rerun affected research, price the final stable structure once, then
+show the complete strategy with its accepted learning tradeoff.
 
 ## Recommend the complete plan
 
@@ -204,9 +246,11 @@ then show exactly:
 - `Approve this strategy`
 - `No, make changes`
 
-Put the complete plan, approval question, and both options in one final
-response. Commentary may contain a brief status only, never plan settings or
-recommendations.
+Put the complete plan, approval question, and both options in one final response
+under the interaction contract. Commentary may contain status only, never plan
+settings or recommendations.
+Call `muse.create_options` and put its returned `embed_token` alone on the final
+line; calling the tool without embedding the token does not display the choice.
 
 The approval accepts every shown delivery value, including budget and
 hierarchy, but no creative or write. After `No, make changes`, ask what to

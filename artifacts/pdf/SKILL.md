@@ -17,6 +17,7 @@ patched.
 | Design and layout | `/opt/hatch/skills/artifacts/pdf/references/visual.md` |
 | What the words say: outline, headings, tone, the prose read-back | `/opt/hatch/skills/artifacts/references/prose.md` (shared) |
 | The document plots data | `/opt/hatch/skills/artifacts/references/charts.md` (shared) |
+| The document shows a place or a map | `/opt/hatch/skills/artifacts/references/maps.md` (shared) |
 | Read, merge, split, or extract from an existing PDF; fill a PDF form | `/opt/hatch/skills/artifacts/pdf/references/existing-pdfs.md` |
 
 ## Scripts

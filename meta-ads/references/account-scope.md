@@ -39,6 +39,16 @@ Two fields on each `ads_get_ad_accounts` entry gate what you may do next:
 - `is_queryable` — when false, do not call `ads_get_ad_entities` for that
   account; surface `not_queryable_reason` instead.
 
+First resolve any account fixed by the request or established context against
+the full listing. If it is returned with `is_ads_mcp_enabled` false, say that
+account is unavailable for Ads here and never substitute another account. For a
+single-account request, offer any eligible accounts and stop; for an explicit
+cross-account request, continue only with requested eligible accounts and mark
+the others unavailable without comparing or characterizing them. For a
+single-account request whose scope remains unresolved, filter disabled accounts
+before deciding ambiguity and silently use the sole eligible account. This
+filtering does not apply to account-discovery or listing requests.
+
 Each entry also carries `ad_account_id`, `ad_account_name`, `business_id`, and
 `business_name`. The business fields reflect the **owning** business only — an
 account shared with an agency may have other businesses with access that are not

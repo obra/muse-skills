@@ -16,5 +16,5 @@ the work, no hierarchy between title and body, emoji as icons).
 - Do not apply a saved PDF theme unless the user asked for styling.
 - Use a visible title, clear hierarchy, consistent spacing, and restrained
   color. Tables need readable headers and stable alignment.
-- Decorative imagery must support the content. Charts, plots, maps, and other
+- Decorative imagery must support the content. Charts, plots, and other
   factual graphics are generated deterministically from their source data.
