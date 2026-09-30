@@ -36,12 +36,14 @@ request the read tier. Never construct OAuth URLs or ask for tokens in chat.
 
 ## Common flows
 
-Run `quickbooks list-tools` before the first provider call in a task. It returns
-the pre-auth catalogue and, when connected, the account catalogue. Read the
-exact tool's current `input_schema`; never guess a field name, nesting shape,
-type, or enum value. The CLI rechecks that schema immediately before dispatch
-and rejects mismatches rather than letting Intuit silently ignore them. Call
-only a reviewed tool and pass an object to `--arguments-json`:
+Use `quickbooks list-tools` only to discover which tools exist. Immediately
+before every provider call, run `quickbooks list-tools --name <exact-tool-name>`
+and read that tool's current `input_schema`; never guess a field name, nesting
+shape, type, or enum value from another tool. Exact lookup uses the same 2LO or
+3LO token class as the eventual call. The CLI rechecks that schema immediately
+before dispatch and rejects mismatches rather than letting Intuit silently
+ignore them. Call only a reviewed tool and pass an object to
+`--arguments-json`:
 
 ```text
 quickbooks call-public-tool --name benchmarking_against_industry --arguments-json '<JSON object>'
@@ -104,8 +106,14 @@ blindly retry these operations after an uncertain result.
    message, then wait for explicit confirmation. A request to create an invoice
    does not also approve creating missing customers or products.
 5. Never blindly retry a create or send after a timeout or uncertain result.
-   Fix a schema error and retry the same operation at most once. Never create a
-   second record to repair the first.
+   If local schema validation rejects a call, re-fetch that exact tool with
+   `quickbooks list-tools --name <exact-tool-name>`, fix the arguments, and
+   retry the same operation at most once. Never switch tools on retry: do not
+   use a get, update, create, invoice, or other operation to repair a failed
+   send. Never create a second record to repair the first. Local schema
+   validation and privsep failures happen before the provider call; do not say
+   QuickBooks or Intuit rejected the request unless the error explicitly came
+   from MCP HTTP, RPC, or provider output.
 6. Never claim an update succeeded until a read-back confirms it. Report held,
    partial, and failed operations accurately.
 7. Never expose provider IDs, OAuth material, credentials, or internal errors.

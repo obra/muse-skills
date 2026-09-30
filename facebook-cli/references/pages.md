@@ -11,13 +11,20 @@ rejected request did not run; it says nothing about an earlier attempt. Never
 repeat an earlier write whose outcome is unknown. Shared consent is not a grant
 for an individual Page; denial or failed consent never permits access.
 
-Use only Pages managed by the linked account. Start with `pages list`, match the
-intended Page, and continue only for a returned managed Page. Reuse IDs returned
-within that workflow; ask if the intended Page is ambiguous. Personal-profile
-requests, pasted Facebook URLs, and public or non-managed Pages use generic
-`facebook-cli` reads, not `pages` insights. Never guess IDs or use the human
-profile ID from `me` as a Page. Discovery covers eligible disclosed Pages from up
-to 100 candidates, not an exhaustive inventory or a guarantee of permission.
+Use only Pages managed by the linked account. Call `pages list` at the start
+of a Page workflow and follow each returned `paging.cursors.after` with
+`pages list --after` until the intended Page is found or no cursor remains.
+Continue only for a returned managed Page; an empty page with a cursor is not
+exhaustion. Reuse its `page_id` for every later `pages` command in that
+workflow; do not repeat `pages list` before each command. Ask if the intended
+Page is ambiguous. A Facebook URL, post `owner_id`, or `me`
+`ap_plus_profiles` value is a profile ID: match it to `pages list` and use only
+the same row's `page_id` for every `pages` command. Never pass a `profile_id` as
+`--page-id`. A pasted URL with no managed-Page match uses generic
+`facebook-cli` reads, not `pages` insights or writes. Personal profiles and
+public or non-managed Pages also use generic reads. Discovery covers eligible
+disclosed Pages from up to 100 candidates, not an exhaustive inventory or a
+guarantee of permission.
 Do not pass managed Page IDs to `profile info` or `timeline fetch`.
 Stop on access failures; do not switch identities, retrieve credentials, or call
 raw endpoints. Other Page HTTP 403 responses are redacted and terminal, not consent decisions.

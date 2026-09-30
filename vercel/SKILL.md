@@ -29,14 +29,23 @@ then call an advertised tool with:
 vercel call-tool --name <tool> --arguments-json '<json-object>'
 ```
 
-Vercel migrated its deployment tool from `deploy_to_vercel` to
-`create_deployment`. Use whichever name the live catalogue advertises; both
-require the `deployments.publish` permission and approval according to the
-user's connector settings.
+The reviewed catalogue follows Vercel's current public MCP tool documentation,
+including `create_deployment`. The former `deploy_to_vercel` name and other
+recently replaced names remain accepted only when the live server still
+advertises them during rollout. Always use the live schema returned by
+`list-tools`; for example, current `create_deployment` arguments place the
+deployment definition under `requestBody`.
 
 `list-tools` exposes only reviewed Vercel tools and includes each tool's
 `hatch_permission`, `hatch_action`, and `hatch_permission_label`. Unknown or
-new provider tools remain unavailable until reviewed. Read permissions follow
-the user's connector settings; deployments, purchases, and project changes use
-separate granular approvals. Do not retry a failed or timed-out write
-automatically because its side effect may have completed.
+new provider tools remain unavailable until reviewed. Ordinary reads follow
+the user's connector settings. Decrypted secrets, deployment or sandbox file
+contents, deployments, purchases, credential creation, security changes,
+sandbox execution, and other mutations use separate granular permissions that
+ask by default. Vercel advertises identity/session OAuth scopes only, so there
+is no provider-side incremental scope to request for an individual tool.
+
+Purchase tools can create immediate, non-refundable charges. Obtain a quote
+when the live tool contract provides one, show it to the user, and never infer
+confirmation. Do not retry any failed or timed-out write automatically because
+its side effect may have completed.

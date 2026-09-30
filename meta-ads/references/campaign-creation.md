@@ -5,12 +5,14 @@ existing hierarchy is a standalone write under `references/writes.md`.
 
 ## Route only the current stage
 
-Full research is the default. Ask product-focused questions only when the
-advertised product or event is too unclear to research, then complete research
-and pricing without optional recommendation steers; stop only for required
-identity or a genuinely advertiser-owned blocker. Use guided mode only when the
-advertiser explicitly asks to work step by step; do not ask which mode they
-prefer. A mode change retains decisions that remain valid.
+Full research is the default. Before capability discovery or identity
+resolution, ensure the current request explains what is being advertised or
+tested well enough to proceed without inventing how it works. Otherwise ask only
+the necessary product- or test-scope questions in one natural turn. Minimize
+intake only after this gate passes. `campaign-planning.md` owns identity,
+advertiser-owned blockers, and evidence-backed outcome, optimization, target, or
+spend choices. Use guided mode only when explicitly requested; never ask which
+mode. Retain valid decisions across mode changes.
 
 | Current need | Read now | Stage complete when |
 |---|---|---|
@@ -25,21 +27,29 @@ plan is accepted unless the advertiser asks to continue.
 
 ## Decision and interaction contract
 
-Keep one `next_open_decision`. In full research it may be the product-brief
-bundle, one advertiser-owned blocker, whole-plan approval, creative source,
-prepared-media approval, or final create approval. Guided mode resolves one
-consequential setting at a time.
+Keep one `next_open_decision`. Full research may stop only for a product brief,
+identity, binding constraint, advertiser-owned blocker, whole-plan approval,
+creative source, media approval, or final-create approval. Guided mode resolves
+one consequential setting at a time.
 
-Use `muse.create_options` whenever the current question has a small bounded set
-of meaningful answers. A tap submits only its `selectedText`; an unambiguous
-typed answer to the same already-shown, unchanged choice is equivalent. Neither
-answers another question nor accepts surrounding prose. Therefore a response
-containing options asks only that widget's question, puts all decision context
-before its token in the same final response, and ends after the token. Do not
-repeat a settled choice merely because its answer was typed. Ask related
-free-form product facts together in plain text without options. For a bounded
-approval, never substitute `say the word` or another typed invitation for the
-options.
+Use `muse.create_options` for every bounded choice. Put all context before its
+returned `embed_token`, render that token alone on the final line, and stop. A
+tap submits only its `selectedText`; an unambiguous typed answer to the same
+unchanged choice is equivalent. Neither answers another question. Ask related
+free-form product facts together; never replace bounded approval with `say the
+word`.
+
+Render options only after every selected read, background command, browser task,
+and todo for that decision is terminal. Once the token is sent, leave no pending
+work that can resume before the advertiser answers. Never invent, abbreviate, or
+print an `<embed_token placeholder>`; if `muse.create_options` fails, no options
+were shown.
+
+Complete entity resolution and every other tool first. Call
+`muse.create_options` alone as the final tool call, never in parallel. After it
+succeeds, compose the response with its exact token and call nothing else. A
+polled background result is not terminal for this purpose; wait for its automatic
+completion notification before creating the widget.
 
 These approvals remain distinct:
 
@@ -96,7 +106,8 @@ record, persisted strategy object, or runtime API. Track independently:
 - account, Page, and Instagram identity;
 - goal, objective, optimization, destination, and tracking;
 - compliance, geography, audience, placements, and hierarchy;
-- budget, schedule, planning mode, and strategy approval;
+- budget amount and cadence, derivation basis, cost source/confidence,
+  projected volume, schedule, planning mode, and strategy approval;
 - creative plan, source, prepared media, and media approval; and
 - final approval, returned Ads IDs, handoff, and delivery state.
 

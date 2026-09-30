@@ -1,0 +1,5 @@
+# Bun's .npmrc support is partial, so the scoped registry is declared here too.
+# Both files must agree: the sibling .npmrc carries the same mapping for npm and
+# for anything that reads .npmrc but not bunfig.
+[install.scopes]
+"@meta" = "https://registry.x2p.facebook.net/"

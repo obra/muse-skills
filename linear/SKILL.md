@@ -38,7 +38,14 @@ linear call-tool --name <tool> --arguments-json '<json-object>'
 `list-tools` exposes only reviewed Linear tools and includes each tool's
 `hatch_permission`, `hatch_action`, and `hatch_permission_label`. For a
 polymorphic `save_*` tool, the permission fields show the `id`-based selector
-used at execution. Unknown or new provider tools remain unavailable until
-reviewed. Read permissions follow the user's connector settings; changes
-require the corresponding granular approval. Do not retry a failed or timed-out
-write automatically because its side effect may have completed.
+used at execution. Linear hides write tools from its live catalogue while the
+OAuth grant is read-only; do not describe an all-read `tools` list as lack of
+write support. In that state, `list-tools` returns manifest-derived
+`additional_access` entries separately from the provider-advertised tools. When
+the user requests one of those capabilities, share its `scope_add_url` using
+the exact Additional Linear access link format above, wait for consent, then
+rerun `linear list-tools` to obtain the provider's live write-tool schema.
+Unknown or newly advertised provider tools remain unavailable until reviewed.
+Read permissions follow the user's connector settings; changes require the
+corresponding granular approval. Do not retry a failed or timed-out write
+automatically because its side effect may have completed.
