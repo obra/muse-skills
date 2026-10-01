@@ -15,10 +15,9 @@ Run `quickbooks status` first. If disconnected, run `quickbooks authorize-url`
 and share only the returned `connect_url`. After the user connects, run status
 again. Run `quickbooks disconnect` only when the user explicitly asks.
 
-Generic generators and industry tools use the app's access and report
-`not_required`. Company-backed reports, transaction imports, company-profile
-operations, and sales tools require a connected company and the corresponding
-3LO scopes. Hatch approval still applies to every write.
+Every QuickBooks tool in this catalogue requires a connected company; use
+`quickbooks call-tool` for all of them. Each tool also needs the 3LO scopes of
+its permission tier. Hatch approval still applies to every write.
 
 Connecting grants read access only. Before a write or deletion, or after one
 fails for missing access, run `quickbooks status --for-command <tool-name>`,
@@ -39,14 +38,13 @@ request the read tier. Never construct OAuth URLs or ask for tokens in chat.
 Use `quickbooks list-tools` only to discover which tools exist. Immediately
 before every provider call, run `quickbooks list-tools --name <exact-tool-name>`
 and read that tool's current `input_schema`; never guess a field name, nesting
-shape, type, or enum value from another tool. Exact lookup uses the same 2LO or
-3LO token class as the eventual call. The CLI rechecks that schema immediately
+shape, type, or enum value from another tool. Exact lookup uses the connected
+user's token, like the call. The CLI rechecks that schema immediately
 before dispatch and rejects mismatches rather than letting Intuit silently
 ignore them. Call only a reviewed tool and pass an object to
 `--arguments-json`:
 
 ```text
-quickbooks call-public-tool --name benchmarking_against_industry --arguments-json '<JSON object>'
 quickbooks call-tool --name company_info --arguments-json '{}'
 quickbooks call-tool --name profit_loss_quickbooks_account_text --arguments-json '<JSON object>'
 quickbooks call-tool --name qbo_sales_get_invoices --arguments-json '<JSON object>'
@@ -59,7 +57,7 @@ duplicate calls for another period. Combine the results into one answer.
 For reports, verify the period in every result; if it differs from the user's
 request, do not present the figures as the requested report.
 
-For industry research or figures supplied by the user, use the public
+For industry research or figures supplied by the user, use the industry
 benchmark tool. For the connected company's own performance, use
 `benchmarking_quickbooks_account_text`. State when peer data or company data is
 missing.

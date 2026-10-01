@@ -50,8 +50,8 @@ settings, hierarchy counts, IDs, the link, or option labels.
 
 A paused-edit choice records intent only and follows its normal planning,
 creative, and write approvals. After each successful paused update, name the
-completed change in that single status sentence, then render the card and
-current menu again.
+completed change in that single status sentence, followed by the card and
+current menu again; make both widget calls before writing that sentence.
 
 Publish is a new spending request. On its next turn, apply `writes.md` and the
 live activation schema, state objects and spending consequence in the native

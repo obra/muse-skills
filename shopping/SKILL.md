@@ -103,8 +103,8 @@ Run the purchase workflow on the main agent. Do not hand any part of it to `suba
 1. Identify the products and any variants or quantities already specified.
 2. Close active browser discovery tasks that are no longer relevant with `browser.close_task`. Use `browser.list_tasks` to find their IDs. Ignore late results for those products after purchase begins.
 3. Route on the eligibility flags `meta-catalog-search` already returned; do not call `shopping product-details` just to decide the route.
-4. For Meta catalog products with `is_agentic_checkout_creation_enabled: true`, call `shopping product-details` once per selected product to pin the exact variant, then load `/opt/hatch/skills/shopping/references/shopify-ucp.md` and follow its purchase flow. It creates the checkout first, then owns route selection, wallet setup, exact method selection, and direct-versus-browser completion for that checkout.
-5. Otherwise, load `/opt/hatch/skills/shopping/references/browser-checkout.md` and follow Purchasing Flow. Resolve item choices together while browsing, before starting checkout. Include selected shipping in the final review.
+4. For Meta catalog products with `is_agentic_checkout_creation_enabled: true`, call `shopping product-details` once per selected product to pin the exact variant. Then load `/opt/hatch/skills/shopping/references/shopify-ucp.md` and follow its purchase flow.
+5. Otherwise, load `/opt/hatch/skills/shopping/references/browser-checkout.md` and follow its handoff flow.
 
 ### Cart-building
 
@@ -113,8 +113,8 @@ merchant's own basket, not a list you keep: the store holds it, prices it, and
 applies its discounts and availability, so what the user sees is what they would
 pay. Remembering products yourself gets you none of that.
 
-1. For Meta catalog products with `is_agentic_checkout_creation_enabled: true`, load `references/shopify-ucp.md` and follow its Cart section. Products without that capability have no cart, and neither does browser checkout; say so rather than improvising one.
-2. Keep the `cart_id` for the rest of the conversation. It is internal state — never show it to the user.
+1. For Meta catalog products with `is_agentic_checkout_creation_enabled: true`, load `/opt/hatch/skills/shopping/references/shopify-ucp.md` and follow its Cart section. Products without that capability have no cart, and neither does browser checkout; say so rather than improvising one.
+2. Keep the `cart_id` for the rest of the conversation. It is internal state. Do not show it to the user.
 3. Follow the Purchase workflow once the user is ready to check out their cart.
 
 ### Shopping Instagram links
@@ -169,10 +169,10 @@ meta-catalog-search \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
 # Preview the first 20 products
-jq '.products[0:20]' "$CATALOG_RESULTS_JSON"
+jq '.products[0:20] | map(del(.image_url))' "$CATALOG_RESULTS_JSON"
 
 # Stream products
-jq '.products[] | select((.sale_price // .price // "") | test("\\$[0-9]"))' "$CATALOG_RESULTS_JSON"
+jq '.products[] | select((.sale_price // .price // "") | test("\\$[0-9]")) | del(.image_url)' "$CATALOG_RESULTS_JSON"
 
 # Pick products under a budget
 jq '
@@ -181,6 +181,7 @@ jq '
     | select(.product_id != null and .url != null and .image_url != null)
     | select((.sale_price // .price // "") | test("^\\$[0-9]"))
     | select(((.sale_price // .price) | gsub("[^0-9.]"; "") | tonumber) <= 100)
+    | del(.image_url)
   ][0:50]
 ' "$CATALOG_RESULTS_JSON"
 ```

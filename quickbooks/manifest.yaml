@@ -14,9 +14,9 @@ cli:
   binary: quickbooks
   skill: quickbooks
   service: quickbooks
-# The connected 3LO grant declares one complete consent tier. Only generic
-# business tools use the app's 2LO token; company-backed reports, imports, and
-# profile operations require the user grant. Hatch permissions gate execution.
+# The connected 3LO grant declares one complete consent tier. Every reviewed
+# tool currently uses the user grant; the CLI keeps a 2LO app-token path only
+# for tools it lists explicitly, and lists none. Hatch permissions gate execution.
 declarable_scopes:
   - foundations.tools.companyprofile.read
   - foundations.tools.businessreports.read
@@ -77,6 +77,7 @@ actions:
       business_tools.read:
         label: Use public business tools and check import status
         approval_phrase: use public business tools and check import status in QuickBooks
+        requires_scopes: *read_scopes
   write:
     default: ask
     label: Create or change QuickBooks records
@@ -145,10 +146,10 @@ commands:
   refresh: null
   disconnect: null
   list-tools: business_tools.read
-  # Public tools include fixed-scope reads and reviewed mutations, so the CLI
-  # performs the per-tool policy lookup at runtime just like call-tool.
+  # Reserved for tools the CLI explicitly routes through the 2LO app token.
+  # None do today; every reviewed tool uses call-tool.
   call-public-tool: null
-  # The CLI classifies every reviewed account tool at runtime. Unknown or newly
+  # The CLI classifies every reviewed tool at runtime. Unknown or newly
   # advertised tools remain unavailable until their approval posture is reviewed.
   call-tool: null
 consent_screen:

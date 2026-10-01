@@ -3,7 +3,7 @@
 
 - name: connect
   category: connect
-  tests: "Disconnected start: agent runs status, gets not_connected, and posts the exact returned connect_url as [Connect Plaid](<url>) - no fabricated URL, no Settings redirect, no bank-credential ask, no fabricated balances. Grade on the link; the post-consent continuation is not spawn-testable (a synthetic user cannot complete the Account Center consent)."
+  tests: "Disconnected start: agent runs status, gets not_connected, and posts the exact returned connect_url as [Connect Plaid](<url>) - no fabricated URL, no Settings redirect, no bank-credential ask, no fabricated balances. Grade on the link; the post-consent continuation is not spawn-testable (a synthetic user cannot complete the Plaid Hosted Link consent)."
   persona: "A first-time Hatch user, curious about seeing their money in one place; taps to connect accounts when prompted."
   objective: "Show me all my bank account balances in one place."
 

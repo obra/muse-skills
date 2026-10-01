@@ -1,23 +1,33 @@
 # Browser Checkout
 
-Use browser checkout when the Purchase workflow sends a product through its
-product page. Follow Purchasing Flow for item choices, shipping, payment, final
-review, and confirmation. Follow Payments & Wallet for wallet setup and saved
-payment methods.
+Use browser checkout when the Purchase workflow sends a purchase through a
+product or checkout page. Use this reference to start and continue the
+BrowserTask.
 
 ## Start the browser task
 
-Call `browser.spawn_task` with the product URLs and every choice already made
-for this purchase:
+Call `browser.spawn_task` with the exact product or checkout URLs and every
+choice already made for this purchase:
 
 ```json
 {
-  "task": "Open <exact product URLs> and prepare the purchase of <items>. Use these choices: <variants, quantities, delivery details, payment choice, and other requirements>. Ask only for missing required choices. Report the final items, shipping, total, and payment setup before submitting. Follow Purchasing Flow for confirmation."
+  "task": "Purchase <items> from <exact product or checkout URLs>. Use these choices: <variants, quantities, delivery details, payment choice, and other requirements>. Ask only for missing required item or checkout choices. Continue through checkout and hand off the exact final terms before submission."
 }
 ```
 
-Include a payment choice, a Stripe Link refusal, or a checkout failure when one
-has already occurred. Do not include card details in the initial task.
+When a wallet route is selected, include its exact provider ID. When a saved
+method is also selected, include its masked label. Do not include the opaque
+payment-method ID in `task`. Include a payment refusal or checkout failure when
+one already occurred. When no route is selected, omit one. The runtime adds
+checkout-supported providers to the BrowserTask handoff.
+Do not ask the BrowserTask to infer providers from checkout buttons. When the
+user selects Link with a condition such as "if it is there" or "if available",
+pass `stripe-link` as the selected provider. Do not turn that condition into a
+requirement for a merchant Link button. Browser checkout permits `Use another
+method` through browser takeover. Present that choice with the other eligible
+routes. When the user selected it,
+state that they will enter payment during browser takeover. Do not include card
+details.
 
 ## Add catalog route information
 
@@ -58,14 +68,6 @@ Example:
 
 ## Continue the purchase
 
-Follow the acknowledgment returned by `browser.spawn_task`. When the browser
-task requests information or reports the purchase review, follow Purchasing
-Flow and Payments & Wallet. Continue the same task with `browser.steer_task`.
-
-If the user selects Shop Pay, call `wallet.list_payment_methods` and pass the
-selected card's exact `payment_method_id` and masked label to the browser task.
-Do not derive the ID from the label. If the Shop Pay approval returns a
-different `approved_card`, report that masked card as the card used.
-
-For multiple purchases, run browser tasks in parallel only on different sites.
-Two checkouts on one site share the same cart.
+Follow the acknowledgment returned by `browser.spawn_task`. Continue the same
+task with `browser.steer_task`. Do not replace it with a new task during wallet
+setup or confirmation.

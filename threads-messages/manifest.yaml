@@ -11,7 +11,6 @@ actions:
       messages.read:
         label: Access messages
         approval_phrase: access your Threads messages
-        response_guard: verification_codes
   write:
     default: ask
     label: Write permissions

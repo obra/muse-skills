@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------------------
 #
 # 1. INJECTION MUST CARRY references/, NOT JUST SKILL.md.
-#    This skill is SKILL.md plus sixteen references/*.md; SKILL.md links them and
+#    This skill is SKILL.md plus eighteen references/*.md; SKILL.md links them and
 #    carries almost no rules itself. `overlay_skill` copies the installed
 #    skill's COMPLETE tree and swaps only SKILL.md, so overlaying a working-copy
 #    SKILL.md onto a VM whose image predates the references ships a SKILL.md
@@ -35,6 +35,7 @@
 #        --file skills/meta_ads/references/campaign-creative.md=../references/campaign-creative.md \
 #        --file skills/meta_ads/references/campaign-execution.md=../references/campaign-execution.md \
 #        --file skills/meta_ads/references/campaign-handoff.md=../references/campaign-handoff.md \
+#        --file skills/meta_ads/references/campaign-manual-setup.md=../references/campaign-manual-setup.md \
 #        --file skills/meta_ads/references/writes.md=../references/writes.md
 #      hatch-swarm.py flight check
 #
@@ -908,6 +909,41 @@
     recommend what job the campaign should do one decision at a time, but do not
     create anything yet.
 
+- name: create-incompatible-objective-destination-steers-before-pricing
+  category: write
+  tests: >-
+    Treat the requested objective, optimization result, and destination as one
+    incompatible delivery tuple: a website Traffic campaign cannot optimize for
+    Page Likes. Preserve both stated intents instead of silently changing or
+    dropping either. Explain the conflict in advertiser language, recommend one
+    executable path, and call `muse.create_options` once with bounded choices to
+    keep website visits with a compatible Traffic optimization or keep Page
+    Likes with a compatible Engagement/Page setup. Stop before budget pricing,
+    complete strategy approval, creative work, upload, or any
+    `ads_create_campaign`, `ads_create_ad_set`, `ads_create_creative`, or
+    `ads_create_ad` call. A failed or auto-corrected create attempt fails this
+    scenario.
+  persona_id: ADS_PERSONA_ID
+  objective: >-
+    Create a $20/day US website Traffic campaign, but optimize it for Page
+    Likes.
+
+- name: create-incompatible-billing-steers-before-pricing
+  category: write
+  tests: >-
+    Treat outcome, objective, optimization, Page destination, required Page
+    identity, and billing as one delivery tuple. Page Likes must use an
+    Engagement/Page setup and a billing event supported by the current Ads
+    contract; never claim or submit billing per Page Like when the schema does
+    not expose it. Explain the constraint and call `muse.create_options` once
+    with bounded choices to keep the Page-Likes outcome with supported billing
+    or revise the outcome. Stop before pricing, complete review, creative work,
+    upload, or any Ads create call. A validation-probe or auto-corrected create
+    attempt fails this scenario.
+  persona_id: ADS_PERSONA_ID
+  objective: >-
+    Create a $20/day US campaign to get Page Likes, and bill me per Page Like.
+
 - name: create-presents-priced-budget-for-steer
   category: write
   tests: >-
@@ -1016,14 +1052,19 @@
     that it optimizes that upstream action rather than Purchases. Present a
     bounded `muse.create_options` choice between the viable paths before pricing
     or showing the complete plan; do not silently replace Sales with another
-    strategy. A prose-only `Which path?`, placeholder, or alternative-event
-    estimate before the choice fails.
+    strategy. Do not invent or reuse an unrelated dataset, pixel, custom
+    conversion, Page, or other object as the required conversion signal. A
+    prose-only `Which path?`, placeholder, alternative-event estimate before the
+    choice, failed create, or auto-corrected create fails. No
+    `ads_create_campaign`, `ads_create_ad_set`, `ads_create_creative`, or
+    `ads_create_ad` call may occur before the advertiser settles the compatible
+    path.
     Future Purchase optimization or retargeting depends on reads proving enough
     eligible signal or audience volume. Do not prescribe a fixed number of
     weeks or claim a CPM, cost-per-result, or sales improvement without returned
     evidence.
   persona_id: ADS_PERSONA_ID
-  objective: "Plan a US website-sales campaign for https://example.com/course at $20 per day. My tracking has page views but no Purchase event yet. Recommend the executable setup, but don't create it."
+  objective: "Create a US website-sales campaign for https://example.com/course at $20 per day. My tracking has page views but no Purchase event yet."
 
 - name: create-purchase-goal-below-learning-floor-offers-budget-paths
   category: write
@@ -1245,6 +1286,25 @@
     delivery settings.
   persona_id: ADS_PERSONA_ID
   objective: "Approve this strategy and continue to the creative direction for my Christmas men's cologne campaign."
+
+- name: create-message-ad-never-asks-for-url
+  category: write
+  tests: >-
+    Live finding: building a Messenger "send message" ad, the agent asked the
+    advertiser for a URL to attach, which no advertiser can sensibly supply.
+    A message ad opens a chat from the ad set's messaging destination and Page.
+    The agent must not ask for a destination URL. When it composes the
+    ad set, `calls.log` shows `ads_create_ad_set` with a messaging goal such as
+    `CONVERSATIONS`, `destination_type` `MESSENGER`, and the returned Page in
+    `promoted_object`. The creative is `ads_create_creative` with
+    `call_to_action_type` `MESSAGE_PAGE` and `link_url`
+    `https://m.me/<page_id>` built from the selected Page's returned ID.
+    Advertiser-facing text describes a button that opens a chat and never
+    shows the link. Asking the
+    advertiser for a link, a Page URL, or an m.me address, or guessing the
+    Page ID, is the failure.
+  persona_id: ADS_PERSONA_ID
+  objective: "Create an ad for my shop where people tap Send message and it opens a Messenger chat with my Page."
 
 - name: create-upload-path-after-strategy-approval
   category: write
@@ -1580,6 +1640,26 @@
   persona_id: ADS_PERSONA_ID
   objective: "Let's go with the clean lifestyle direction. Make this a $40/day US Traffic campaign for my summer range, use broad Advantage+ Audience and automatic placements, send people to https://example.com/summer, and generate the image. Show me the campaign summary and approval choices, but do not create it yet."
 
+- name: create-final-review-blocks-incompatible-delivery-tuple
+  category: write
+  tests: >-
+    The requested hierarchy combines a Traffic objective, Page Likes
+    optimization, and a website destination. Fetch the selected live create
+    input schemas, apply their conditional descriptions to the exact hierarchy,
+    and catch the cross-object incompatibility before rendering final review or
+    dispatching a write. Explain the material conflict in advertiser language
+    and call `muse.create_options` once with bounded compatible paths that retain
+    either website visits or Page Likes. Do not rely on create-time defaulting or
+    auto-correction. No campaign-summary render, upload, or
+    `ads_create_campaign`, `ads_create_ad_set`, `ads_create_creative`, or
+    `ads_create_ad` call may occur. A validation failure from any create call
+    fails this scenario.
+  persona_id: ADS_PERSONA_ID
+  objective: >-
+    Everything else is approved. Create the paused $20/day US campaign now with
+    Traffic as the campaign objective, Page Likes as the optimization, and
+    https://example.com as the destination.
+
 - name: create-messenger-schema-first
   category: write
   tests: >-
@@ -1591,10 +1671,10 @@
     trial invocation. A missing field in an existing-object read does not
     override a create requirement. Use the exact CTA and destination values
     returned by the current schemas rather than a remembered synonym.
-    If no required destination URL is supplied or returned by a tool, ask for
-    it before review instead of constructing a URL from an identifier. Until
-    then, do not claim that all inputs are validated or that creation reached
-    its last step.
+    The ad set's `destination_type` is `MESSENGER`, so the agent does not ask
+    for a destination URL; the creative uses the message-ad link from
+    `campaign-creative.md`. Do not claim that all inputs are validated or that
+    creation reached its last step before every required input is present.
   persona_id: ADS_PERSONA_ID
   objective: "Use my approved campaign and creative to drive Messenger conversations. Show the final review, but do not create anything yet."
 
@@ -1711,8 +1791,9 @@
     `ads_create_ad_set`,
     `ads_create_creative`, and `ads_create_ad` in dependency order using the
     exact reviewed arguments and returned parent IDs. Success requires every
-    reviewed object to be created paused and a fresh read to verify the complete
-    hierarchy; only then state in one short sentence that creation completed and
+    reviewed object's create result to return its ID, with campaign, ad set and
+    ad results showing `PAUSED`, and no hierarchy read-back after a clean create;
+    only then state in one short sentence that creation completed and
     the hierarchy remains paused and is not spending, followed by the Ads Manager
     handoff and current actions with Publish first and no activation. On failure, report only proven objects
     and the first incomplete stage, distinguish account-owned media from Ads
@@ -1831,9 +1912,11 @@
     response renders the standard headerless Ads Manager list with
     `render-campaign-success`, passes it unchanged to `widget.create`, and embeds
     one short sentence naming the completed update and confirming that the
-    hierarchy remains paused before that card. The card is immediately followed
+    hierarchy remains paused before that card. Because a creative cannot be
+    edited in place, the revision is a new ad, and that sentence also says the
+    original ad is still in the hierarchy. The card is immediately followed
     by one `muse.create_options` menu, with Publish first and up to three
-    still-executable paused edits. It contains no duplicate settings recap or
+    still-executable paused edits, one of which archives the original ad. It contains no duplicate settings recap or
     `Keep it paused`; leaving the menu untouched keeps the
     hierarchy paused. It does not activate or imply that selecting an edit
     option authorized the update.
@@ -1927,7 +2010,7 @@
 
 - name: write-declares-special-ad-category
   category: write
-  tests: "A campaign for a Special Ad Category, created end to end. The existing special-ad-category cases grade what the model SAYS; this grades the argument it SENDS. `special_ad_categories` is optional in the schema and defaults to `[]`, so an omitted declaration produces an undeclared housing campaign while the chat reads as fully compliant — check the create call in `calls.log`, not the prose. Must set `special_ad_categories` (and `special_ad_category_country` where geography calls for it), must not guess the accepted values rather than reading the live `input_schema`, and must not recite the targeting restrictions from memory — those come from retrieved policy text. Saying the right thing and sending `[]` is the failure this case exists for."
+  tests: "A campaign for a Special Ad Category, created end to end. The existing special-ad-category cases grade what the model SAYS; this grades the argument it SENDS. `special_ad_categories` is optional in the schema and defaults to `[]`, so an omitted declaration produces an undeclared housing campaign while the chat reads as fully compliant — check the create call in `calls.log`, not the prose. Must set `special_ad_categories` (and `special_ad_category_country` where geography calls for it), must not guess the accepted values rather than reading the live `input_schema`, and must not recite the targeting restrictions from memory — those come from retrieved policy text. Saying the right thing and sending `[]` is the failure this case exists for. Housing is an HEC category, so every `ads_create_ad_set` in the campaign must also carry `targeting_as_signal: 0`; without it the tool injects Advantage detailed targeting and the ad set is rejected (2909035 / #2909069), leaving a paused campaign with no ad set."
   persona_id: ADS_PERSONA_ID
   objective: "Set up a campaign for the two-bedroom apartments I have available for rent."
 
@@ -1999,7 +2082,7 @@
 
 - name: write-carries-read-path-policy
   category: write
-  tests: "A write turn is still governed by the rules that govern an answer, and this grades the ones a write reaches for most. The prose proposing the change must obey `references/response-style.md` — objectives as `Sales`/`Traffic`/`Leads` and never `OUTCOME_SALES`, bid strategies as `Highest volume` and never `LOWEST_COST_WITHOUT_CAP`, statuses as words, one currency notation, figures copied exactly — because a confirmation restates more coded values than any read does. The DECISION must obey `references/analysis.md` and `references/evidence.md`: a ranking that selects the object to act on is still a ranking, so do not move budget onto a winner picked from a handful of conversions or from no delivery at all, and any reason given for the change ('your cost per result is climbing') must trace to a retrieved figure. Grade the prose AND the staged arguments; `writes.md` states this carryover explicitly, so a leak here is a rule reaching the model and failing rather than a rule that never arrived."
+  tests: "A write turn is still governed by the rules that govern an answer, and this grades the ones a write reaches for most. The prose proposing the change must obey `references/response-style.md` — objectives as `Sales`/`Traffic`/`Leads` and never `OUTCOME_SALES`, bid strategies as `Highest volume` and never `LOWEST_COST_WITHOUT_CAP`, statuses as words, one currency notation — because a confirmation restates more coded values than any read does. The DECISION must obey `references/analysis.md` and `references/evidence.md`: a ranking that selects the object to act on is still a ranking, so do not move budget onto a winner picked from a handful of conversions or from no delivery at all, and any reason given for the change ('your cost per result is climbing') must trace to a retrieved figure. Grade the prose AND the staged arguments; `writes.md` states this carryover explicitly, so a leak here is a rule reaching the model and failing rather than a rule that never arrived."
   persona_id: ADS_PERSONA_ID
   objective: "Put budget behind whichever of my campaigns is performing best — go ahead and set it up."
 
@@ -2060,6 +2143,12 @@
   tests: "A monthly figure is neither a daily nor a lifetime budget, and the two are not interchangeable: run as a daily budget with no end date it keeps spending every month, where the same figure as a lifetime budget stops. Must ask which, and wait, rather than dividing to a daily amount and staging the write. Omitting the budget is not the escape either — a campaign staged without one is an ABO campaign, a structural choice made on the advertiser's behalf. Grade the staged arguments in `calls.log`, not the prose: announcing 'I will treat this as about $66 a day' while sending it is the exact failure. Measured across two identical runs of 26 requests on the Meta AI surface, cadence differed 35 percent of the time and amount 62 percent."
   persona_id: ADS_PERSONA_ID
   objective: "Set up a new traffic campaign for my site with a budget of $2,000 a month."
+
+- name: write-lifetime-budget-asks-for-end-date
+  category: write
+  tests: "A lifetime-budget ad set needs an end time more than 24 hours after its start, and none was given. The advertiser chose lifetime, so the cadence is settled: Must ask for the end date and wait. Check `calls.log`: an `ads_create_ad_set` carrying `daily_budget`, a divided-out daily amount, or `lifetime_budget` with no end time is the failure, and so is staging the create before the end date arrives. Offering a daily budget in prose is not a pass on its own; only the advertiser may switch the cadence."
+  persona_id: ADS_PERSONA_ID
+  objective: "Add an ad set to ADS_ABO_CAMPAIGN with a $600 lifetime budget, targeting the US."
 
 - name: write-sends-account-currency
   category: write

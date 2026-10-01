@@ -352,8 +352,11 @@ exception in the setup preview so the user knows which messages need follow-up.
 Before creating the rule, preview the conversations it covers, how often it
 checks, and the exact reply text as a Markdown blockquote. Wait for explicit
 confirmation, then create it. The rule's individual replies are not previewed
-again in chat. When Messenger approvals are on, Muse shows each reply for
-approval before it sends.
+again in chat. When Messenger approvals are on, a reply sends without a separate
+approval only if the user previously allowed that conversation from this
+Messenger account; replies to other conversations wait for approval. The user
+can revoke that allowance under Settings > Connectors > Messenger > Manage
+recipient permissions.
 
 ### Initiate a Marketplace conversation
 

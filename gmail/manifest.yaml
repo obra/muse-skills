@@ -187,6 +187,8 @@ actions:
         requires_scopes:
           - https://www.googleapis.com/auth/gmail.modify
       users.filters.manage:
+        # Temporarily withheld from Settings and rejected by the CLI pending scope approval.
+        # Keep the key and saved permissions for re-enablement.
         label: Manage filters
         requires_scopes:
           - https://www.googleapis.com/auth/gmail.settings.basic

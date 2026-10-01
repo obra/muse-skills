@@ -1,10 +1,10 @@
 ---
 name: "stripe"
 description: >-
-  Manage a merchant's Stripe customers, products, payments, invoices, and recurring
-  subscriptions. Use for billing-plan changes, payment links, refunds of duplicate
-  card charges, disputes and chargebacks, account balances, payouts, and reconciling
-  processing fees through Stripe's official MCP server.
+  Manage a merchant's Stripe customers, products, coupons, promotion codes, payments,
+  invoices, and recurring subscriptions. Use for billing-plan changes, payment links,
+  refunds of duplicate card charges, disputes and chargebacks, account balances,
+  payouts, and reconciling processing fees through Stripe's official MCP server.
 icon: "connectorStripe"
 metadata: { "includeInPrompt": false }
 ---
