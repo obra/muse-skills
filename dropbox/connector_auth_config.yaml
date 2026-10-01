@@ -4,6 +4,7 @@ mode: direct_oauth
 hosts:
   - mcp.dropbox.com
   - api.dropboxapi.com
+  - content.dropboxapi.com
 token_proxy:
   - field: credentials.access_token
     placement: bearer_header

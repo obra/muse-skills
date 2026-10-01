@@ -52,8 +52,9 @@ Present one executable creative plan in natural prose containing:
   words to them; and
 - material constraints and only evidence that changed the recommendation.
 
-Do not recap the approved delivery strategy. In the same final response, put
-the complete plan before one source-action `muse.create_options` widget. Offer
+Do not recap the approved delivery strategy. Create one source-action
+`muse.create_options` widget first, then write the complete plan in the final
+response with that widget's token after it. Offer
 all viable actions: `Upload my own creative`, `Generate this creative`, a
 specific suitable account asset when found, and `Revise the creative plan`.
 Never emit any part of the plan as commentary or send the picker alone.
@@ -80,11 +81,28 @@ plan. Plan acceptance is not output approval.
 Confirm required capability names in the conversation's compact discovery.
 Existing Ads references need no upload. A buildable source is:
 
-- image: a media handle, local file, or account-owned image hash;
+- image: a media handle, local file, or account-owned image hash, plus the
+  destination `link_url` an image ad requires;
 - video: an Ads video ID or uploadable asset plus any required thumbnail;
 - static carousel: 2–10 valid cards and destinations;
 - catalog carousel: a resolved healthy product set; or
 - boosted/partnership format: the exact supported post and identity.
+
+**A message ad has no web destination, so never ask the advertiser for one.**
+This turns on the ad set's `destination_type` alone, whatever the objective:
+`MESSENGER`, `WHATSAPP`, or `INSTAGRAM_DIRECT` makes it a message ad. Use the
+matching button and set `link_url` to the channel's standard value, never an
+advertiser answer:
+
+| Channel | Button | `link_url` | Needs |
+|---|---|---|---|
+| Messenger | `MESSAGE_PAGE` | `https://m.me/<page_id>` | the returned Page ID |
+| WhatsApp | `WHATSAPP_MESSAGE` | `https://api.whatsapp.com/send` | a WhatsApp number connected to the Page |
+| Instagram Direct | `INSTAGRAM_MESSAGE` | `https://www.instagram.com/` | the Page's connected Instagram account as `instagram_user_id` |
+
+Never guess a Page or Instagram ID. When a channel's prerequisite is missing,
+say what the advertiser must connect instead of building the ad. Describe the
+button as opening a chat and keep links out of advertiser-facing text.
 
 **Generating the ad's content is not available for every advertiser.** Making a
 new image, and writing the ad's words, are both switched off for ads in these
@@ -237,7 +255,8 @@ Preparation cannot change plan values. Before this gate, use
 `meta-ads-cli describe-tool --name ads_create_creative --input-only` (or its
 current result) and resolve `self_ai_disclosure` as directed by the schema.
 Give the disclosure choices enough context to stand on their own: include a
-clear question and a brief explanation of AI labeling in the same message.
+clear question and a brief explanation of AI labeling in the final response
+that carries the options token, written after the options call.
 Use natural wording that fits the conversation.
 Wait for the answer before presenting media for approval.
 

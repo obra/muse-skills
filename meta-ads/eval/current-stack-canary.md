@@ -70,7 +70,9 @@ The candidate proceeds only when all of these hold:
 - No mutation is dispatched twice, including after a local parse, display, or
   formatting failure.
 - Every successful mutation has a fresh atomic readback containing the
-  submitted fields, resulting status, and relevant side effects.
+  submitted fields, resulting status, and relevant side effects. Exception:
+  a campaign-hierarchy create is verified by each create result's ID and
+  `PAUSED` status, with a fresh read only when a result lacks either.
 - No run crosses ad-account scope or reports an unsupported/absent metric as
   zero.
 - Test metric reads with entities whose delivery dates are inside the product's

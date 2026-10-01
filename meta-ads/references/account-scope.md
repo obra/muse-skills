@@ -26,16 +26,23 @@ wrong.
 
 ## Access is a precondition, not a fallback
 
-Only analyze an account that appears in the `ads_get_ad_accounts` result. If the
-account the user named is not among them, say plainly that you cannot reach it,
-offer the accounts you can, and stop there. Do not report metrics, estimates,
-comparisons, or any characterization of the unreachable account, and do not
-proceed on the assumption that access will resolve.
+When the user names an account but not its ID, resolve it through
+`ads_get_ad_accounts` and analyze only a returned match. When the user supplies
+an explicit `ad_account_id`, or a successful Ads call already established one in
+this conversation, a read-only tool may use that ID directly; do not relist
+accounts merely to verify it. A successful result establishes readable scope.
+If the direct read returns an access or privacy error, say plainly that you
+cannot reach the account and stop; only then list reachable accounts when useful.
+Writes still follow the stricter target verification in `references/writes.md`.
+Do not report metrics, estimates, comparisons, or any characterization of an
+account after an access failure.
 
 Two fields on each `ads_get_ad_accounts` entry gate what you may do next:
 
 - `is_ads_mcp_enabled` — when false, do not use that `ad_account_id` or any ad
-  object under it in a later call.
+  object under it in a later call. Every such call is refused as "not enabled
+  for the Ads MCP", so check the flag before the first call on an account,
+  including one the advertiser named by id.
 - `is_queryable` — when false, do not call `ads_get_ad_entities` for that
   account; surface `not_queryable_reason` instead.
 

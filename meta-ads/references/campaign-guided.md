@@ -46,13 +46,15 @@ may settle a steer when evidence does not challenge it; `use your
 recommendation` alone does not.
 
 Resolve objective and optimization from intent, destination, and returned
-tracking facts, then compliance. If the selected audience includes a
+tracking facts, and read and apply `campaign-delivery-compatibility.md` before presenting
+that steer or pricing it, then resolve compliance. If the selected audience includes a
 creation-bound interest, language, or non-country location, read
 `campaign-targeting.md` and resolve it before pricing. Broad Advantage+ remains
 the default when the advertiser did not narrow.
 
 Missing or failed evidence may rule out a setting but does not establish its
-replacement. Keep an unresolved consequential setting as the next steer.
+replacement. Keep an unresolved or incompatible delivery tuple as the next
+steer and make no Ads create call.
 
 Do not mention or price budget, prepare media, or present a complete plan during
 a non-budget steer. The renderer-owned full settings summary remains reserved

@@ -171,7 +171,8 @@ offer only `Set a budget` and `Set a result goal`.
 
 In full-research planning, execute the controller terminal in that response: an
 open budget or material feasibility fork calls `muse.create_options` with the
-applicable family and stops after its embedded token; a settled budget with no
+applicable family first, then writes the explanation and question in the final
+response and stops after its embedded token; a settled budget with no
 other constraint proceeds to the complete plan and its
 `Approve this strategy` / `No, make changes` widget.
 In guided mode, return every successful result to `campaign-guided.md`; its

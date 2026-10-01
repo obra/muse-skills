@@ -1,10 +1,10 @@
 ---
 name: "dropbox"
 description: >-
-  Search, read, organize, and share files and folders in the user's Dropbox cloud
-  storage. Use to download documents and spreadsheets, collect client uploads
+  Search, read, upload, organize, and share files and folders in the user's
+  Dropbox cloud storage. Use to upload or download files, collect client uploads
   with file requests, inspect or create shared links, and create, copy, move, or
-  delete content through Dropbox's official MCP server.
+  delete content through Dropbox's official APIs.
 icon: "dropbox"
 metadata: { "includeInPrompt": false }
 ---
@@ -28,6 +28,7 @@ scope URL or ask for tokens in chat.
 dropbox list-tools
 dropbox call-tool --name <tool-name> --arguments-json '<JSON object>'
 dropbox call-tool --name <tool-name> --arguments-json '<JSON object>' --output <path>
+dropbox create-file --path <dropbox-path> --input <local-path>
 ```
 
 The reviewed catalogue supports listing, searching, reading, and downloading
@@ -35,6 +36,9 @@ files; file and account metadata; inspecting and creating shared links and file
 requests; and creating, copying, moving, deleting, or sharing content. Follow the
 schema returned by
 `dropbox list-tools` exactly. Never call a tool that is absent from that list.
+
+Use `create-file` to create or replace a Dropbox file from a local file. It
+accepts text and binary files up to 150 MiB.
 
 File requests collect uploads from other people; they do not upload a local file
 from this VM. The CLI does not expose revision history or version restore.

@@ -11,7 +11,7 @@ reaches for most:
 - `references/response-style.md` — a confirmation sentence is prose. An
   objective is `Sales`, never `OUTCOME_SALES`; a bid strategy is
   `Highest volume`, never `LOWEST_COST_WITHOUT_CAP`; a status is `Paused`. One
-  currency notation, figures copied exactly, thousands grouped. The write path
+  currency notation, thousands grouped. The write path
   echoes more coded values back than any read does, because it restates what it
   is about to set.
 - `references/account-scope.md` — resolving the wrong account is worse here than
@@ -392,6 +392,24 @@ Never follow a failed write with a different write meant to compensate for it.
 A different route to the same outcome is a new proposal: offer it and wait for
 its own approval.
 
+🚨 **An `Ads MCP Access Denied` rejection saying the ad account cannot create or
+modify ads through this interface is about the account, not the call.** Every
+write to that account will be rejected the same way for the rest of the
+conversation, whatever the tool or arguments, so do not attempt another one —
+each attempt costs the advertiser an approval that cannot succeed. Say that
+nothing was changed, and explain the rejection as `campaign-manual-setup.md`
+says — read it before you reply. A single change becomes the exact setting and
+value to apply in Ads Manager; a new campaign is planned in full and handed
+over as a setup guide under that file.
+
+**Some rejections name something only the advertiser can change** — the Page
+has not accepted the Lead Ads terms, there is no payment method, the Instagram
+account is restricted, two-factor authentication or a security checkpoint is
+required, or the post being boosted no longer exists. No retry and no other
+write that depends on the same thing can succeed. Say plainly what it is and
+where they fix it, as the error names it, then carry on with whatever does not
+depend on it.
+
 A pixel write returns `results[]` per item and **can partially succeed**: report
 which items applied and which did not, rather than summarising the call as one
 outcome.
@@ -492,8 +510,13 @@ that fails:
   `optimization_goal` and `targeting` are all required, so "make me an ad set for
   £40 a day" cannot be satisfied from the request alone. The three do not all get
   the same treatment. `billing_event` and `optimization_goal` follow from the
-  campaign's objective, so read them off the parent or off a comparable existing
-  ad set and say that is what you did. **`targeting` is an audience, and copying
+  campaign's objective: take the goal from the `valid_optimization_goals` the
+  campaign returned, or off a comparable existing ad set and say that is what
+  you did. Send `billing_event: IMPRESSIONS`; the schema lists other values, but
+  they pair with only a few goals and are rejected otherwise. Some goals also
+  need a `destination_type`: `POST_ENGAGEMENT` takes `ON_POST` and `PAGE_LIKES`
+  takes `ON_PAGE`. For video, optimise for `THRUPLAY`, not `VIDEO_VIEWS`.
+  **`targeting` is an audience, and copying
   one off a neighbouring ad set is inventing it** — the advertiser never named
   that audience, and safety rule 1 does not stop applying because the value came
   from somewhere in their account. Send the broad Advantage+ Audience default
@@ -543,6 +566,7 @@ writing at all, which costs the advertiser far more than the change was worth.
 | Intent | Tool |
 |---|---|
 | rename, re-budget, reschedule, pause an existing object | `ads_update_entity` |
+| change an existing ad's image, video, text, link or call to action | a new creative with `ads_create_creative`, then a new ad with `ads_create_ad`; creatives cannot be edited in place. The original ad keeps its status, and keeps delivering if it is live: say so, and offer to pause it (or, in a paused hierarchy, archive it) as its own approved step before any publish |
 | publish drafts or activate/resume an object | `ads_activate_entity` |
 | create a campaign / ad set / ad / creative | `ads_create_campaign`, `ads_create_ad_set`, `ads_create_ad`, `ads_create_creative` |
 
@@ -552,12 +576,22 @@ only `status` in `fields`.
 In draft mode, updates are staged until publication. Check the result before
 claiming that a pause or other change has taken effect.
 
-**Creation is a dependency graph: campaign → ad sets, creatives → ads.** For a
-complete campaign, follow `references/campaign-execution.md`: inspect the live
-input schemas, obtain final approval for the exact paused hierarchy, then call
-the individual create tools in dependency order. Use only returned parent and
-media references. Stop after a deterministic rejection; reconcile an ambiguous
-result before deciding whether any dependent write is safe.
+**Creation is a dependency graph: campaign → ad sets, media → creatives → ads,
+and a node is ready only when everything it depends on exists and is in hand.**
+A creative needs the media reference its upload returned (`image_hash` or
+`video_id`, plus a thumbnail for video) and, for image and carousel ads, the
+destination `link_url` (for a message ad, the standard link in
+`campaign-creative.md`); an existing post (`object_story_id`) replaces the media
+and is never combined with it. An ad needs `creative` naming exactly one source.
+A creative's format must also be one the parent campaign's objective accepts —
+when an ad is rejected as incompatible with its objective, that is a planning
+decision to reopen with the advertiser, not an argument to adjust. For a
+complete campaign, follow
+`references/campaign-execution.md`: inspect the live input schemas, obtain final
+approval for the exact paused hierarchy, then call the individual create tools
+in dependency order. Use only returned parent and media references. Stop after a
+deterministic rejection; reconcile an ambiguous result before deciding whether
+any dependent write is safe.
 
 **A Special Ad Category has to be DECLARED on the write, not just discussed.**
 `special_ad_categories` is optional in the schema and **defaults to `[]`**, so a
@@ -576,6 +610,12 @@ through the targeting restrictions the declaration brings: rule 9 is explicit
 that those come from retrieved policy text, never from memory. The declaration
 applies them; your job is to make it, say you made it, and let the retrieved
 policy say what it changes.
+
+For housing, employment, or financial products and services, the declaration
+also has to reach every ad set: send `targeting_as_signal: 0` on each
+`ads_create_ad_set` in that campaign. Left unset, the tool switches Advantage
+detailed targeting on by default, which these categories do not allow, and the
+create is rejected.
 
 Where no category applies, leave the argument alone. An unwarranted declaration
 is not the safe default — it forces real targeting restrictions onto a
@@ -600,9 +640,16 @@ to duplicate what you cannot read turns a working capability into a false
 carry a budget at all depends on the parent, and only the campaign can tell you.
 A campaign holding `campaign_daily_budget` or `campaign_lifetime_budget` runs
 campaign budget optimisation, and an ad set under it is rejected for carrying
-its own budget or its own bid strategy. Nothing in the ad-set arguments says so,
+its own budget or its own bid strategy, or for an `optimization_goal` that
+differs from its siblings'. Nothing in the ad-set arguments says so,
 so an unchecked guess here is the single most common way a creation chain
 collapses into a loop of rejected attempts.
+
+The same read settles the rest of the ad set. Apply
+`references/campaign-delivery-compatibility.md` to the new ad set against the
+parent's objective, budget owner and bid strategy, and against the goal its
+existing ad sets use, before composing the create. An ad set added to an
+existing campaign gets the same compatibility check as one in a new campaign.
 
 When the parent runs campaign budget optimisation and the advertiser asks for an
 ad-set budget, say the budget lives on the campaign and stop there.

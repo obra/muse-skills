@@ -44,7 +44,7 @@ Targets:
 - `connect-url`
 - `inbox`
 - `thread`
-- `send` (hidden; explicit confirmation required)
+- `send` (explicit confirmation required)
 
 ### Global options
 - `--account-id <threads_account_id>` **(required for all commands EXCEPT `connect-url`)** - select which Threads account to operate on. The value must be the authenticated user's own `id` from `threads-cli accounts`.
@@ -84,14 +84,37 @@ threads-messages-cli thread --account-id <threads_account_id> --thread-fbid 1234
 
 ### Send message
 
-`send` is a hidden write command. Confirm explicit user intent before sending:
+`send` is a write command. Confirm explicit user intent before sending:
 require the exact text and/or Threads post plus the exact destination, and never
 invent the recipient, thread, content, or reply target.
 Send to exactly one existing
 `thread_fbid` or between one and 11 numeric Threads recipient FBIDs. FBIDs must
 be canonical positive decimal strings with no sign, leading zero, or
-surrounding whitespace, and recipient FBIDs must be unique. Never accept,
-derive, or substitute usernames.
+surrounding whitespace, and recipient FBIDs must be unique. Never pass a
+username to `send`; see "Choosing a recipient" below.
+
+#### Choosing a recipient
+`send` needs a numeric Threads user ID or an existing `thread_fbid`. The CLI
+cannot look up an @handle. Use the first source that applies:
+
+1. Someone the user already has a 1:1 conversation with: send to the
+   `thread_fbid` of an `inbox` thread where `is_group` is `false` and the other
+   participant's `username` matches. Never use a group thread unless the user
+   named that group as the destination.
+2. Someone who has messaged the user, including message requests in
+   `--folder PENDING`: use the `sender_fbid` on one of their messages.
+3. Anyone else: a numeric ID that a `threads-cli` result returns for that exact
+   username (for example `author_id` on one of their posts), and only after
+   `threads-cli user-profile --account-id <threads_account_id> --user-id <id>`
+   returns the same username.
+
+Never use Instagram or Facebook IDs, IDs recalled from memory, or an ID taken
+from a different person's result. If none of these sources gives a verified
+ID, tell the user plainly that you cannot message that person by handle and
+offer the text as a draft instead. Before sending, tell the user which
+@username the confirmation's recipient should show; if the recipient shows
+someone else or any `Unverified Threads …` placeholder (account or
+conversation), they should decline it.
 
 The CLI requires write correlation, selected-account consent, authorization,
 and quota checks when `send` is invoked. Treat any rejection as authoritative
@@ -139,8 +162,32 @@ every accepted value, including one with surrounding spaces, is forwarded
 byte-for-byte unchanged. If the complete preview cannot fit without truncation,
 the send fails closed.
 
+#### No unattended sends
+Only send from a conversation where the user approves that exact message.
+Never send from a scheduled job, cron, watch, background worker, auto-reply, or
+script, and never set one up that sends Threads messages, even when the user
+asks for automatic replies. For recurring or automated requests, let the job
+read and draft, then deliver the drafts to the user to approve one at a time.
+Never write a job body, memory, or note that claims standing approval to send,
+and never promise automatic sending. In drafts, do not invent facts about the
+user or add commitments, promises, or money arrangements the user has not
+stated; when a reply needs one, leave it out and note what the user needs to
+decide.
+
 Never use retries for sends. Each separately approved invocation is a new,
 non-idempotent send. Any failure, including a rate limit, is terminal.
+
+#### Avoiding duplicate sends
+- Run one `send` at a time and wait for its result before starting the next.
+  Do not fire several sends in parallel; their confirmations can all expire
+  and nothing goes out.
+- A send that returned `message_id` was delivered. Report it as sent.
+- After an interruption, cancel, timeout, HTTP 500, or any unclear result,
+  do not send again. Fetch the thread with `thread` and check whether the
+  message arrived. If it did, report it as sent. If it did not, tell the user
+  it may not have been delivered and send again only after the user asks for
+  a new send and approves it.
+- Never loop sends in a script or retry a failed send automatically.
 
 ## Operating rules
 1. This skill is only for the authenticated user's own Threads messages.
@@ -155,6 +202,36 @@ non-idempotent send. Any failure, including a rate limit, is terminal.
    write.
 9. Treat recipient-type and multi-recipient group eligibility failures as
    authoritative. Do not derive a fallback or reroute a rejected send.
+10. Never send Threads messages unattended, including from cron jobs, watches,
+    auto-replies, or scripts. Every send needs the user's approval of that
+    exact message in the conversation.
 
 ## Output
-The CLI prints decoded JSON to stdout. Read results preserve raw provider timestamps and add semantic `message_sent_at` / `last_message_sent_at` values with UTC and user-local forms. Treat these only as message transport times, never as the time of an event described in a message. `send` public stdout contains exactly `message_id` and integer JSON `timestamp_ms`; the message ID is opaque and must not be parsed as an FBID. When presenting results to the user, focus on meaningful content such as participants, message text, user-local times, links, and media summaries, and avoid exposing raw IDs, cursors, unix timestamps, or implementation details unless the user explicitly needs them for a follow-up command.
+The CLI prints decoded JSON to stdout.
+
+### Read response shape
+`inbox` and `thread` return the provider's GraphQL shape, not a flat list.
+There is no top-level `threads` or `messages` key, so never read one and
+conclude the inbox is empty.
+
+- `inbox`: threads are at `data.get_slide_mailbox.threads_by_folder.edges[].node`.
+  When `threads_by_folder.page_info.has_next_page` is `true`, pass
+  `threads_by_folder.page_info.end_cursor` as `--after` for the next page.
+- `thread`: the thread is `data.get_slide_thread`, which is `null` when the
+  thread cannot be returned. When its `messages.page_info.has_next_page` is
+  `true`, pass `messages.page_info.end_cursor` as `--after` for older messages.
+
+Each thread node has `thread_fbid`, `thread_name`, `thread_type`, `is_group`,
+`folder`, `timestamp_ms`, `participants.nodes[]` (`name`, `username`; no user
+IDs), `messages.edges[].node`, and `messages.page_info`. Each message node has `message_id`,
+`sender` (`name`, `username`), `sender_fbid` (the sender's numeric Threads user
+ID), `content_type`, `content`, and `timestamp_ms`. Message text is usually
+`content.text_body`; other content uses `content.text_fragments[].plaintext`,
+`content.xma_text_body`, `content.attachments`, or `content.videos`.
+
+The inbox is empty only when `threads_by_folder.edges` is an empty array. If
+the user asks about message requests, also check `--folder PENDING`; the
+default `INBOX` folder does not include them.
+
+### Presenting results
+Read results preserve raw provider timestamps and add semantic `message_sent_at` / `last_message_sent_at` values with UTC and user-local forms. Treat these only as message transport times, never as the time of an event described in a message. `send` public stdout contains exactly `message_id` and integer JSON `timestamp_ms`; the message ID is opaque and must not be parsed as an FBID. When presenting results to the user, focus on meaningful content such as participants, message text, user-local times, links, and media summaries, and avoid exposing raw IDs, cursors, unix timestamps, or implementation details unless the user explicitly needs them for a follow-up command.

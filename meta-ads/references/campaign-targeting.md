@@ -10,6 +10,11 @@ product, Page, and compatible-history evidence. They are hypotheses until the
 lookup returns them; weak or mismatched evidence produces no query and keeps
 Advantage+ broad.
 
+A search rejected as a restricted topic means that audience cannot be targeted
+at all. Do not search a synonym, a narrower term or an adjacent interest for
+the same people; say it is not available and keep the audience broad or use
+what the advertiser can target instead.
+
 For a place, send its actual name with the semantically correct
 `location_type_hint` and known country code: city, subcity/borough,
 neighborhood, region, ZIP, address/place, or market. Do not append a guessed

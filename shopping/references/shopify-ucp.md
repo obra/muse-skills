@@ -16,11 +16,11 @@ Never mix merchants in one checkout. Treat a missing or null capability as
 - `checkout create` moves no money. `checkout complete` creates the selected
   wallet spend request and places the order.
 - `checkout complete` serves direct Stripe Link. It also serves direct Shop Pay
-  when the fresh provider list contains `shop-pay` and the checkout otherwise
-  supports direct completion. Shop Pay uses the provider-approved credential
-  and does not expose card details on this path. If direct completion is
-  unavailable, use the browser route instead. On either browser route, the
-  browser task places the order, so do not call `checkout complete`.
+  when the checkout supports direct completion. Shop Pay uses the
+  provider-approved credential and does not expose card details on this path.
+  If direct completion is unavailable, use the browser route instead. On either
+  browser route, the browser task places the order, so do not call `checkout
+  complete`.
 - Run `checkout complete` at most once for a checkout and only in the
   foreground. Never create a wallet spend request separately, background
   completion, poll it, or retry it automatically.
@@ -133,8 +133,9 @@ one.
 
 If create returns an error or rejects the item, explain the result and offer
 browser checkout from the original catalog `url`; do not retry automatically.
-When the user accepts, follow `references/browser-checkout.md` with
-`stage: "agentic_fallback"` and `reason: "agentic_create_failed"`.
+When the user accepts, follow
+`/opt/hatch/skills/shopping/references/browser-checkout.md`. Set `stage` to
+`agentic_fallback` and `reason` to `agentic_create_failed`.
 
 Only a successful create response with a usable `.agent_state.checkout_id` may continue below. Save that checkout ID. The CLI stores the endpoint-derived checkout behind the trusted runtime boundary. Inspect `.result` without copying its trusted fields into later commands.
 
@@ -150,49 +151,30 @@ that merchant rather than inventing one.
 
 ## Choose the payment route
 
-The checkout exists and moves no money yet. Call `wallet.list_providers` once
-before asking the route question. This fresh result is the authority for
-provider availability. Offer, connect, or reconnect Shop Pay for this Shopify
-checkout only when the list contains `shop-pay`. Otherwise omit Shop Pay and do
-not call its wallet actions. A saved default, connected provider, or available
-payment method does not select a route for this checkout.
+The checkout exists and moves no money yet. Keep a route the user already
+selected. Otherwise, ask with `muse.create_options` and wait. Offer Shop Pay
+with provider `shop-pay`, Link with provider `stripe-link`, and `Use another
+method` through browser takeover. A connected provider, saved default, or
+available method does not select a route.
 
-Keep a payment route the user already selected for this checkout. Keep Shop Pay
-or Stripe Link only when that provider remains in the fresh provider list.
-Otherwise, ask once with `muse.create_options` and wait before any connection,
-payment-method, or browser call. Present only the available routes:
+After the user chooses, follow *Route after creation* to decide whether
+checkout continues directly or through a BrowserTask.
 
-- **Shop Pay**, when listed: the Shop Pay wallet for this Shopify checkout. If
-  the wallet is disconnected or requires reauthentication, selecting it opens
-  Shopify's secure connection page before checkout continues.
-- **Stripe Link**: a one-time virtual card capped at the approved amount.
-- **Another browser-supported method**: browser takeover for a method the
-  checkout supports other than Shop Pay or Stripe Link.
-
-After the user selects or retains Shop Pay or Stripe Link, call
-`wallet.list_payment_methods` for that provider. For `not_connected` or
-`reauth_required`, call `wallet.connect_provider`, show its secure continuation
-link, wait for the user to finish, and list methods again. For a connected
-wallet with no usable card, call `wallet.add_payment_method`, show its secure
-link, wait, and list again. Use only entries whose `type` is exactly `card`.
-Use the default only when the provider marks one card as default; otherwise ask
-the user to choose. The first time you name the proposed card, say that they can
-use a different one. Resolve one exact saved card before continuing. If the user
-declines setup or no usable card remains after setup, return to the route
-question. Do not delegate Shop Pay without an exact saved card. Connection or
-card setup does not approve the purchase.
-
-As soon as the route is settled, record it once before calling any wallet or
-browser tool:
+As soon as a wallet route is settled, record it once before calling any wallet
+or browser tool:
 
 ```sh
 shopping payment-lane-selected --lane <shop-pay|stripe-link> --selection-source user --product-contexts-json '[<each product hatch_telemetry_context, copied verbatim>]'
 ```
 
-On the no-answer path that takes Stripe Link, use
-`--lane stripe-link --selection-source defaulted-after-no-answer`. Do not emit
-both lanes, do not emit again when the browser or direct completion starts, and
-do not change or stop the checkout if this best-effort command fails.
+Emit one lane once. Do not emit it again when browser or direct completion
+starts. If this best-effort command fails, continue the checkout unchanged.
+
+After recording the route, follow the Wallet setup sequence in Payments &
+Wallet. Use the exact provider ID, payment-method ID, and masked label only for
+this purchase. If the user declines setup or no usable method remains, return
+to route selection. Connection and method selection do not approve the
+purchase.
 
 When the route question is needed, ask it before any other message that follows
 creation. Ask it even when the create response reports `requires_escalation`,
@@ -207,21 +189,19 @@ collect what is missing. Missing delivery options and an unsettled total are
 ordinary direct-checkout work under *Refresh delivery and totals* below, so do not say
 the browser will place the order for those.
 
-When the user names some other payment method, continue with browser checkout
-from the catalog `url` under `references/browser-checkout.md`, including that
-payment choice in the brief. Use `stage: "agentic_fallback"` and
-`reason: "user_selected_browser"`: the user chose this route, no provider
-limit forced it.
+When the user selects `Use another method`, load
+`/opt/hatch/skills/shopping/references/browser-checkout.md`. Continue the
+existing checkout in a BrowserTask from the exact checkout URL. Include the
+user's payment choice in the brief without including card details. State that
+the user will enter payment during browser takeover.
+Set `stage` to `agentic_fallback` and `reason` to `user_selected_browser`. The
+user chose this route; no provider limit forced it.
 
-A user who does not choose has declined nothing. Ask once more with the same
-available routes. If they still do not choose, select Stripe Link and say which
-route you selected. Use the no-answer route sentence under *Stripe Link, in the
-browser*. Silence does not select Shop Pay.
+If the user does not choose, stop and wait. Do not select a route for them.
 
 ## Route after creation
 
-A Stripe Link route may be the user's choice or the no-answer fallback above.
-Take the first branch that matches:
+For a selected wallet route, take the first branch that matches:
 
 1. The user selected Shop Pay with an exact saved method: use direct completion
    only when every selected product's
@@ -249,15 +229,14 @@ for that checkout.
 
 ### Shop Pay, in the browser
 
-Spawn the task with the exact saved Shop Pay method selected for this purchase.
-Identify it with the exact opaque `payment_method_id` and masked label from the
-retained `wallet.list_payment_methods` result. Copy the ID verbatim instead of
-deriving or guessing it from the label. The trusted checkout tool revalidates
-the supplied ID against a fresh wallet read before creating approval.
+Spawn the task with the Shop Pay route and the selected method's masked label.
+Do not include the opaque `payment_method_id` in `task`. The trusted checkout
+tool revalidates the exact selected ID against a fresh wallet read before
+creating approval.
 
 ```json
 {
-  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. The user selected Shop Pay for this purchase with saved method <exact payment_method_id and masked card label>. Complete the purchase using these known choices: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Shipping preference: <deadline/budget/speed, or none>.",
+  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. The user selected Shop Pay for this purchase with saved method <masked card label>. Complete the purchase using these known choices: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Shipping preference: <deadline/budget/speed, or none>.",
   "shopping_checkout": {
     "products": [<each product hatch_telemetry_context, copied verbatim>],
     "stage": "payment_lane",
@@ -267,31 +246,18 @@ the supplied ID against a fresh wallet read before creating approval.
 ```
 
 Resolve the Shop Pay connection and exact method before delegating. BrowserTask
-does not call wallet tools or discuss another payment route. Treat the terms it
-reports at final review as authoritative.
-
-When BrowserTask returns the final review, present those exact terms, then
-resume the same task with the selected card's exact `payment_method_id` and
-masked label to request Shop Pay approval. That wallet approval is the final
-purchase confirmation. Do not ask for a separate chat confirmation before or
-after it. If the user selects a different saved card for a retry, run a fresh
-wallet read and pass that card's exact ID and masked label.
-After the tool succeeds, report the masked `approved_card` returned by the
-BrowserTask as the card actually used. Do not report the originally selected
-card when `payment_method_changed` is true.
+does not call wallet tools or discuss another payment route. Follow
+`/opt/hatch/skills/shopping/references/browser-checkout.md` for continuation.
 
 ### Stripe Link, in the browser
 
-Use the exact Stripe Link card selected above, then spawn the task. The brief
-carries one route sentence, and the BrowserTask matches on its wording.
-When the user answered the route question, use: `The user selected Stripe Link
-for this purchase.` When the user did not choose, use: `The user was asked to
-choose a payment route and did not choose, so Stripe Link was taken for them.`
-Do not reword either sentence, and do not send both.
+Use the exact Stripe Link method selected above, then spawn the task. Identify
+the provider and saved method with the exact provider ID and masked label. Do
+not include the opaque payment-method ID in `task`.
 
 ```json
 {
-  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. <route sentence> Use Stripe Link card <exact payment_method_id and masked label>. Prepare the purchase through final review, but do not submit or pay. Use these known choices for every item: <color/size/quantity/other variants>. Ask only for missing required purchase choices. At final review, report the exact checkout terms and saved payment choices. Verify the selected Link method before payment. Shipping preference: <deadline/budget/speed, or none>.",
+  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. Use provider stripe-link with saved method <masked label>. Use these known choices for every item: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Continue through checkout and hand off the exact final terms before submission. Shipping preference: <deadline/budget/speed, or none>.",
   "shopping_checkout": {
     "products": [<each product hatch_telemetry_context, copied verbatim>],
     "stage": "agentic_fallback",
@@ -301,7 +267,10 @@ Do not reword either sentence, and do not send both.
 ```
 
 Choose the reason from the first matching *Route after creation* condition.
-Never use a post-create fallback reason for an initial browser route.
+Do not use a post-create fallback reason for an initial browser route.
+
+Follow `/opt/hatch/skills/shopping/references/browser-checkout.md` for
+continuation.
 
 ### Stripe Link, completed directly
 
@@ -310,12 +279,12 @@ flow.
 
 ## Use the selected wallet
 
-Reuse the fresh provider list and exact payment method resolved above. Do not
-run provider discovery before creating the checkout or ask the route question
-again. If the selected method is no longer available, stop before completion or
-browser delegation and return to *Choose the payment route*. Do not substitute
-another route. A browser route taken because Stripe Link cannot complete this
-checkout uses `stage: "agentic_fallback"` and `reason: "stripe_link_unavailable"`.
+Reuse the selected provider and exact payment method resolved above. Do not ask
+the route question again. If the selected method is no longer available, stop
+before completion or browser delegation and return to *Choose the payment
+route*. Do not substitute another route. A browser route taken because Stripe
+Link cannot complete this checkout uses `stage: "agentic_fallback"` and
+`reason: "stripe_link_unavailable"`.
 
 ## Refresh delivery, discounts, and totals
 
@@ -364,20 +333,19 @@ update.
 
 ## Review and complete
 
-Use the exact saved card selected above. If the user asks to switch cards, use
-another card from the retained list. If it is absent, open the provider's
-secure add-card page, then list methods again and verify the new selection. Do
-not ask the user to confirm a card switch they just requested.
+Use the exact saved method selected above. If the user asks to switch methods,
+return to exact saved-method selection in Payments & Wallet. Do not ask the
+user to confirm a switch they just requested.
 
 Show the completed quote with the masked method, items, final total, and
-delivery choice. This quote is the purchase review for direct completion, so
-follow Purchasing Flow for how it reads. For Stripe Link, ask for explicit
-approval and wait. For Shop Pay, do not ask for a separate chat confirmation;
-`checkout complete` requests the wallet approval that serves as final purchase
-confirmation. A wallet connection and an earlier request to buy are not
-approval for this quote. Then write completion input containing only the
-trusted checkout ID, chosen wallet provider, chosen payment-method ID, and
-selected delivery-option ID when one exists:
+delivery choice. Present this quote as the purchase review under Purchasing
+Flow. For Stripe Link, ask for explicit approval and wait. For Shop Pay, do not
+ask for a separate chat confirmation. `checkout complete` requests the wallet
+approval that serves as final purchase confirmation. A wallet connection and
+an earlier request to buy are not approval for this quote. Then write
+completion input containing only the trusted checkout ID, chosen wallet
+provider, chosen payment-method ID, and selected delivery-option ID when one
+exists:
 
 ```json
 {

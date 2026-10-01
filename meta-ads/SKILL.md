@@ -89,11 +89,13 @@ task touches **before** answering, not after drafting.
 | `references/campaign-creation.md` | Start here for a complete new campaign. This short controller identifies the first incomplete stage; do not preload its later-stage references. |
 | `references/campaign-planning.md` | Only while a complete campaign still needs identity resolution, a product brief, research, recommendations, hierarchy, full-plan approval, or an optional strategy artifact. |
 | `references/campaign-guided.md` | Only when the advertiser explicitly requests step-by-step planning. |
+| `references/campaign-delivery-compatibility.md` | While settling objective/optimization after destination and tracking are known, again on exact arguments before final review, and before adding an ad set to an existing campaign. |
 | `references/campaign-targeting.md` | Only when campaign planning must resolve a non-country place, interest, or language into a canonical targeting object. |
 | `references/campaign-budget.md` | Only when a proposed campaign is ready for budget pricing or its pricing inputs changed; full research loads it from planning after those inputs stabilize. |
 | `references/campaign-creative.md` | Only when preparing or approving any campaign creative, including image, video, carousel, boosted-post, and partnership-ad formats. |
 | `references/campaign-execution.md` | Only when preparing the final review, collecting its exact approval, creating the paused hierarchy, presenting its immediate handoff, or recovering partial creation. |
 | `references/campaign-handoff.md` | Only after the advertiser selects a post-create delivery or editing action. |
+| `references/campaign-manual-setup.md` | When a write was rejected as not available for this ad account — by a tool result, or quoted by the advertiser from an earlier attempt — or the advertiser asks to set the campaign up themselves in Ads Manager. Read it before explaining that rejection. |
 | `references/writes.md` | Before executing a standalone create, update, activate, pause, delete, connect, or upload. Complete campaigns load it only when their staged references direct. |
 
 ## Tooling
@@ -105,7 +107,10 @@ Use `exec` to run the installed binary directly:
 
 **HARD invocation boundary:** run every Meta Ads command as its own `exec` tool
 call. Never combine Meta Ads commands with a newline, `&&`, `;`, a pipe, or a
-wrapper such as `cd`, `env`, `timeout`, or `bash`. In particular, the complete
+wrapper such as `cd`, `env`, `timeout`, or `bash`. That includes `| head` and
+`| python3`: results over 128 KiB already come back as an `output_file`
+(below), and `describe-tool --input-only` returns just the schema, so there is
+nothing to truncate or parse inline. In particular, the complete
 command string for the first protected account lookup must be exactly:
 
 ```sh
@@ -155,6 +160,11 @@ The three render commands are local and credential-free. Pass each returned
 `widget.kind` and `widget.data` to `widget.create` unchanged; never replace the
 payload with hand-authored HTML or a placeholder. `render-chart` returns an
 `html_file` card plus a `full_view.path`, not a link to include in prose.
+`--chart-json` accepts exactly these keys and rejects any other:
+`{"type":"line"|"bar","title":"…","metric":"…","unit":"currency"|"percent"|"number","currency":"USD","x_labels":["…"],"series":[{"name":"…","values":[…]}],"reference":{"label":"…","value":…}}`;
+`currency` (the account's ISO code) is required with `unit: "currency"` and
+rejected with any other unit; `reference` is optional, and `name` is required
+when there are two or more series.
 
 Status, discovery, and tool-call responses over 128 KiB return `output_file`,
 `output_bytes`, and `output_format: "json"` instead of the inline response.
@@ -233,8 +243,10 @@ governs how to say it.
 
 ## Discovery-first workflow
 
-**Tool execution begins with discovery.** Do not assume tool names or shapes
-from memory — the server catalogue is gated per tool and evolves. For a new
+**Tool execution begins with discovery.** Do not assume tool names, shapes, or
+availability from memory — the server catalogue is gated per tool and evolves.
+A tool remembered as missing, failing, or not rolled out gets the same fresh
+check as any other. For a new
 campaign, follow `references/campaign-creation.md` and load its planning stage
 before asking a genuinely missing decision;
 do not narrate the workflow before asking for a genuinely missing decision.
@@ -270,13 +282,18 @@ tool that is not there.
    `list-tools`, or `--help`; scrape a truncated catalogue; inspect eval files;
    guess flags; or probe availability or argument shapes through `call-tool`
    with a real, guessed, or fabricated name.
-3. **Resolve prerequisite IDs first**: most write tools and specific-entity reads
-   need an `ad_account_id`. Get it in its own `exec` call whose complete command
-   is `/opt/hatch/bin/meta-ads-cli call-tool --name ads_get_ad_accounts` (the empty
-   arguments object is implicit). Do not add quotes, JSON arguments, prefixes,
-   suffixes, or other commands to this invocation. Then get campaign / ad set /
-   ad / catalog / audience IDs from the relevant list tool. Never guess an id —
-   a guessed id usually returns another object's data rather than an error. It
+3. **Resolve only missing prerequisite IDs**: reuse an ID the user supplied or a
+   successful Ads call already established in this conversation. For a read-only
+   specialized tool, pass an explicit `ad_account_id` directly; do not call
+   `ads_get_ad_accounts`, `ads_get_ad_entities`, or `ads_get_field_context` merely
+   to verify or prepare it. If a required ID is missing, resolve it with the
+   relevant list tool. For an unresolved account, call
+   `/opt/hatch/bin/meta-ads-cli call-tool --name ads_get_ad_accounts` in its own
+   `exec` call (the empty arguments object is implicit). Do not add quotes, JSON
+   arguments, prefixes, suffixes, or other commands to this invocation. Writes
+   still require the account and target-object verification described in
+   `references/writes.md`. Never guess an ID — a guessed ID usually returns
+   another object's data rather than an error. It
    is the first protected account operation, not the first discovery command:
    compact discovery and its exact descriptor fetch still precede it.
 4. **Call the tool**: append `--agent-output` to normal calls and build the JSON
@@ -334,12 +351,16 @@ approval permits and what may be claimed after a write.
    past tense only for the exact fields and objects a successful write result
    proves changed.
 8. **Do not turn task observations into persistent state.** Existing memory may
-   inform stable facts under the planning rules, but never write or update
-   memory from an Ads workflow. Never use `MEMORY.md`, `AGENTS.md`, a
+   inform stable business facts under the planning rules, but never write or
+   update memory from an Ads workflow. Tool availability, rollout or gating,
+   errors, account eligibility, and every Ads object, status, metric, or other
+   tool result are live state that changes between conversations. Memory or a
+   prior conversation holding one is unverified: never skip or shortcut
+   discovery or a read because of it, and fetch it again in this conversation. Never use `MEMORY.md`, `AGENTS.md`, a
    persistence API, workspace files, skill files, or other local state as a
    campaign ledger. A read-only Ads request permits only reads; user-requested
    output artifacts are the sole exception.
-9. **Never fabricate a metric value.** Report only figures a tool returned, copied exactly, and never compute, average, or extrapolate one. `references/evidence.md` and `references/response-style.md` carry the detail.
+9. **Never fabricate a metric value.** Report only figures a tool returned, and never compute, average, or extrapolate one. `references/evidence.md` and `references/response-style.md` carry the detail.
 10. **Never state what a Meta ad policy says without retrieving it this turn, and read `references/policy.md` before any `ads_policy_tool` call.** Pass the user's policy question as `query`; the tool resolves it against the current live catalogue.
 11. **Never claim readiness from credential presence alone.** Say Meta Ads is connected and ready only after `meta-ads-cli status` returns `authenticated: true` together with a `tools` catalogue.
 12. **Never invent an audience.** Do not infer age, gender, geography,
@@ -392,3 +413,11 @@ approval permits and what may be claimed after a write.
     prohibit it, because they do not.
     `references/campaign-creative.md` has the detail.
     `references/safety.md` rule 8 applies.
+19. **Create widgets and options before the message that shows them.** Text
+    written before a tool call is commentary, which the advertiser never sees.
+    When a response shows a widget or options, make its `widget.create` and
+    `muse.create_options` calls before writing that message. Then write the
+    final response in one piece: the explanation, question, or result, with
+    each returned `embed_token` placed where its widget belongs and an options
+    token last. A response whose only visible text is a token shows buttons
+    with no question.

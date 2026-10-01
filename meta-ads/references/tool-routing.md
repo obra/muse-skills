@@ -62,13 +62,21 @@ number you would report from it is one you did not retrieve and cannot check
 against anything. Every grounding rule in `references/evidence.md` assumes you
 saw the data. Build the chain yourself.
 
+## Product concepts and how-to questions
+
+For a Meta Ads concept, setup, specification, or general how-to question, call
+`ads_get_help_article` first and ground the answer in its result. Do not answer
+from model memory, browser search, or a general account/entity query. A pure
+definition such as “What does lifetime budget mean?” needs no account discovery.
+Policy questions use the retrieval order in `references/policy.md`.
+
 ## Performance and diagnosis
 
 | The user is asking about | Call |
 |---|---|
 | standard delivery readout, or an account / campaign / ad set / ad comparison or ranking — however many metrics are requested | `ads_get_ad_entities`, at the level the question named |
-| why a metric moved; a trend or time series of CPC/CPM/cost per result/ROAS/CTR/CVR | `ads_insights_performance_trend` |
-| anything unusual — spikes, drops, "what's wrong", sudden changes | `ads_insights_anomaly_signal` |
+| why a metric moved, including a drop or rise described as sudden; a trend or time series of CPC/CPM/cost per result/ROAS/CTR/CVR | `ads_insights_performance_trend` |
+| whether the account has any detected anomaly or unusual signal, without asking for one named metric's movement over time | `ads_insights_anomaly_signal` |
 | auction competitiveness — quality or bid ranking, why ads under-deliver, audience overlap | `ads_insights_auction_ranking_benchmarks` |
 | how the account compares to similar advertisers or the industry | `ads_insights_industry_benchmark` |
 | which optimization goal or objective fits their business and funnel | `ads_insights_advertiser_context` |
@@ -85,6 +93,38 @@ saw the data. Build the chain yourself.
 Match on intent, not exact words. You may call more than one tool when a question
 genuinely spans intents, but lead with the single tool that most directly answers
 it.
+
+### Specialized reads are the primary call
+
+When one row above matches the question, call that tool before any general or
+neighboring Ads tool. An `ad_account_id` or entity ID written in the user's
+request is already available for a read: pass it directly when the selected
+tool's live schema accepts it. Do not make `ads_get_ad_accounts`,
+`ads_get_ad_entities`, `ads_get_field_context`, Opportunity Score, anomaly,
+trend, scaling, or another analysis tool a prerequisite merely to gather context.
+
+The specialized calls are not interchangeable:
+
+- “Why did this metric fall/rise over time?” is performance trend, even when the
+  user says “suddenly.” “Are there any anomalies?” is anomaly signal.
+- “What would another budget produce?” or “is it worth adding budget?” is
+  allocation simulation. Current delivery caps are scaling analysis; fragmented
+  budgets, consolidation, ABO/CBO structure are liquidity analysis.
+- “How does this compare with the industry or similar advertisers?” is industry
+  benchmark, not an internal entity comparison.
+- A Meta Ads definition, setup step, or product behavior is a help-article read,
+  not a browser search or an answer from memory.
+
+Add another Ads read only when the user asked for a second distinct result, a
+required ID is genuinely missing, or the primary tool's successful output names
+one specific evidence gap. Do not fan out preemptively. A failed adjacent mock or
+tool is not evidence that the primary specialized capability is unavailable.
+If the primary specialized call succeeds and answers the requested intent, stop
+making Ads data calls and compose the response. Do not treat a concise or
+synthetic-looking result as permission to call trend, entity, field-context, or
+account-discovery tools for enrichment. In particular, a successful anomaly
+result answers an anomaly-detection request; only add a trend call when the user
+also asked why a named metric moved over time.
 
 ### Analysis level
 
@@ -115,19 +155,37 @@ state what was absent rather than narrating the query.
 
 - Choose the level that matches the question: `ad_account` for an overall view,
   `campaign` to compare campaigns, `adset` or `ad` to drill in. Answer at the
-  exact level the user named. For plural asks ("which ad sets…") list all
-  qualifying entities, or say explicitly that only one qualifies.
+  exact level the user named.
+- Fetch only the rows your answer will show. When more entities qualify than a
+  reply can present — about 20 — "which", "each", "every" or "all" still does
+  not mean fetch them all: pass `sort` on the metric the question turns on (for
+  example `amount_spent_descending`) with a `limit` near what you will show,
+  answer from those rows, and say how many you showed and that more exist.
+  Fetch the rest, with `limit` up to 1000, only after the user asks for them.
+  A plural ask ("which ad sets…") still gets more than one entity, unless you
+  say explicitly that only one qualifies.
 - Request only the fields the question needs, not everything.
 - Preserve the user's time-window shape. When the live schema exposes their
   named window as a `date_preset`, use that preset rather than calculating
   calendar dates; the server owns inclusivity and the ad-account timezone. Use
   `time_range` for explicit calendar dates or when no matching preset exists.
   For comparisons, use the schema's native comparison shape or query each
-  period separately.
+  period separately. For "all time" or "lifetime", use `maximum`, not
+  `data_maximum`: the latter can pair results with spend that is no longer
+  retained, reporting a spend and cost per result of 0.
+- Treat status words as query scope, not as fields to display. If the user asks
+  for objects that are `active`, `running`, `live`, `still on`, or excludes
+  anything `paused`, `stopped`, or `turned off`, call `ads_get_field_context`
+  for `effective_status`, then pass its supported filter on every applicable
+  `ads_get_ad_entities` call. For the current contract that filter is
+  `"filtering":[{"field":"effective_status","operator":"IN","value":["ACTIVE"]}]`.
+  Merely requesting `effective_status` in `fields` does not filter the rows.
 - Use breakdowns — placement, age, platform — only when the user asks why
   something happened or wants a segment view.
-- If a field name does not resolve, do not invent it: drop it, or confirm the
-  correct name with `ads_get_field_context` before re-querying.
+- Call `ads_get_field_context` (it takes only `field_names`) when you are not
+  sure a field exists at the level you need, or after a response's
+  `additional_info` reports a field unsupported. Never invent a name: drop it,
+  or re-query with one the tool confirmed.
 - In `filtering`, each entry's `value` is an array even when it contains one
   value. Confirm the field and operator with `ads_get_field_context`.
 
@@ -136,8 +194,7 @@ state what was absent rather than narrating the query.
 unavailable at `ad_account` once the account has more than one result type.
 `cost_per_conversion` is the field that survives there, so keep it when the
 advertiser asks what a conversion costs at account scope — do not quietly swap
-in `cost_per_result`, or the reverse. Confirm metric support with
-`ads_get_field_context` before querying. For an account-wide *cost per result*
+in `cost_per_result`, or the reverse. For an account-wide *cost per result*
 question, query at `campaign`, group the rows by the result type each one
 returns, compare only within a group, and say plainly that the rows are not an
 account-level rollup. `results` is the objective-defined outcome for an ad

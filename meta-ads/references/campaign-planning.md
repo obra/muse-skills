@@ -176,10 +176,12 @@ demand, or prior performance unless an authoritative, correctly scoped
 collection explicitly returns empty. Use the documented fallback read when a
 missing fact could change a concrete decision.
 
-Choose objective and optimization only after destination and tracking facts.
-Never silently replace the requested outcome. If its measurement event is
-unavailable, finish useful non-pricing research and go directly to the
-binding-constraint checkpoint before pricing an alternative.
+Choose objective and optimization only after destination and tracking facts,
+then read and apply `campaign-delivery-compatibility.md` before either decision is
+settled, priced, or shown as a recommendation. Never silently replace the
+requested outcome. If its measurement event is unavailable, finish useful
+non-pricing research and go directly to the binding-constraint checkpoint
+before pricing an alternative.
 Then apply compliance and resolve any creation-bound targeting. A country code
 is already canonical. For any interest, language, or other location, read
 `campaign-targeting.md` before the first lookup, then call
@@ -198,10 +200,11 @@ under `campaign-budget.md`. An estimate that prompts an optimization change is
 feasibility evidence, not final pricing. Any accepted input change invalidates
 it; reprice only the final structure.
 
-Finally check coherence across all seven settings. Repair evidence-resolvable
-conflicts. If one genuinely advertiser-owned blocker remains, finish available
-research, explain that blocker, and ask only for it instead of presenting an
-approvable plan.
+Finally check coherence across all seven settings, including the complete
+delivery tuple in `campaign-delivery-compatibility.md`. Repair
+evidence-resolvable conflicts. If one genuinely advertiser-owned blocker
+remains, finish available research, explain that blocker, and ask only for it
+instead of presenting an approvable plan.
 
 After research, end with exactly one controller state: a binding-choice widget,
 one genuinely unbounded next question, or the complete strategy with embedded
@@ -249,8 +252,9 @@ then show exactly:
 Put the complete plan, approval question, and both options in one final response
 under the interaction contract. Commentary may contain status only, never plan
 settings or recommendations.
-Call `muse.create_options` and put its returned `embed_token` alone on the final
-line; calling the tool without embedding the token does not display the choice.
+Call `muse.create_options` before writing the plan, then write the plan and
+question with its returned `embed_token` alone on the final line; calling the
+tool without embedding the token does not display the choice.
 
 The approval accepts every shown delivery value, including budget and
 hierarchy, but no creative or write. After `No, make changes`, ask what to

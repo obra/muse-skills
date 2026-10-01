@@ -3,6 +3,26 @@ connector: meta_ads
 display_name: Meta Business Manager
 description: Manage your ad accounts, campaigns and insights
 icon: meta_ads
+cli:
+  binary: meta-ads-cli
+  skill: meta_ads
+cli_subcommands:
+  - status
+  - manage-consent
+  - disconnect-url
+  - authorize-url
+  - auth-url
+  - exchange-code
+  - refresh
+  - disconnect
+  - list-tools
+  - describe-tool
+  - call-tool
+  - estimate-budget
+  - render-campaign-summary
+  - render-campaign-success
+  - render-chart
+  - creative generate-image
 actions:
   read:
     default: allow

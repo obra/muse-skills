@@ -21,6 +21,7 @@ mode. Retain valid decisions across mode changes.
 | Creative plan, source preparation, or media approval | `campaign-creative.md` | The complete plan authorized its source action and every prepared ad passed the media gate. |
 | Final review, paused creation, initial Ads Manager handoff, or partial recovery | `campaign-execution.md` | Every reviewed object exists, the campaign is verified paused, and the handoff is shown. |
 | A selected post-create publish or editing action | `campaign-handoff.md` | The requested delivery-state or follow-up action is complete, or the campaign remains paused. |
+| The account rejected writes as not available, or the advertiser will build it in Ads Manager | `campaign-manual-setup.md`, in place of `campaign-execution.md` and `campaign-handoff.md` | The accepted plan was handed over as a setup guide. |
 
 Load only the first incomplete stage. A strategy-only request stops after its
 plan is accepted unless the advertiser asks to continue.
@@ -32,9 +33,11 @@ identity, binding constraint, advertiser-owned blocker, whole-plan approval,
 creative source, media approval, or final-create approval. Guided mode resolves
 one consequential setting at a time.
 
-Use `muse.create_options` for every bounded choice. Put all context before its
-returned `embed_token`, render that token alone on the final line, and stop. A
-tap submits only its `selectedText`; an unambiguous typed answer to the same
+Use `muse.create_options` for every bounded choice. Call it before writing any
+advertiser-facing text (`SKILL.md` rule 19); text written before the call is
+hidden commentary. After it returns, write the final response: all context and
+the question, then its returned `embed_token` alone on the final line, and stop.
+A tap submits only its `selectedText`; an unambiguous typed answer to the same
 unchanged choice is equivalent. Neither answers another question. Ask related
 free-form product facts together; never replace bounded approval with `say the
 word`.

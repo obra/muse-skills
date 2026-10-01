@@ -12,10 +12,14 @@ Before final review, obtain the live input schemas for
 `ads_create_ad` with one `describe-tool --input-only` command per selected tool.
 Reuse a schema fetched during the current creative stage unless a failure or
 capability update made it stale. Fetch the upload schema too when approved new media must be uploaded.
-Fetch the selected read schema used for final verification as well. Use only
-names present in the conversation's current compact discovery result.
+Use only names present in the conversation's current compact discovery result.
 
-Build each intended argument object strictly from those schemas. Never guess a
+Build each intended argument object strictly from those schemas. Before final
+review, read and apply the pre-write gate in
+`campaign-delivery-compatibility.md` to the
+exact hierarchy and arguments, including every conditional or mutually
+exclusive rule in the live field descriptions rather than only each schema's
+`required` list. Never guess a
 field, enum, conditional requirement, destination URL, identity, or media
 reference, and never use a write or a validation failure to discover the
 contract. A field absent from a selected schema is unsupported for this plan.
@@ -31,7 +35,8 @@ read, return to the earliest open decision before requesting final approval.
 Copy field names and enum values exactly from the live schema; never translate a
 human label into a guessed provider value. An identifier is not a URL. Do not
 construct a URL pattern from an ID unless the live schema explicitly defines
-that transformation.
+that transformation, or the ad set's `destination_type` is `MESSENGER`,
+`WHATSAPP`, or `INSTAGRAM_DIRECT`, where `campaign-creative.md` gives the link.
 
 Only when that tool's schema exposes `advertiser_request`, use the advertiser's
 complete current multi-turn wording required by `SKILL.md`; never add an
@@ -48,7 +53,10 @@ reviewed value to the exact argument that will create it, including:
 
 - account, Page and optional Instagram identity;
 - objective, optimization, destination, targeting, placements, and required
-  special-ad-category declarations and countries;
+  special-ad-category declarations and countries, including
+  `targeting_as_signal: 0` on every ad set of a housing, employment, or
+  financial products and services campaign (why: the Special Ad Category
+  section of `references/writes.md`);
 - hierarchy, budget, currency and schedule;
 - creative format, source, copy, CTA and disclosure; and
 - all parent/reference dependencies that will come from successful results.
@@ -109,15 +117,19 @@ After that affirmative acceptance, execute only the reviewed arguments:
    calls in parallel.
 4. Call `ads_create_ad` exactly once for each reviewed ad, only after its
    paired ad-set and creative IDs exist.
-5. Read the created campaign, ad sets and ads back with the selected live read
-   tool. Verify every expected object and its paused delivery state.
 
-Creation succeeds only when readback proves every expected campaign, ad set and
-ad has both `status` and `effective_status` `PAUSED`. Never infer a child's safe
-state from a paused ancestor. An unexpectedly `ACTIVE` create result is an
-immediate stop: pause it when an exposed update can, then reconcile and report
-without creating descendants. Unavailable, missing or disagreeing readback
-blocks the success card and publication options.
+Creation succeeds when every expected campaign, ad set and ad create result
+returns its ID and `status` `PAUSED`, and every creative create returns its ID.
+Those successful create results are the verification; do not read the hierarchy
+back after a clean create. Never infer a child's safe state from a paused
+ancestor: each object's own result must show `PAUSED`. A `DRAFT` result is
+staged, not created, and is reported under `references/writes.md`. An
+unexpectedly `ACTIVE` create result is an immediate stop: pause it when an
+exposed update can, then reconcile and report without creating descendants.
+When a result that reports success lacks its ID or status, make one fresh read
+of that object with the live read tool, fetching its schema first; that read is
+reconciliation, not a retry. A missing object or non-`PAUSED` status after that
+read blocks the success card and publication options.
 
 Run every Ads operation as its own `exec` call. Never retry a create merely to
 recover missing output. If an argument or material decision changes after

@@ -3,6 +3,10 @@ connector: messenger_read
 category: social
 display_name: Messenger
 description: Remember past conversations, keep track of plans and stay on top of the chats that matter most
+request_quota:
+  mode: enforce
+  workers:
+    - messenger
 # Valid CLI subcommand paths, consumed by jarvis runtime-event logging to enrich
 # tool-variant telemetry (e.g. `messenger-cli/messages/send`). Validated by the
 # subcommand_paths_match_manifest test in hatch-messenger-cli.

@@ -11,7 +11,9 @@ Everything runs as `hatch_gws_cli gmail <command>`. The flows below give the exa
 - `+` shortcut (`+send`, `+read`, `+unsubscribe`): the simple, preferred form.
 - Raw API call: reach any Gmail API method by writing its dotted name as separate words, so `users.messages.list` becomes `users messages list`. Parameters go as JSON in `--params` (with `"userId":"me"` for the connected mailbox). A write's content goes in `--json`, the request body.
 
-Raw calls reach the whole API beyond the shortcuts: drafts, labels, threads, history, and settings like filters, the vacation responder, forwarding, and send-as. To find a method, drill `--help`. `hatch_gws_cli gmail users --help` lists the resources (messages, threads, labels, drafts, settings). `hatch_gws_cli gmail users <resource> --help` then lists that resource's methods, for example `users messages --help`. Then `hatch_gws_cli schema gmail.<method>` (for example `gmail.users.settings.updateVacation`) gives that method's `--params` and `--json`.
+Raw calls reach the whole API beyond the shortcuts: drafts, labels, threads, history, and settings like the vacation responder, forwarding, and send-as. To find a method, drill `--help`. `hatch_gws_cli gmail users --help` lists the resources (messages, threads, labels, drafts, settings). `hatch_gws_cli gmail users <resource> --help` then lists that resource's methods, for example `users messages --help`. Then `hatch_gws_cli schema gmail.<method>` (for example `gmail.users.settings.updateVacation`) gives that method's `--params` and `--json`.
+
+Do not offer or attempt to create, edit, or delete Gmail filters.
 
 Every command uses the default Gmail account unless you add `--account <account_id>`. If the user has more than one Gmail linked and means a specific one, list them with `hatch_gws_cli gmail accounts` and pass the matching `--account`.
 

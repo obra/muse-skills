@@ -2,12 +2,12 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `bc6a72e038ff28beb0109b52d447bcdc06b0a5db012ce1b6d552d13f80a7b100`.
+Migration-set fingerprint: `9b8575628206745e9350b3b7df759d9bcfbe1ebb0cdc33596255d6edcd65980c`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
 
-The model's private reasoning is never readable here. Thinking items and provider-encrypted redacted-thinking items are stored beside ordinary transcript records, so each table that carries them is served through a redacted security-barrier view; commentary text is user-facing transcript content and stays readable. Each affected table's note below says whether it filters out reasoning rows, withholds columns that embed reasoning, or both. A withheld column is not part of the table for this tool, so a query naming it fails as an unknown column; a filtered row is absent without error. Check the table's note before reading an absence or an unknown-column error as a gap in the records: where the note names no row filter, a missing row is a genuine gap, and where it names no withheld column, an unknown column is a mistake in the query. The tool also authenticates as a least-privilege database role holding SELECT on exactly the relations listed here, so nothing outside this guide is reachable.
+The model's private reasoning is never readable here. Thinking items and provider-encrypted redacted-thinking items are stored beside ordinary transcript records, so each table that carries them is served through a redacted security-barrier view; commentary text stays readable. Each affected table's note below says whether it filters out reasoning rows, withholds columns that embed reasoning, or both. A withheld column is not part of the table for this tool, so a query naming it fails as an unknown column; a filtered row is absent without error. Check the table's note before reading an absence or an unknown-column error as a gap in the records: where the note names no row filter, a missing row is a genuine gap, and where it names no withheld column, an unknown column is a mistake in the query. The tool also authenticates as a least-privilege database role holding SELECT on exactly the relations listed here, so nothing outside this guide is reachable.
 
 ## SQL capabilities
 
@@ -2655,6 +2655,7 @@ Keys and relationships:
 | `finalization_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
 | `avatar_milestones_json` | `text` | no | `'{}'::text` |  |
 | `legacy_folded_at_ms` | `bigint` | yes |  |  |
+| `advanced_avatar_variants_json` | `text` | no | `'{}'::text` |  |
 
 Keys and relationships:
 
@@ -4105,6 +4106,7 @@ Keys and relationships:
 | `saved_record_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. |
 | `saved_available` | `boolean` | yes |  |  |
 | `saved_target_shortcode` | `text` | yes |  |  |
+| `auto_publish_enabled` | `boolean` | no | `false` |  |
 
 Keys and relationships:
 
@@ -4122,6 +4124,10 @@ Keys and relationships:
 | `last_accessed_at` | `timestamp with time zone` | yes |  |  |
 | `pinned_at` | `timestamp with time zone` | yes |  |  |
 | `last_opened_at_ms` | `bigint` | yes |  |  |
+| `sharing_state` | `text` | yes |  | Recipient choice for a Space shared with this user: pending, accepted, or ignored. Grants no access. NULL means no received-share record; rows with only sharing fields are not navigation history. The choice survives removal from saved Spaces. |
+| `sharing_revision` | `uuid` | yes |  | Opaque concurrency token for the recipient sharing choice; not a local or central identifier. |
+| `sharing_saved_shortcode` | `text` | yes |  | Historical saved-Space shortcode recorded when the share was accepted. Matches spaces.spaces.space_slug while the saved reference exists; does not prove current saved membership or sidebar placement. |
+| `sharing_updated_at_ms` | `bigint` | yes |  | Unix epoch milliseconds of the last recipient sharing choice change. |
 
 Keys and relationships:
 
