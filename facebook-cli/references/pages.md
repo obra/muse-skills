@@ -29,6 +29,10 @@ Do not pass managed Page IDs to `profile info` or `timeline fetch`.
 Stop on access failures; do not switch identities, retrieve credentials, or call
 raw endpoints. Other Page HTTP 403 responses are redacted and terminal, not consent decisions.
 
+`pages list` does not list Pages the user follows. Followed-Page inventory is
+unsupported. Never invoke `pages list` for that request, substitute saved Pages
+or story authors, or imply that either is a complete followed-Page list.
+
 ## Commands
 
 All commands output JSON. Append `--help` to the exact command for optional

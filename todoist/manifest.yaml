@@ -1,5 +1,6 @@
 version: 1
 connector: todoist
+category: productivity
 display_name: Todoist
 description: Organize and track your work
 icon: todoist

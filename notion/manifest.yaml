@@ -3,6 +3,7 @@ connector: notion
 category: productivity
 display_name: Notion
 description: Collaborate and stay organized
+icon: notion
 cli:
   binary: notion-cli
   skill: notion

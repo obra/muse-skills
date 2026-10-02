@@ -3,6 +3,7 @@ connector: withings
 category: health
 display_name: Withings
 description: Track weight, blood pressure, sleep and overall fitness metrics
+icon: withings
 request_quota:
   mode: enforce
   workers:

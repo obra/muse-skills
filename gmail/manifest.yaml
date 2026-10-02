@@ -3,6 +3,7 @@ connector: gmail
 category: productivity
 display_name: Gmail
 description: You can give read-only or read and write access
+icon: gmail
 request_quota:
   mode: enforce
   workers:
@@ -152,6 +153,7 @@ actions:
     label: Write and delete permissions
     methods:
       users.messages.send:
+        approval_policy: fresh_consent_or_task_allow
         label: Send emails
         approval_phrase: send this email in Gmail
         requires_scopes:

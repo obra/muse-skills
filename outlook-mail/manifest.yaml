@@ -3,6 +3,7 @@ connector: outlook_mail
 category: productivity
 display_name: Outlook Mail
 description: Manage and organize your inbox
+icon: outlook_mail
 request_quota:
   mode: enforce
   workers:
@@ -35,6 +36,7 @@ actions:
     label: Write and delete permissions
     methods:
       messages.send:
+        approval_policy: fresh_consent_or_task_allow
         label: Send emails
         approval_phrase: send this email in Outlook Mail
       messages.mark_read:

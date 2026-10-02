@@ -3,6 +3,7 @@ connector: threads_messages
 category: social
 display_name: Threads Messages
 description: Catch up on your Threads messages
+icon: threads
 actions:
   read:
     default: allow
@@ -16,6 +17,7 @@ actions:
     label: Write permissions
     methods:
       messages.send:
+        approval_policy: fresh_consent_only
         label: Send messages
         approval_phrase: send this message on Threads
 

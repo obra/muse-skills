@@ -1,7 +1,6 @@
 ---
 name: "withings"
 description: "Use when linking Withings or reading Withings body measurements, activity, sleep, workout, heart, and intraday data."
-icon: "withings"
 metadata: { "includeInPrompt": false }
 ---
 

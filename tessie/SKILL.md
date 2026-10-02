@@ -1,7 +1,6 @@
 ---
 name: "tessie"
 description: "Monitor a Tesla vehicle, inspect live state, and run explicit Tessie command endpoints."
-icon: "tessie"
 metadata: { "includeInPrompt": false }
 ---
 

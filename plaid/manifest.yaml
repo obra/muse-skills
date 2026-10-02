@@ -3,6 +3,7 @@ connector: plaid
 category: productivity
 display_name: Finances (Plaid)
 description: Securely connect to institutions to access financial data
+icon: plaid
 actions:
   read:
     default: allow

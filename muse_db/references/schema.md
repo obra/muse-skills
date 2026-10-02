@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `9b8575628206745e9350b3b7df759d9bcfbe1ebb0cdc33596255d6edcd65980c`.
+Migration-set fingerprint: `825186ff74aaade677eea0d056c2bbeb8d4681d6a5e69102228af255110f44c8`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -57,6 +57,7 @@ Common soft references that are not always declared as PostgreSQL foreign keys:
 | `cancellation_confirmation_response_message_id` | `runtime.messages.message_id` |
 | `canonical_idea_id` | `ideas.ideas.idea_id` |
 | `carrier_message_id` | `runtime.messages.message_id` |
+| `change_id` | `self_improvement.proactivity_changes.change_id` |
 | `chat_id` | `chat.chats.chat_id` |
 | `checkpoint_key` | `runtime.checkout_spend_checkpoints.checkpoint_key` |
 | `child_agent_id` | `agent.agents.agent_id` |
@@ -2656,6 +2657,7 @@ Keys and relationships:
 | `avatar_milestones_json` | `text` | no | `'{}'::text` |  |
 | `legacy_folded_at_ms` | `bigint` | yes |  |  |
 | `advanced_avatar_variants_json` | `text` | no | `'{}'::text` |  |
+| `avatar_visual_metadata_json` | `text` | yes |  |  |
 
 Keys and relationships:
 
@@ -3870,6 +3872,28 @@ Keys and relationships:
 Keys and relationships:
 
 - PRIMARY KEY `objective_state_pkey`: `objective_id`
+
+#### `self_improvement.proactivity_changes`
+
+Brief agent-reported completed changes. Delivery acknowledges the ledger without making its entries selection candidates.
+
+| Column | Type | Nullable | Default | Key / identifier meaning |
+|---|---|---:|---|---|
+| `change_id` | `text` | no |  | Local row identifier (primary key). |
+| `research_turn_id` | `text` | no |  | Private background-worker turn identifier; its journal is not queryable through muse.db. |
+| `agent_id` | `text` | no |  | Soft local reference → `agent.agents.agent_id`. |
+| `message_id` | `text` | no |  | Soft local reference → `runtime.messages.message_id`. |
+| `request_id` | `text` | no |  | Soft local reference → `runtime.requests.request_id`. |
+| `recording_call_id` | `text` | no |  | Soft local reference to `runtime.tool_calls.call_id`, scoped by this row's agent_id and message_id; distinct from the numeric tool_call_id. |
+| `summary` | `text` | no |  |  |
+| `recorded_at` | `timestamp with time zone` | no | `now()` |  |
+| `claimed_follow_up_id` | `text` | yes |  | Private delivery-queue identifier; its owner is not queryable through muse.db. |
+| `claimed_submission_id` | `text` | yes |  | Soft local reference to `runtime.messages.message_id` for the delivery submission. |
+| `delivered_at` | `timestamp with time zone` | yes |  |  |
+
+Keys and relationships:
+
+- PRIMARY KEY `proactivity_changes_pkey`: `change_id`
 
 #### `self_improvement.relationship_briefs`
 

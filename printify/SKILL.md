@@ -1,7 +1,6 @@
 ---
 name: "printify"
 description: "Use Printify to browse catalog data, manage shops and products, and review or create orders."
-icon: "printify"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -2,7 +2,6 @@
 name: "plaid"
 title: "Finances (Plaid)"
 description: "Use to connect Plaid and read linked financial accounts: metadata, balances, transactions, recurring transactions, liabilities, and investments."
-icon: "plaid"
 metadata: { "includeInPrompt": true }
 ---
 

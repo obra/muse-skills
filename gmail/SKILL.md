@@ -1,7 +1,6 @@
 ---
 name: "gmail"
 description: "Work with the user's Gmail: search, read threads, draft, send, reply, forward, unsubscribe from mailing lists, manage labels, and open attachments."
-icon: "gmail"
 metadata: { "includeInPrompt": true }
 ---
 

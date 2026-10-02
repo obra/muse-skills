@@ -1,7 +1,6 @@
 ---
 name: "threads_messages"
 description: "Use this to interact with the user's Threads messages: read inboxes and message threads, and send messages through `threads-messages-cli`."
-icon: "threads"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -1,5 +1,6 @@
 version: 1
 connector: zoom
+category: business
 display_name: Zoom
 description: Schedule meetings and review recordings and transcripts
 icon: zoom

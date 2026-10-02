@@ -1,5 +1,6 @@
 version: 1
 connector: replit
+category: business
 display_name: Replit
 description: Build, update and publish apps with AI
 icon: replit

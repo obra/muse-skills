@@ -1,7 +1,6 @@
 ---
 name: "peloton"
 description: "Connect to Peloton to browse fitness classes, check schedules, and book workouts."
-icon: "peloton"
 metadata: { "includeInPrompt": false }
 ---
 

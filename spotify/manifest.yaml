@@ -3,6 +3,7 @@ connector: spotify
 category: social
 display_name: Spotify
 description: Play music and manage your library
+icon: spotify
 request_quota:
   mode: enforce
   workers:

@@ -177,7 +177,7 @@ shape. The file is temporary and need not survive a restart.
 returned, output delivery failed even if the operation succeeded. Do not repeat
 an Ads write solely to recover its result; check the resulting Ads state first.
 
-### Placement-specific image generation
+### Placement-specific media generation
 
 For campaign images, follow `references/campaign-creative.md` and run the
 Ads-owned wrapper as a standalone command:
@@ -191,6 +191,9 @@ ordered constraints; add `--source-image <path>` only to adapt that accepted
 image. Use `local_path` for review and retain `media_handle` when returned.
 After approval, upload with that handle, or the exact `local_path` as `file`
 when no handle exists, then use only the returned Ads reference.
+
+Campaign video comes from `media.generate_video`; it carries no placement
+ratio, so `references/campaign-creative.md` covers fitting its shape.
 
 New media reaches Ads only through `ads_creative_upload_media`. Asset selection,
 source precedence, returned references, and approval ordering live in

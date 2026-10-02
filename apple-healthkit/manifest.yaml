@@ -55,4 +55,5 @@ actions:
     label: Delete Apple Health data
     methods:
       healthkit.delete:
+        approval_policy: fresh_consent_only
         label: Delete matching Apple Health records

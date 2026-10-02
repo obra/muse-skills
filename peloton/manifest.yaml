@@ -3,6 +3,7 @@ connector: peloton
 category: health
 display_name: Peloton
 description: Browse Peloton fitness classes, manage schedules, and book workouts
+icon: peloton
 request_quota:
   mode: enforce
   workers:

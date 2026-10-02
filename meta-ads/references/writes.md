@@ -568,6 +568,7 @@ writing at all, which costs the advertiser far more than the change was worth.
 | rename, re-budget, reschedule, pause an existing object | `ads_update_entity` |
 | change an existing ad's image, video, text, link or call to action | a new creative with `ads_create_creative`, then a new ad with `ads_create_ad`; creatives cannot be edited in place. The original ad keeps its status, and keeps delivering if it is live: say so, and offer to pause it (or, in a paused hierarchy, archive it) as its own approved step before any publish |
 | publish drafts or activate/resume an object | `ads_activate_entity` |
+| change a published ad set's pixel or conversion event, or switch a budget between daily and lifetime | not editable once published: the API rejects the edit. Offer a copy with the new setting (`source_adset_id`, or `source_campaign_id` for a campaign budget), and pausing the original as its own approved step |
 | create a campaign / ad set / ad / creative | `ads_create_campaign`, `ads_create_ad_set`, `ads_create_ad`, `ads_create_creative` |
 
 `ads_update_entity` rejects `status=ACTIVE`. Send deletion or archival with

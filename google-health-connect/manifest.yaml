@@ -55,4 +55,5 @@ actions:
     label: Delete Health Connect data
     methods:
       healthconnect.delete:
+        approval_policy: fresh_consent_only
         label: Delete matching Health Connect records

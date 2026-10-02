@@ -1,5 +1,6 @@
 version: 1
 connector: dropbox
+category: business
 display_name: Dropbox
 description: Find, organize, and share your work
 icon: dropbox

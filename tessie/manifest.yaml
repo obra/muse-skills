@@ -1,7 +1,9 @@
 version: 1
 connector: tessie
+category: productivity
 display_name: Tessie
 description: Monitor, control and manage your Tesla vehicle remotely
+icon: tessie
 request_quota:
   mode: enforce
   workers:

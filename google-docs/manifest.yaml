@@ -3,6 +3,7 @@ connector: google_docs
 category: productivity
 display_name: Google Docs
 description: Draft, edit and collaborate on documents
+icon: google_docs
 request_quota:
   mode: enforce
   workers:

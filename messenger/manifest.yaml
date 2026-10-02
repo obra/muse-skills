@@ -3,6 +3,7 @@ connector: messenger_read
 category: social
 display_name: Messenger
 description: Remember past conversations, keep track of plans and stay on top of the chats that matter most
+icon: messenger
 request_quota:
   mode: enforce
   workers:
@@ -51,9 +52,11 @@ actions:
     label: Write and delete permissions
     methods:
       messages.compose:
+        approval_policy: fresh_consent_only
         label: Send messages
         approval_phrase: send this message in Messenger
       messages.edit:
+        approval_policy: fresh_consent_only
         label: Edit or remove messages
         approval_phrase: edit or remove this message in Messenger
 

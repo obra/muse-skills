@@ -1,7 +1,6 @@
 ---
 name: "instagram"
 description: "Read Instagram profiles, followers, posts, comments, likes, stories, feed, saved content, and account insights. Answer questions about posts, reels, and Instagram links. Manage interests and profile details, and publish stories, reels, posts, or carousels on request."
-icon: "instagram"
 metadata: { "includeInPrompt": true }
 ---
 
@@ -16,7 +15,9 @@ Before working with the content of an Instagram post or reel, read [Instagram co
 
 ## Account Linking
 
-Every `instagram-cli` command except `accounts`, `connect-url`, `disconnect-url`, and `--help` requires `--account-id`. For those commands, use the user's `user_fbid` from an `instagram-cli accounts` result available in your context. If none is available, run `instagram-cli accounts` first. Run `accounts` again after an auth or account error, or when the user says they connected, disconnected, or switched accounts.
+Every `instagram-cli` command except `accounts`, `connect-url`, `disconnect-url`, and `--help` requires `--account-id`. Use the user's `user_fbid` from an `instagram-cli accounts` result already in context. If it is missing, run `instagram-cli accounts` once to get it.
+
+For a user-requested task, recheck after an account change or authentication error. A timeout or rate limit does not establish an account change or disconnection.
 
 If several accounts are returned without a selection in the task, or the
 selected linked account conflicts with the requested publishing destination,
@@ -27,7 +28,7 @@ returns an unresolved choice to its parent agent. A detached worker reports
 an unresolved choice in its final message. Do not choose an account
 arbitrarily.
 
-If a command says Instagram is not connected, check its `--account-id` against
+For a user-requested task, if a command says Instagram is not connected, check its `--account-id` against
 the refreshed `accounts` result. If the selected account is returned with a
 different `user_fbid`, retry with that value. Treat Instagram as unlinked only
 when `accounts` returns an empty list or the command reports it is not

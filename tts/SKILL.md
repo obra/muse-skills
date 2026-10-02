@@ -59,31 +59,32 @@ the chosen voice. When synthesizing non-English:
 
 ### `tts speak` — Single-shot synthesis
 
-Pass supplied text through `--text-stdin` with a single-quoted heredoc. Choose
-a delimiter that does not occur as a line in the text:
+Pass supplied text through `--text-stdin` and the separate `stdin` field of
+`muse.exec`. Keep the text out of the shell command:
 
-```sh
-/opt/hatch/bin/tts speak --output /tmp/hello.mp3 --text-stdin <<'TTS_INPUT'
-Hello world
-TTS_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/tts speak --output /tmp/hello.mp3 --text-stdin",
+  "stdin": "Hello world"
+}
+```
 
-/opt/hatch/bin/tts speak --voice avocado_v2:briggs --output /tmp/welcome.mp3 --text-stdin <<'TTS_INPUT'
-Welcome back.
-TTS_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/tts speak --voice avocado_v2:briggs --output /tmp/welcome.mp3 --text-stdin",
+  "stdin": "Welcome back."
+}
+```
 
-/opt/hatch/bin/tts speak \
-  --voice avocado_v2:chip \
-  --voice2 avocado_v2:rumi \
-  --voice-prefix "Speaker 1: " \
-  --voice-prefix2 "Speaker 2: " \
-  --output /tmp/dialogue.mp3 \
-  --text-stdin <<'TTS_INPUT'
-Speaker 1: Welcome back. Speaker 2: Thanks, good to be here.
-TTS_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/tts speak --voice avocado_v2:chip --voice2 avocado_v2:rumi --voice-prefix 'Speaker 1: ' --voice-prefix2 'Speaker 2: ' --output /tmp/dialogue.mp3 --text-stdin",
+  "stdin": "Speaker 1: Welcome back. Speaker 2: Thanks, good to be here."
+}
 ```
 
 #### Core flags
-- `--text-stdin` — read input text from stdin using the quoted heredoc above
+- `--text-stdin` — read input text from the separate `stdin` field above
 - `--text <TEXT>` — alternative text argument; cannot be combined with `--text-stdin`
 - `--output <PATH>` — required output audio path
 - `--voice <VOICE_ID>` — primary voice ID copied exactly from an authoritative source,

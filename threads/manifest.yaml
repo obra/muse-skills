@@ -3,6 +3,7 @@ connector: threads
 category: social
 display_name: Threads
 description: Stay in the loop on trending topics and conversations.
+icon: threads
 request_quota:
   mode: shadow
   workers:
@@ -31,5 +32,6 @@ actions:
         label: Edit your algorithm
         approval_phrase: update your Threads algorithm
       content.post:
+        approval_policy: fresh_consent_only
         label: Post content
         approval_phrase: post this content to Threads

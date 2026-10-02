@@ -1,7 +1,6 @@
 ---
 name: "philips_hue"
 description: "Control Philips Hue smart lights, rooms, scenes, and devices via the Hue Remote API v2."
-icon: "hue_lights"
 metadata: { "includeInPrompt": false }
 ---
 

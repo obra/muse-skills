@@ -3,6 +3,7 @@ connector: healthex
 category: health
 display_name: HealthEx
 description: Get tailored insights from your health records
+icon: healthex
 actions:
   read:
     default: allow

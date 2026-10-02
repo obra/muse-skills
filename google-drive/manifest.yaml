@@ -3,6 +3,7 @@ connector: google_drive
 category: productivity
 display_name: Google Drive
 description: Search and manage your files and documents
+icon: google_drive
 request_quota:
   mode: enforce
   workers:
@@ -44,6 +45,7 @@ actions:
         default: allow
         label: Trash or restore files
       permissions.create:
+        approval_policy: fresh_consent_or_task_allow
         label: Manage sharing permissions and move files
       files.delete:
         default: allow

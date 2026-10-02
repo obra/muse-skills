@@ -3,6 +3,7 @@ connector: function_health
 category: health
 display_name: Function Health
 description: Get health insights from lab results and clinician notes
+icon: function_health
 request_quota:
   mode: enforce
   workers:

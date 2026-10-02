@@ -1,5 +1,6 @@
 version: 1
 connector: asana
+category: business
 display_name: Asana
 description: Plan and track projects and tasks
 icon: asana

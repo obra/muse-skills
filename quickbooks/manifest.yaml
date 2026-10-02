@@ -1,5 +1,6 @@
 version: 1
 connector: quickbooks
+category: business
 display_name: QuickBooks
 description: Manage invoices, payments and financial reports
 icon: quickbooks

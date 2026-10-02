@@ -3,6 +3,7 @@ connector: google_sheets
 category: productivity
 display_name: Google Sheets
 description: Access and edit your spreadsheets
+icon: google_sheets
 request_quota:
   mode: enforce
   workers:

@@ -2,6 +2,7 @@ version: 1
 connector: duffel
 display_name: Duffel Flight Booking
 description: Search, validate, book, review, and cancel flights through Duffel.
+icon: duffel
 actions:
   read:
     default: allow

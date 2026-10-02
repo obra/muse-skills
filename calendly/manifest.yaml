@@ -3,6 +3,7 @@ connector: calendly
 category: productivity
 display_name: Calendly
 description: View and manage calendar events and scheduling
+icon: calendly
 request_quota:
   mode: enforce
   workers:

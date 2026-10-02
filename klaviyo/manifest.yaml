@@ -1,5 +1,6 @@
 version: 1
 connector: klaviyo
+category: business
 display_name: Klaviyo
 description: Manage your marketing lists and subscribers
 icon: klaviyo

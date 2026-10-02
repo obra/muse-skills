@@ -1,7 +1,6 @@
 ---
 name: "google_slides"
 description: "Read, create, and edit the user's Google Slides presentations."
-icon: "google_slides"
 metadata: { "includeInPrompt": false }
 ---
 

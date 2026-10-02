@@ -1,6 +1,5 @@
 ---
 name: "function_health"
-icon: "function_health"
 description: "Retrieve lab biomarker results and clinician notes from Function Health."
 metadata: { "includeInPrompt": false }
 ---

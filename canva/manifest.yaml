@@ -1,5 +1,6 @@
 version: 1
 connector: canva
+category: business
 display_name: Canva
 description: Create AI-powered on-brand social posts, presentations and flyers
 icon: canva

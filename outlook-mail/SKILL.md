@@ -1,7 +1,6 @@
 ---
 name: "outlook_mail"
 description: "Read, search, send, reply to, and delete messages in the user's Outlook Mail."
-icon: "outlook_mail"
 metadata: { "includeInPrompt": false }
 ---
 

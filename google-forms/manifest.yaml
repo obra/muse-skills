@@ -3,6 +3,7 @@ connector: google_forms
 category: productivity
 display_name: Google Forms
 description: Build, send and analyze form responses and survey data
+icon: google_forms
 request_quota:
   mode: enforce
   workers:
