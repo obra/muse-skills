@@ -1,7 +1,9 @@
 version: 1
 connector: printify
+category: business
 display_name: Printify
 description: Browse catalog data, manage shops and products, and review or create orders
+icon: printify
 request_quota:
   mode: enforce
   workers:

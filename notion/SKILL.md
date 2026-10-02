@@ -1,7 +1,6 @@
 ---
 name: "notion"
 description: "Search, read, create, and update Notion pages via the Notion MCP."
-icon: "notion"
 metadata: { "includeInPrompt": false }
 ---
 

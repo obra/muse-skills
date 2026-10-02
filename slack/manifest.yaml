@@ -1,5 +1,6 @@
 version: 1
 connector: slack
+category: business
 display_name: Slack
 description: Manage messages in your workspaces
 icon: slack

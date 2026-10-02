@@ -3,6 +3,7 @@ connector: outlook_calendar
 category: productivity
 display_name: Outlook Calendar
 description: View and manage calendar events and scheduling
+icon: outlook_calendar
 request_quota:
   mode: enforce
   workers:
@@ -38,12 +39,14 @@ actions:
         default: allow
         label: Create events
       events.create_with_invitations:
+        approval_policy: fresh_consent_or_task_allow
         label: Create events with invitations
         approval_phrase: create this event with invitations in Outlook Calendar
       events.update:
         default: allow
         label: Edit events
       events.update_with_notifications:
+        approval_policy: fresh_consent_or_task_allow
         label: Update events and notify guests
         approval_phrase: update this event and notify guests in Outlook Calendar
       events.delete:

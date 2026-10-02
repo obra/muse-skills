@@ -1,7 +1,6 @@
 ---
 name: "google_forms"
 description: "Read, create, and update the user's Google Forms, and read responses."
-icon: "google_forms"
 metadata: { "includeInPrompt": false }
 ---
 

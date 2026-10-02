@@ -1,7 +1,6 @@
 ---
 name: "google_drive"
 description: "Work with the user's Google Drive: files, folders, uploads, downloads, and sharing."
-icon: "google_drive"
 metadata: { "includeInPrompt": false }
 ---
 

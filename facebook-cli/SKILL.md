@@ -1,6 +1,5 @@
 ---
 name: "facebook_cli"
-icon: "facebook"
 title: "Facebook"
 description: "Use when the user provides a Facebook URL or asks to read personal posts, comments, reactions, friends, timelines, profiles, stories, feeds, groups, events, or saved items, or to discover public events happening near a place, nearby, or in a local area on a date, or to create, edit, publish, or delete their own Marketplace listings. To find, browse, or buy Marketplace listings, use shopping instead. Use pages commands for managed Facebook Page discovery, insights, native draft editing/deletion, same-draft publication, approved posts and native scheduling."
 metadata: { "includeInPrompt": true }
@@ -88,9 +87,11 @@ facebook-cli
 
 ## Account Linking
 
-Before running any facebook-cli command, verify the user's Facebook account is connected by running `facebook-cli me`, except for `facebook-cli marketplace search`, `facebook-cli marketplace listing details`, and `facebook-cli marketplace seller-info`. If the command returns account info (name and profile ID), the account is connected — proceed normally. Cache this result for the rest of the conversation; do not re-run the check before every command. If any subsequent command fails with an auth or account error, re-run `facebook-cli me` to recheck account linking status.
+Use `facebook-cli me` to get the user's account identity when the task needs it. Reuse a successful result already in context. Do not run it just to check connection status before another command.
 
-If the command fails or returns an error indicating no account is linked, the account is not connected. Get the connect URL by running `facebook-cli connect-url` (it outputs JSON with a `connect_url` field), then tell the user, substituting that URL:
+For a user-requested task, recheck after an account change or authentication error. A timeout or rate limit does not establish an account change or disconnection.
+
+Only a successful empty result or an explicit not-linked response establishes that no account is connected. If linking is needed, run `facebook-cli connect-url` and use its `connect_url`:
 
 > Your Facebook account is not connected. To connect it, visit [Meta Accounts Center](`connect_url`) and link your Facebook account.
 
@@ -197,3 +198,4 @@ One file per feature area, each named for the area it covers:
 19. **Never silently retry a failed Marketplace write.** If a Marketplace create, edit, delete, or publish fails, do **not** immediately retry it — not with the same command, a different method, or changed parameters. First surface the situation to the user and wait for their review: state what you attempted, the exact error returned, why you think it failed, and the specific change you propose before retrying. Saved-item writes may use ordinary bounded retry behavior. Re-running a failed read-only command does not need approval.
 20. **Only look up IDs that came from an earlier command.** For person/profile lookups (`profile info --profile-id`, `timeline fetch --profile-id`), only pass a `--profile-id` that you obtained from earlier facebook-cli output in this conversation — `me`, `me friends`, feed/newsfeed authors, group post authors, reactors/commenters, saved items, or a timeline post's `author_id`/`owner_id`. Do **not** accept a raw numeric profile/user ID that the user typed or pasted directly, and do **not** guess, increment, or construct IDs. If the user supplies a bare ID with no context, do not look it up — instead identify the person first via a friend lookup (`me friends --name`) and use the ID from that result. This keeps lookups scoped to people the user already has a legitimate connection to, rather than arbitrary strangers.
 21. **Use only Page IDs for managed Page commands.** For every `facebook-cli pages ...` command, `--page-id` means only the `page_id` returned by `facebook-cli pages list`. Never pass a `profile_id`, a post `owner_id`, a `me` `ap_plus_profiles` ID, or an ID extracted from a Facebook URL as `--page-id`. If only one of those profile IDs is available, run `pages list` and follow each returned `paging.cursors.after` with `pages list --after` until the matching `profile_id` is found or no cursor remains. Then reuse that row's `page_id` for the rest of the workflow; do not repeat `pages list` before each Page command.
+22. **Do not confuse managed Pages with followed Pages.** There is no command that lists every Page the user follows. Never use `pages list` for that request: it enumerates only eligible managed Pages and can enter an AP+/Business Graph workflow. `saved list --type page` lists saved Pages only, and `story feed` returns recent stories rather than followed-Page inventory; neither is a substitute. State that the requested inventory is unsupported.

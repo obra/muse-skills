@@ -1,5 +1,6 @@
 version: 1
 connector: figma
+category: business
 display_name: Figma
 description: View and collaborate on your designs
 icon: figma

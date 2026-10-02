@@ -1,7 +1,6 @@
 ---
 name: "google_tasks"
 description: "Manage the user's Google Tasks: lists, task details, creation, updates, and completion."
-icon: "google_tasks"
 metadata: { "includeInPrompt": false }
 ---
 

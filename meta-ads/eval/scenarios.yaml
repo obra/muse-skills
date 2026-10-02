@@ -1306,6 +1306,40 @@
   persona_id: ADS_PERSONA_ID
   objective: "Create an ad for my shop where people tap Send message and it opens a Messenger chat with my Page."
 
+- name: create-video-request-generates-video
+  category: write
+  tests: >-
+    Live finding: asked to generate a video ad, the agent said three times that
+    it could not generate video, because the skill documented only an image
+    generator. Asked for a generated video, the agent makes it with
+    media.generate_video, states the accepted placement's shape in the prompt,
+    and checks the returned file's shape, reopening the plan rather than
+    generating again when it does not fit. Its single-video thumbnail is a
+    still frame from that video and is never shown. Telling the advertiser
+    video generation is unavailable, or switching to a still image, is the
+    failure.
+  persona_id: ADS_PERSONA_ID
+  objective: "Approve this strategy and make me a short generated video for the ad instead of a still image."
+
+- name: create-creative-plan-grounds-visual-in-references
+  category: write
+  tests: >-
+    User-test finding: a first image batch built only from the product and
+    category came out generic and showed a scene the product did not fit, and
+    quality improved only once the advertiser supplied reference images. The
+    delivery strategy is approved and the account has delivered ads. Before presenting
+    the creative plan, read ad-level results for the goal's metric and preview
+    the leading one to three ads with enough delivery to judge. The plan names
+    what those ads share, such as palette, typography, composition, hook, or
+    format, and what each reference contributes to the proposed visual,
+    without claiming the new ad will perform. In the same message as the
+    source picker, it asks once for the advertiser's own reference images,
+    logo, and brand colors or fonts. What the proposed visual shows genuinely
+    fits the product, and it does not reproduce a referenced ad as the new
+    concept.
+  persona_id: ADS_PERSONA_ID
+  objective: "Approve this strategy and continue to the creative direction for a new ad in my account."
+
 - name: create-upload-path-after-strategy-approval
   category: write
   tests: >-

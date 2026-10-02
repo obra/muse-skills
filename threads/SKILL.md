@@ -1,7 +1,6 @@
 ---
 name: "threads"
 description: "Read and manage the user's Threads account: profile, posts, feed, saved posts, activity, insights, social graph, search, trends, and a specific post by URL or ID. Can tune feed ranking and publish posts on request."
-icon: "threads"
 metadata: { "includeInPrompt": true }
 ---
 
@@ -16,9 +15,13 @@ Use the separate `threads_messages` skill for Threads inboxes and message thread
 
 ## Account Linking
 
-Before running any other command, verify the user's Threads account is connected by running `threads-cli accounts`. If the command returns account info (one or more accounts with `id`), the account is connected — proceed normally. Cache this result for the rest of the conversation; do not re-run the check before every command. If any subsequent command fails with an auth or account error, re-run `threads-cli accounts` to recheck account linking status.
+Use the account `id` from a `threads-cli accounts` result already in context. If it is missing, run `threads-cli accounts` once to get it.
 
-If the command fails or returns an empty result indicating no account is linked, the account is not connected. Get the connect URL by running `threads-cli connect-url` (it outputs JSON with a `connect_url` field), then tell the user, substituting that URL:
+For a user-requested task, recheck after an account change or authentication error. A timeout or rate limit does not establish an account change or disconnection.
+
+Use the account chosen for the task. If several accounts fit and none was chosen, ask the user in a live conversation or report the unresolved choice in your result. Do not choose arbitrarily.
+
+Only a successful empty accounts list or an explicit not-linked response establishes that no account is connected. If linking is needed, run `threads-cli connect-url` and use its `connect_url`:
 
 > Your Threads account is not connected. To connect it, visit [Meta Accounts Center](`connect_url`) and link your Threads account.
 

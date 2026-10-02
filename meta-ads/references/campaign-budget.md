@@ -231,6 +231,9 @@ finish inside this pricing substep. Guided mode returns to `campaign-guided.md`.
 ## Failures
 
 A deterministic argument or schema failure leaves budget unresolved until the
-input or interface changes. Retry the unchanged request only once when the
+input or interface changes. When the estimate says the plan's optimization or
+actions are not supported, it cannot price this plan: say so once, ask the
+advertiser for the budget they want, and continue the plan without a forecast
+rather than inventing one. Retry the unchanged request only once when the
 failure is explicitly transient. A successful response missing required pricing
 fields is incomplete, not a reason to inspect CLI help or repeat the call.

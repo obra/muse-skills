@@ -3,6 +3,7 @@ connector: instagram_messages
 category: social
 display_name: Instagram Messages
 description: Catch up on messages and manage your inbox
+icon: instagram
 actions:
   read:
     default: allow
@@ -16,6 +17,7 @@ actions:
     label: Write and delete permissions
     methods:
       messages.send:
+        approval_policy: fresh_consent_or_task_allow
         label: Send messages
         approval_phrase: send this message on Instagram
 

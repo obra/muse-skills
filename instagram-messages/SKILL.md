@@ -1,7 +1,6 @@
 ---
 name: "instagram_messages"
 description: "Use this to interact with the user's Instagram messages. Read inboxes, threads, top recipients, filtered inbox views, DM search results, and send messages through `instagram-messages-cli`."
-icon: "instagram"
 metadata: { "includeInPrompt": false }
 ---
 

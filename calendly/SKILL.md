@@ -1,7 +1,6 @@
 ---
 name: "calendly"
 description: "View Calendly events and event types, and manage scheduling data using the Calendly CLI."
-icon: "calendly"
 metadata: { "includeInPrompt": false }
 ---
 

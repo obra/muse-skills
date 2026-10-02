@@ -2,7 +2,6 @@
 name: "healthex"
 title: "HealthEx"
 description: "Use to connect HealthEx and ask questions about your medications, lab results, and other health records."
-icon: "healthex"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -1,5 +1,6 @@
 version: 1
 connector: meta_ads
+category: business
 display_name: Meta Business Manager
 description: Manage your ad accounts, campaigns and insights
 icon: meta_ads
@@ -42,9 +43,11 @@ actions:
     label: Publishing
     methods:
       advertising.publish:
+        approval_policy: fresh_consent_only
         label: Publish ads
         approval_phrase: publish or run your Meta Ads campaigns or ads
       experiments.start:
+        approval_policy: fresh_consent_only
         label: Start experiments
         approval_phrase: start your Meta Ads experiments
   campaigns_write:
@@ -59,6 +62,7 @@ actions:
         label: Edit or archive ads and campaigns
         approval_phrase: edit or archive your Meta Ads campaigns, ads or creatives
       campaigns.delete:
+        approval_policy: fresh_consent_only
         label: Delete ads and campaigns
         approval_phrase: delete your Meta Ads campaigns, ads or creatives
   audiences_write:
@@ -73,6 +77,7 @@ actions:
         label: Edit existing audiences
         approval_phrase: edit your Meta Ads audiences and their membership
       audiences.delete:
+        approval_policy: fresh_consent_only
         label: Delete audiences
         approval_phrase: delete your Meta Ads audiences
   catalogs_write:
@@ -87,6 +92,7 @@ actions:
         label: Edit existing catalogs and feeds
         approval_phrase: edit or refresh your Meta Ads catalogs, products, feeds or data sources
       catalogs.delete:
+        approval_policy: fresh_consent_only
         label: Delete catalog items and feeds
         approval_phrase: delete your Meta Ads products, product sets, feeds or rules
   pixels_write:
@@ -101,6 +107,7 @@ actions:
         label: Edit or archive pixel settings
         approval_phrase: edit or enable your Meta Pixel events or parameters, or archive parameters
       pixels.delete:
+        approval_policy: fresh_consent_only
         label: Delete pixel event rules
         approval_phrase: delete your Meta Pixel event rules
   experiments_write:

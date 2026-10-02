@@ -1,7 +1,6 @@
 ---
 name: "messenger_read"
 title: "Messenger"
-icon: "messenger"
 description: "Work with the user's Messenger account: read call history; read and search contacts; read, search, and summarize conversations; send, react to, unsend, or edit messages; and message Marketplace listing threads."
 category: "communication"
 metadata: { "includeInPrompt": true }
@@ -270,19 +269,17 @@ hatch_messenger_cli search "dinner" --cid '<CONVERSATION_ID>'
 ## Message Text Input
 
 For every send, Marketplace initiation, or edit, pass the body through
-`--text-stdin` as the final option and a single-quoted heredoc:
+`--text-stdin` and the separate `stdin` field of `muse.exec`:
 
-```sh
---text-stdin << 'MESSENGER_INPUT'
-exact message text
-MESSENGER_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/hatch_messenger_cli send --cid '<CONVERSATION_ID>' --text-stdin",
+  "stdin": "exact message text"
+}
 ```
 
-There is no `--text` flag. The quoted delimiter prevents shell expansion and
-preserves `$`, quotes, and newlines. Choose a delimiter absent from the body;
-never use an unquoted heredoc. Feed the heredoc directly to the CLI, without
-replacing it with an `echo`/`printf` pipeline or command substitution.
-`--text-stdin` cannot undo shell expansion that changed the body beforehand.
+There is no `--text` flag. Put the complete outgoing text in `stdin`, using a
+separate invocation for each message.
 
 ## Send a Message
 
@@ -318,21 +315,24 @@ Immediately before sending, show:
 Use names rather than IDs. Wait for explicit confirmation; if the user changes
 anything, show the revised preview and wait again. Then call exactly one form:
 
-```sh
-hatch_messenger_cli send --cid '<CONVERSATION_ID>' [--attach <FILE>] --text-stdin << 'MESSENGER_INPUT'
-message text
-MESSENGER_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/hatch_messenger_cli send --cid '<CONVERSATION_ID>' --text-stdin",
+  "stdin": "message text"
+}
 ```
 
-```sh
-hatch_messenger_cli send --to '<FACEBOOK_USER_ID>' [--attach <FILE>] --text-stdin << 'MESSENGER_INPUT'
-message text
-MESSENGER_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/hatch_messenger_cli send --to '<FACEBOOK_USER_ID>' --text-stdin",
+  "stdin": "message text"
+}
 ```
 
-For attachments, use a readable local path. If the source is outside the
-workspace, copy it into `~/workspace/` first and use that same copy in both the
-preview and `--attach`. Leading `~` resolves to the Muse home directory.
+For attachments, add `--attach '<FILE>'` to the command with a readable local
+path. If the source is outside the workspace, copy it into `~/workspace/`
+first and use that same copy in both the preview and `--attach`. Leading `~`
+resolves to the Muse home directory.
 
 ### Automatic replies
 
@@ -370,12 +370,11 @@ then preview:
 Wait for explicit confirmation, then call once using the Message Text Input
 rule:
 
-```sh
-hatch_messenger_cli marketplace initiate \
-  --listing-id <LISTING_ID> \
-  --text-stdin << 'MESSENGER_INPUT'
-message text
-MESSENGER_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/hatch_messenger_cli marketplace initiate --listing-id <LISTING_ID> --text-stdin",
+  "stdin": "message text"
+}
 ```
 
 `created: true` means a new thread was created and the message was sent.
@@ -477,10 +476,11 @@ own text messages. The preview also includes **Before:** with the current text
 and **After:** with the exact replacement, each as a Markdown blockquote. If
 the requested replacement changes, preview again.
 
-```sh
-hatch_messenger_cli edit [--cid '<CONVERSATION_ID>'] --mid '<MESSAGE_ID>' --text-stdin << 'MESSENGER_INPUT'
-replacement text
-MESSENGER_INPUT
+```json
+{
+  "command": "/opt/hatch/bin/hatch_messenger_cli edit --cid '<CONVERSATION_ID>' --mid '<MESSAGE_ID>' --text-stdin",
+  "stdin": "replacement text"
+}
 ```
 
 The replacement must exactly match the confirmed Message Text Input body.

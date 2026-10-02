@@ -1,5 +1,6 @@
 version: 1
 connector: zapier
+category: business
 display_name: Zapier
 description: Automate workflows across your apps
 icon: zapier

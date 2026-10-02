@@ -1,5 +1,6 @@
 version: 1
 connector: lovable
+category: business
 display_name: Lovable
 description: Build, edit and deploy apps with AI
 icon: lovable

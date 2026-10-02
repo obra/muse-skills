@@ -1,7 +1,6 @@
 ---
 name: "google_docs"
 description: "Read, create, and edit the user's Google Docs."
-icon: "google_docs"
 metadata: { "includeInPrompt": false }
 ---
 

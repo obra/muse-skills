@@ -1,5 +1,6 @@
 version: 1
 connector: vercel
+category: business
 display_name: Vercel
 description: Manage deployments for websites and web apps
 icon: vercel

@@ -1,5 +1,6 @@
 version: 1
 connector: linear
+category: business
 display_name: Linear
 description: Plan, build and manage projects
 icon: linear

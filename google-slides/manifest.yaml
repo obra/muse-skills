@@ -3,6 +3,7 @@ connector: google_slides
 category: productivity
 display_name: Google Slides
 description: Create and manage presentation slides
+icon: google_slides
 request_quota:
   mode: enforce
   workers:

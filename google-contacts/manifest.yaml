@@ -3,6 +3,7 @@ connector: google_contacts
 category: productivity
 display_name: Google Contacts
 description: Search and manage your contacts and address book
+icon: google_contacts
 request_quota:
   mode: enforce
   workers:

@@ -1,5 +1,6 @@
 version: 1
 connector: evernote
+category: productivity
 display_name: Evernote
 description: Capture, organize and search your notes
 icon: evernote

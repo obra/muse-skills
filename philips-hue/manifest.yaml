@@ -1,7 +1,9 @@
 version: 1
 connector: philips_hue
+category: productivity
 display_name: Philips Hue
 description: Control smart lights, set scenes and automate your lighting
+icon: hue_lights
 request_quota:
   mode: enforce
   workers:

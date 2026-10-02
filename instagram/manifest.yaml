@@ -3,6 +3,7 @@ connector: instagram
 category: social
 display_name: Instagram
 description: Catch up on friends and the creators you love
+icon: instagram
 request_quota:
   mode: shadow
   workers:
@@ -43,6 +44,7 @@ actions:
     label: Write and delete permissions
     methods:
       profile.edit:
+        approval_policy: fresh_consent_or_task_allow
         label: Edit your profile
         approval_phrase: edit your Instagram profile
       algorithm.update:
@@ -50,6 +52,7 @@ actions:
         label: Edit your algorithm
         approval_phrase: update your Instagram algorithm
       content.post:
+        approval_policy: fresh_consent_or_task_allow
         label: Post content
         approval_phrase: post this content to Instagram
       saved.write:

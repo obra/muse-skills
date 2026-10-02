@@ -1,5 +1,6 @@
 version: 1
 connector: stripe
+category: business
 display_name: Stripe
 description: Manage payments, customers and subscriptions
 icon: connectorStripe

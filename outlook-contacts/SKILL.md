@@ -1,7 +1,6 @@
 ---
 name: "outlook_contacts"
 description: "List, search, create, update, and delete contacts in the user's Outlook account."
-icon: "outlook_contacts"
 metadata: { "includeInPrompt": false }
 ---
 

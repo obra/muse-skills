@@ -1,7 +1,6 @@
 ---
 name: "granola"
 description: "Search and read Granola meeting notes and transcripts through Granola's OAuth-backed MCP server."
-icon: "granola"
 metadata: { "includeInPrompt": false }
 ---
 

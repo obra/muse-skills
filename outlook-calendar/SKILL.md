@@ -1,7 +1,6 @@
 ---
 name: "outlook_calendar"
 description: "View, create, update, and delete events in the user's Outlook Calendar."
-icon: "outlook_calendar"
 metadata: { "includeInPrompt": false }
 ---
 

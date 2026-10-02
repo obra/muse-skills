@@ -3,6 +3,7 @@ connector: google_calendar
 category: productivity
 display_name: Google Calendar
 description: Manage calendar events and scheduling
+icon: google_calendar
 request_quota:
   mode: enforce
   workers:
@@ -61,6 +62,7 @@ actions:
         requires_scopes:
           - https://www.googleapis.com/auth/calendar
       events.insert_with_invitations:
+        approval_policy: fresh_consent_or_task_allow
         label: Create events with invitations
         approval_phrase: create this event with invitations in Google Calendar
         requires_scopes:
@@ -71,6 +73,7 @@ actions:
         requires_scopes:
           - https://www.googleapis.com/auth/calendar
       events.update_with_notifications:
+        approval_policy: fresh_consent_or_task_allow
         label: Update events and notify guests
         approval_phrase: update this event and notify guests in Google Calendar
         requires_scopes:

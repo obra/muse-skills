@@ -1,7 +1,6 @@
 ---
 name: "google_calendar"
 description: "Work with the user's Google Calendar: agenda views, event details, and scheduling changes."
-icon: "google_calendar"
 metadata: { "includeInPrompt": true }
 ---
 

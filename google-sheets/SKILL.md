@@ -1,7 +1,6 @@
 ---
 name: "google_sheets"
 description: "Read, write, and manage the user's Google Sheets."
-icon: "google_sheets"
 metadata: { "includeInPrompt": false }
 ---
 

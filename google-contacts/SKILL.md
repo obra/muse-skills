@@ -1,7 +1,6 @@
 ---
 name: "google_contacts"
 description: "Search, view, create, update, and delete the user's Google Contacts."
-icon: "google_contacts"
 metadata: { "includeInPrompt": false }
 ---
 

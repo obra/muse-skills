@@ -1,5 +1,6 @@
 version: 1
 connector: box
+category: business
 display_name: Box
 description: Search, share and manage your files and folders
 icon: box

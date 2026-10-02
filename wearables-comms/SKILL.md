@@ -3,8 +3,9 @@ name: "wearables_comms"
 title: "Wearables Calls and Messages"
 description: >-
   Required for wearable-originated calls and text messages: resolve recipients
-  for new calls and messages, and immediately answer, decline, or cancel calls
-  on the originating wearable instead of silently switching to a paired phone.
+  for new calls and messages, immediately answer, decline, or cancel calls on
+  the originating wearable instead of silently switching to a paired phone, and
+  refuse an app-based calling route instead of substituting a cellular call.
 metadata: { "includeInPrompt": true, "devices": ["audio-wearable", "mcu-wearable"] }
 ---
 
@@ -34,6 +35,30 @@ If any call attempt returns `emergency-unsupported`, treat that result as
 terminal even when the request did not match the rule above or contact lookup
 resolved a name to 911. Report the restriction immediately. Do not perform
 another lookup or retry through another advertised calling command or device.
+
+## Supported routes
+
+Calling is native only. A request to call someone through an app, such as
+WhatsApp, Messenger, or Instagram, is unsupported. Do not invoke a call
+command to satisfy it, and do not offer a native call in its place. Reply
+only with a brief refusal meaning
+"I can't do that at the moment." in the caller's supported language, and
+nothing else. This rule is about the requested route, not about calling: an
+ordinary "call Alice" is a native call and follows the normal workflow below.
+
+Messaging defaults to native SMS whenever the user names no provider. A
+WhatsApp, Messenger, or Instagram Direct message is a connector route rather
+than a wearable command, so it never appears among the device's commands;
+follow that provider's own skill instead. If the provider reports that it is
+not connected, stop there: do not start a connection flow, do not silently
+substitute SMS, and do not offer another route. Reply with the same brief
+refusal. For a message through any other named app, follow that app's own
+skill the same way and let its result decide. Do not refuse it before
+checking, and do not substitute SMS for it.
+
+Answering whether a route is available is not the same as performing it. When
+the user asks what this device can do, or whether an app or account is
+connected, answer that question normally instead of refusing.
 
 ## Default workflow: use the current wearable
 
@@ -164,6 +189,10 @@ Dispatch rejects a device that does not currently support the command or
 arguments.
 
 ## Send a message
+
+This is the native SMS route, the default whenever the user names no provider.
+A message the user asked to send through WhatsApp, Messenger, or Instagram
+Direct follows *Supported routes* above instead.
 
 Require both a resolved recipient and the message text. Select the native SMS
 command by calling `device.invoke` on the selected wearable with command

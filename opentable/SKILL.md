@@ -2,7 +2,6 @@
 name: "opentable"
 title: "OpenTable"
 description: "Find restaurants on OpenTable, check availability, and make, change, or cancel reservations. Use for restaurant booking and live reservation data."
-icon: "opentable"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: "shopping"
-description: "Use for any product or shopping question: find, reverse image search, shopping Instagram/Marketplace links, buy, compare, or evaluate real products with prices, images, and product page URLs, including buying or browsing Facebook Marketplace listings. Use when presenting shopping search results from any source. For shopping intent, load this skill first before any other skills."
+description: "Use for any product or shopping question: find, reverse image search, shopping Instagram/Facebook/Marketplace links, buy, compare, or evaluate real products with prices, images, and product page URLs, including buying or browsing Facebook Marketplace listings. Use when presenting shopping search results from any source. For shopping intent, load this skill first before any other skills."
 metadata:
   includeInPrompt: true
 ---
@@ -12,7 +12,12 @@ You should always aim to save the user money. Find high-quality, low-priced prod
 ## Product search tools
 
 The following are the primary tools for product search:
+<!-- catalog-search-v1-only:start -->
 - Meta catalog search: `meta-catalog-search` enables rapid searches across Meta's product catalog
+<!-- catalog-search-v1-only:end -->
+<!-- catalog-search-v2-only:start -->
+- Meta catalog search: `shopping catalog-search` enables rapid semantic searches across Meta's product catalog
+<!-- catalog-search-v2-only:end -->
 - Browser product search: `browser.spawn_task` enables slow but thorough searches across the web via an agentic browser; it has universal product coverage; always call it (unless the user explicitly asked only for products from Facebook Marketplace), especially for home goods, and run it in parallel with any other applicable product search tools
 - Facebook Marketplace search: `facebook-cli` enables rapid searches for listings on Facebook Marketplace
 
@@ -56,7 +61,7 @@ Resolve each one in this order: what the user said in this request or earlier in
 If required attributes remain unknown for a browser purchase, ask for them
 together in one message. Use plain text when several choices need answers.
 
-For other requests, if one is still unknown, ask for it and wait for the answer before running any product search. Ask about exactly one attribute per turn. When several are open, pick the one that most changes which products are correct (the wearer's gender before their size, the device before the part), ask only that, wait for the reply, then ask the next one in its own turn. For a known, bounded choice, call `muse.create_options` and follow its guidance. Ask open-ended questions in plain text. Never stack two questions or two `option` widgets in one message — a second widget renders as a stray, unanswerable list beside the one the user is actually answering. Do not search first and narrow afterwards: an unresolved required attribute returns wrong products, and offering to filter once they're on screen is too late. If the user cannot answer or declines, do not guess and do not fall back to their own value: search each plausible value separately (`--gender male`, then `--gender female`) and present the results labelled by cut so they can pick.
+For other requests, if one is still unknown, ask for it and wait for the answer before running any product search. Ask about exactly one attribute per turn. When several are open, pick the one that most changes which products are correct (the wearer's gender before their size, the device before the part), ask only that, wait for the reply, then ask the next one in its own turn. For a known, bounded choice, call `muse.create_options` and follow its guidance. Ask open-ended questions in plain text. Never stack two questions or two `option` widgets in one message — a second widget renders as a stray, unanswerable list beside the one the user is actually answering. Do not search first and narrow afterwards: an unresolved required attribute returns wrong products, and offering to filter once they're on screen is too late. If the user cannot answer or declines, do not guess and do not fall back to their own value: search each plausible value separately<!-- catalog-search-v1-only:start --> (`--gender male`, then `--gender female`)<!-- catalog-search-v1-only:end --> and present the results labelled by cut so they can pick.
 
 Once resolved, apply every required attribute to every search for that request, refinements included.
 
@@ -102,7 +107,7 @@ Run the purchase workflow on the main agent. Do not hand any part of it to `suba
 
 1. Identify the products and any variants or quantities already specified.
 2. Close active browser discovery tasks that are no longer relevant with `browser.close_task`. Use `browser.list_tasks` to find their IDs. Ignore late results for those products after purchase begins.
-3. Route on the eligibility flags `meta-catalog-search` already returned; do not call `shopping product-details` just to decide the route.
+3. Route on the eligibility flags the catalog search already returned; do not call `shopping product-details` just to decide the route.
 4. For Meta catalog products with `is_agentic_checkout_creation_enabled: true`, call `shopping product-details` once per selected product to pin the exact variant. Then load `/opt/hatch/skills/shopping/references/shopify-ucp.md` and follow its purchase flow.
 5. Otherwise, load `/opt/hatch/skills/shopping/references/browser-checkout.md` and follow its handoff flow.
 
@@ -124,6 +129,13 @@ pay. Remembering products yourself gets you none of that.
 3. If the shopping context contains product IDs, use `shopping product-details --product-id <product id>` to fetch the corresponding product details. Write a temporary `{"products": [...]}` JSON file whose entries copy `product.id`, `product.name`, `product.price`, `product.url`, and `product.images[0].url` verbatim from the product-details response into `product_id`, `price`, `name`, `url`, and `image_url`. Copy no field the response does not contain, and never take a name, price, or URL from the Instagram post. Pass that file and the copied product IDs to `shopping.resolve_results`. Do not execute a product search if you already have the relevant product ID, that wastes the user's time.
 4. If the shopping context contains no product IDs, execute the product discovery workflow using the data provided in the shopping context.
 5. Surface the found products in the shopping results widget and mention them via product markers in the text response.
+
+### Shopping Facebook reel links
+
+1. Use `facebook-cli post read --url '<link>'` to fetch the shopping context for the provided `facebook.com/reel/` link. Do not open the link in the browser. Its `shoppable_products` are the products Facebook identified in the reel.
+2. If the user named a product, shop for that product. Otherwise, shop for the products in `shoppable_products`. If there are none, ask the user which product they want.
+3. Execute the product discovery workflow for those products using the data provided in the shopping context, such as `brand_name`, `color`, and `product_name`, together with any constraints the user gave, but skip browser product search and search with<!-- catalog-search-v1-only:start --> `meta-catalog-search`<!-- catalog-search-v1-only:end --><!-- catalog-search-v2-only:start --> `shopping catalog-search`<!-- catalog-search-v2-only:end --> only.
+4. Surface the found products in the shopping results widget and mention them via product markers in the text response.
 
 ## Meta Catalog Search
 
@@ -154,6 +166,7 @@ pay. Remembering products yourself gets you none of that.
 
 ### Search
 
+<!-- catalog-search-v1-only:start -->
 `--query` performs semantic text matching. Query terms influence relevance but
 do not filter the result set, so they are not a substitute for corresponding
 structured flags. For example, a query for a boy's product can return products
@@ -226,12 +239,36 @@ rejects an argument you passed, correct that argument and rerun once with the
 same constraints. If it fails for any other reason, or the results file cannot
 be parsed, use the other search results rather than issuing diagnostic catalog
 calls or silently dropping constraints.
+<!-- catalog-search-v1-only:end -->
+<!-- catalog-search-v2-only:start -->
+`shopping catalog-search` accepts one to four semantic `--query` values. Put
+every required attribute and useful preference into every query because this
+backend has no structured constraint flags. Use repeated `--brand` values only
+when the user names preferred brands; brand is a ranking preference, not a hard
+filter.
+
+```sh
+CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
+shopping catalog-search \
+  --query "<specific product query including every constraint>" \
+  --retries 2 --out "$CATALOG_RESULTS_JSON"
+
+# Inspect the returned products while retaining their ids
+jq -r '.products[] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+```
+
+The command supports semantic text queries only. Filter returned products
+against every hard requirement before selecting them. If too few match, refine
+the query without dropping required attributes. A failure or malformed result
+ends this catalog attempt; use results from the other search tools instead of
+issuing diagnostic calls.
+<!-- catalog-search-v2-only:end -->
 
 ### Product details
 
 During product selection, before purchase, or when the user asks, it can be beneficial to determine the variants available for a given product, such as different clothing sizes.
 
-For a specific Meta catalog product returned by `meta-catalog-search`, retrieve its corresponding product variant data from the catalog with the following command:
+For a specific Meta catalog product returned by catalog search, retrieve its corresponding product variant data from the catalog with the following command:
 
 ```sh
 shopping product-details --product-id "<product_id>"

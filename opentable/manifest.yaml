@@ -3,6 +3,7 @@ connector: opentable
 category: social
 display_name: OpenTable
 description: Explore restaurants and book and manage reservations
+icon: opentable
 actions:
   read:
     default: allow

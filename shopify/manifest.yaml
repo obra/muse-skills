@@ -1,5 +1,6 @@
 version: 1
 connector: shopify
+category: business
 display_name: Shopify
 description: Manage your store’s products, orders and customers
 icon: shopify
