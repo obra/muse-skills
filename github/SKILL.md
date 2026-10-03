@@ -2,7 +2,6 @@
 name: "github"
 title: "GitHub"
 description: "Search and work with the user's GitHub repositories through GitHub's official MCP server."
-icon: "github"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -74,8 +74,8 @@ labeled image immediately beside or below its hotel's Markdown entry.
 
 ## Search and route
 
-Use an installed lodging provider for live lodging discovery and rate refreshes
-when available; otherwise use another connected accommodation tool or the
+Use `skill_search` to find a lodging provider for searches and rate refreshes.
+If none is available, use another connected accommodation tool or the
 browser. Do not treat a flight-only integration as supporting hotels. Confirm
 shortlisted rates rather than trusting teaser prices. Check the authenticated
 hotel-chain site when status, member pricing, points, or certificates matter.

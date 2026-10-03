@@ -1,7 +1,6 @@
 ---
 name: "todoist"
 description: "Read and manage Todoist tasks, projects, comments, labels, filters, and reminders through Todoist's official MCP server."
-icon: "todoist"
 metadata: { "includeInPrompt": false }
 ---
 

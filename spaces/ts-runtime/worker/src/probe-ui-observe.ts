@@ -481,23 +481,21 @@ export function freezeTimeScript(epochMs: number): string {
 })()`;
 }
 
-/**
- * Wait for the artifact's own data layer to go idle.
- *
- * 95 of 96 shipped artifacts import the SDK's single `spaceQueryClient`, so
- * "is this app done loading" is a question the platform can answer instead of
- * one the model has to guess with a sleep. `installAuditSettleProbe` in the SDK
- * exposes the in-flight count; when it is absent (an artifact that predates the
- * hook, or a non-SDK page) fall back to Playwright's network idle.
- *
- * Returns how long settling took and whether it actually reached idle, so a
- * caller can report "still fetching after 8s" as a finding rather than silently
- * screenshotting a spinner.
- */
-export async function settlePage(
+/** One settle attempt's outcome. `in_flight` is null when the page exposes no SDK
+ *  hook and the attempt waited on Playwright's network idle instead. */
+export interface SettleResult {
+  settled: boolean;
+  settle_ms: number;
+  in_flight: number | null;
+}
+
+/** Poll the SDK's in-flight count (`window.__hatchAuditSettle`, installed by
+ *  `installAuditSettleProbe`) until it holds at zero for `SETTLE_STABLE_POLLS`
+ *  polls or `timeoutMs` elapses. Null when the page exposes no hook. */
+export async function pollSdkIdle(
   page: Page,
-  networkIdleFallbackMs: number,
-): Promise<{ settled: boolean; settle_ms: number; in_flight: number | null }> {
+  timeoutMs: number,
+): Promise<SettleResult | null> {
   const startedAt = Date.now();
   const probe = async (): Promise<number | null> => {
     try {
@@ -511,16 +509,11 @@ export async function settlePage(
   };
 
   const first = await probe();
-  if (first === null) {
-    await page
-      .waitForLoadState("networkidle", { timeout: networkIdleFallbackMs })
-      .catch(() => {});
-    return { settled: true, settle_ms: Date.now() - startedAt, in_flight: null };
-  }
+  if (first === null) return null;
 
   let idleStreak = 0;
   let last = first;
-  while (Date.now() - startedAt < SETTLE_POLL_TIMEOUT_MS) {
+  while (Date.now() - startedAt < timeoutMs) {
     last = (await probe()) ?? 0;
     idleStreak = last === 0 ? idleStreak + 1 : 0;
     if (idleStreak >= SETTLE_STABLE_POLLS) {
@@ -529,6 +522,37 @@ export async function settlePage(
     await page.waitForTimeout(SETTLE_POLL_INTERVAL_MS);
   }
   return { settled: false, settle_ms: Date.now() - startedAt, in_flight: last };
+}
+
+/**
+ * Wait for the artifact's own data layer to go idle.
+ *
+ * 95 of 96 shipped artifacts import the SDK's single `spaceQueryClient`, so
+ * "is this app done loading" is a question the platform can answer instead of
+ * one the model has to guess with a sleep. When the hook is absent fall back to
+ * Playwright's network idle.
+ *
+ * Returns how long settling took and whether it actually reached idle, so a
+ * caller can report "still fetching after 8s" as a finding rather than silently
+ * screenshotting a spinner. The fallback is as honest: `settled` is false when
+ * idle did not arrive inside the window, because a swallowed timeout once read
+ * as settled and sent a loading frame downstream with no signal that it was one.
+ */
+export async function settlePage(
+  page: Page,
+  networkIdleFallbackMs: number,
+): Promise<SettleResult> {
+  const startedAt = Date.now();
+  const sdk = await pollSdkIdle(page, SETTLE_POLL_TIMEOUT_MS);
+  if (sdk !== null) return sdk;
+
+  let idle = true;
+  await page
+    .waitForLoadState("networkidle", { timeout: networkIdleFallbackMs })
+    .catch(() => {
+      idle = false;
+    });
+  return { settled: idle, settle_ms: Date.now() - startedAt, in_flight: null };
 }
 
 /** Run the walk against a live page. */

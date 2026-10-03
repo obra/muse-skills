@@ -1,7 +1,6 @@
 ---
 name: "quickbooks"
 description: "Read and manage the user's QuickBooks business through Intuit's official MCP server, including reports, invoices, customers, products, payment links, sales settings, and industry benchmarks."
-icon: "quickbooks"
 metadata: { "includeInPrompt": false }
 ---
 
@@ -30,8 +29,24 @@ action; say so. When it returns `scope_status: not_granted`, copy
 finish before retrying. Unlike a record link, this link gets its own line.
 `granted` means the recorded scopes cover the command; Intuit can still reject
 the token or the company's access. `unavailable` means the grant is unknown.
-For a read that fails for missing access, use the same status command to
-request the read tier. Never construct OAuth URLs or ask for tokens in chat.
+Exact schema results also include `scope_status` and, when access is known to
+be missing, `scope_add_url`. Check those fields before calling the tool. An
+exact lookup for a tool Intuit omitted automatically returns
+`error_kind: additional_access_required` with the same link when the recorded
+grant is known to lack its read or write tier. Share the link using the format
+above and wait. If an older deployment returns only an opaque missing-access
+failure, use the status command to request the tier. Never construct OAuth
+URLs or ask for tokens in chat.
+
+Intuit may occasionally return an explicit `insufficient_scope` response even
+when the connection's recorded scopes say `granted`. If the recorded grant is
+known to be missing access, the CLI returns the normal `scope_add_url`; share it
+using the format above and wait for consent. If it instead returns
+`scope_status: provider_rejected`, there is no additional-access link to share.
+Explain that QuickBooks rejected the connected token and that reconnecting
+QuickBooks in Settings may restore access. Do not disconnect automatically or
+repeatedly retry the rejected tool. If recorded scope metadata is unavailable,
+the CLI preserves Intuit's original error instead of guessing a recovery path.
 
 ## Common flows
 

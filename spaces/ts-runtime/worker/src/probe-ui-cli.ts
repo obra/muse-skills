@@ -537,10 +537,13 @@ async function doObserve(
     // "there but unusable".
     unreachable_controls: walk.unreachable,
     needs_inner_scroll: walk.needs_inner_scroll,
-    note:
-      settle.settled
-        ? undefined
-        : `still fetching after ${settle.settle_ms}ms (${settle.in_flight} query/queries in flight) — the artifact has not finished loading`,
+    // in_flight null with settled false is the network-idle fallback timing out
+    // (no SDK hook), so the note must not print a count.
+    note: settle.settled
+      ? undefined
+      : settle.in_flight === null
+        ? `network still active after ${settle.settle_ms}ms (no SDK settle hook; network idle did not arrive inside the window); the artifact may not have finished loading`
+        : `still fetching after ${settle.settle_ms}ms (${settle.in_flight} query/queries in flight); the artifact has not finished loading`,
     // The two bulky arrays last, so head/tail/jq truncation drops these, not the
     // verdict fields above. `nodes` (the actionable list the model addresses its
     // next act by) precedes `aria`: on a dense page even the model's own `head -c`

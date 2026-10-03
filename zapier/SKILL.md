@@ -1,7 +1,6 @@
 ---
 name: "zapier"
 description: "Connect Muse to actions across apps through Zapier's official MCP server."
-icon: "zapier"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -4,7 +4,6 @@ description: >-
   Read and search messages, channels, and threads in the user's Slack workspace.
   Use to catch up on team discussions and decisions, post channel messages, and
   reply to coworkers through Slack's official MCP server.
-icon: "slack"
 metadata: { "includeInPrompt": false }
 ---
 

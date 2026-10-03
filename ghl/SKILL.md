@@ -1,7 +1,6 @@
 ---
 name: "ghl"
 description: "Use HighLevel contacts, pipelines, appointments, messages, and its broader operation catalog."
-icon: "📇"
 metadata: { "includeInPrompt": false }
 ---
 

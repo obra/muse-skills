@@ -4,7 +4,6 @@ description: >-
   Plan and track team projects and tasks in Asana. Use to assign work to owners,
   update due dates and status, set task dependencies, and review project progress,
   comments, teams, and workspaces through Asana's official MCP server.
-icon: "asana"
 metadata: { "includeInPrompt": false }
 ---
 

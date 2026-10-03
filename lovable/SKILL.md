@@ -5,7 +5,6 @@ description: >-
   product brief into a working website or prototype, inspect existing project
   code, update pages and features, and publish changes through Lovable's official
   MCP server.
-icon: "lovable"
 metadata: { "includeInPrompt": false }
 ---
 

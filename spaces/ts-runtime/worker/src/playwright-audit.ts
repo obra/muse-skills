@@ -72,6 +72,11 @@ import { fulfillLocalAuditRequest } from "./local-audit-transport";
 //     "audit_session_id": "<uuid>"|null,  // the per-audit routing key this
 //                                         // capture ran under; the gate matches
 //                                         // it against the probe summary's id.
+//     "readiness": { "desktop": {...}|null, "mobile": {...}|null },  // per-viewport
+//                               // settle outcome (ViewportReadiness); never gating.
+//     "color_scheme": { "declared": "..."|null, "media_dependent": bool|null, "dark_frame": bool }|null,
+//                         // desktop pass; media_dependent null = unknown; dark_frame: screenshot-dark.png written (fold under prefers-color-scheme: dark, only when media_dependent)
+//                               // the scheme the images were taken under.
 //     "error":           "<populated when ok=false>"
 //   }
 // Stdout carries only `report-sha256:<hex>` followed by the report path (last
@@ -116,7 +121,9 @@ import {
   ariaSnapshot,
   clippedNodes,
   observeNodes,
+  pollSdkIdle,
   type ClippedNode,
+  type SettleResult,
   type UnreachableControl,
 } from "./probe-ui-observe";
 
@@ -630,6 +637,32 @@ interface ViewportReport {
   fullpage_screenshot_path?: string | null;
 }
 
+/** One settle window's outcome plus whether Playwright's network idle arrived
+ *  inside it; the SDK count is read only after idle, so it never advances a capture. */
+export interface CaptureSettle extends SettleResult {
+  network_idle: boolean;
+}
+
+/** Loading state of one viewport when its images were taken (`settle_ms` totals every
+ *  window). Nothing gates on it; it tells the critic a still-loading frame is unjudged. */
+export interface ViewportReadiness extends CaptureSettle {
+  /** A second settle window ran because the navigation settle did not reach idle. */
+  retried: boolean;
+}
+
+/** The document's declared `color-scheme` and, when it declares dark, whether its
+ *  fold renders differently under `prefers-color-scheme: dark` (light-mode viewers
+ *  get the light palette) and whether a dark fold frame was captured beside the light
+ *  primary frames, which stay the frames light-mode viewers actually get. */
+export interface ColorSchemeRecord {
+  /** Computed `color-scheme` of `:root` (or the meta tag's content), clamped to 64 chars. */
+  declared: string | null;
+  /** Null when unknown, including a light fold that did not hold still around the
+   *  dark probe. */
+  media_dependent: boolean | null;
+  dark_frame: boolean;
+}
+
 interface AuditReport {
   ok: boolean;
   url: string;
@@ -750,6 +783,10 @@ interface AuditReport {
   // match the probe summary's `session_id` so it can never pair this envelope's
   // node count with a stale probe session's acts.
   audit_session_id: string | null;
+  // null for a pass that failed before its images were taken; nothing gates on it.
+  readiness: { desktop: ViewportReadiness | null; mobile: ViewportReadiness | null };
+  // Desktop is authoritative; mobile fills it only when the desktop pass failed.
+  color_scheme: ColorSchemeRecord | null;
   error?: string;
   /** Local capture connection/read failure, distinct from an artifact load failure. */
   error_kind?: "capture_transport";
@@ -781,6 +818,7 @@ interface AuditDiagnostics {
   concurrent_mobile_retry: boolean; // mobile SQLITE_BUSY guard fired
   shared_launch_failed: boolean; // shared-browser launch failed → per-pass
   nav_retries: number; // transient-nav retries taken
+  settle_retries: number; // viewports whose navigation settle needed the one retry
 }
 
 // Cap how many blocked URLs we keep so a runaway Space can't bloat the
@@ -1456,6 +1494,8 @@ function emptyReport(args: CliArgs): AuditReport {
     interactive_nodes: 0,
     aria_snapshot: null,
     audit_session_id: args.auditSessionId,
+    readiness: { desktop: null, mobile: null },
+    color_scheme: null,
   };
 }
 
@@ -2123,41 +2163,65 @@ export async function collectRawImages(page: Page): Promise<RawImg[]> {
   )) as RawImg[];
 }
 
-// Navigate a prepared page to the published space and best-effort settle.
-export async function navigateAndSettle(
+/** Settle for a capture: network idle (the same bound as before), then the SDK's
+ *  in-flight count when the page exposes it. Only network idle sees plain fetches
+ *  and lazy chunks, so the count may only delay a capture, never advance it. */
+export async function settleForCapture(page: Page): Promise<CaptureSettle> {
+  const startedAt = Date.now();
+  let network_idle = true;
+  await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {
+    network_idle = false;
+  });
+  const sdk = network_idle ? await pollSdkIdle(page, SETTLE_TIMEOUT_MS) : null;
+  return {
+    settled: network_idle && (sdk?.settled ?? true),
+    settle_ms: Date.now() - startedAt,
+    in_flight: sdk?.in_flight ?? null,
+    network_idle,
+  };
+}
+
+export interface NavigationResult {
+  status: number | null;
+  settle: CaptureSettle;
+}
+
+// Navigate a prepared page to the published space and settle. The settle outcome
+// is returned, never swallowed, so a capture off an unsettled page can say so.
+export async function navigateForCapture(
   page: Page,
   url: string,
   onAttempt?: () => void,
-): Promise<number | null> {
-  // One goto + best-effort React-first-paint settle. This settle (networkidle)
-  // is what makes `domcontentloaded` safe for SPAs — it must NOT be removed.
-  const attempt = async (): Promise<number | null> => {
+): Promise<NavigationResult> {
+  // One goto + best-effort first-paint settle. This settle is what makes
+  // `domcontentloaded` safe for SPAs; it must NOT be removed.
+  const attempt = async (): Promise<NavigationResult> => {
     onAttempt?.();
     const response = await page.goto(url, {
       waitUntil: "domcontentloaded",
       timeout: PAGE_LOAD_TIMEOUT_MS,
     });
-    // Best-effort settle for React first paint; never fail on it.
-    await page.waitForLoadState("networkidle", { timeout: SETTLE_TIMEOUT_MS }).catch(() => {});
+    const settle = await settleForCapture(page);
     // The main-document HTTP status. An HTTP error from the artifact route
     // means the renderer returned an error page, even if transport succeeded.
-    return response ? response.status() : null;
+    return { status: response ? response.status() : null, settle };
   };
 
   // At most ONE retry on a TRANSIENT failure — a thrown goto (timeout /
   // net::ERR_*) or a transient 5xx main-doc status. A deterministic 4xx or a
-  // real broken page is returned as-is (never retried).
+  // real broken page is returned as-is (never retried). An unsettled page is
+  // not a retry trigger here; captureViewport owns that retry.
   try {
-    const status = await attempt();
-    if (isTransientNavStatus(status)) {
+    const first = await attempt();
+    if (isTransientNavStatus(first.status)) {
       navRetriesThisRun += 1;
-      logAuditEvent("nav_retry", { reason: `transient status ${status}`, url });
-      // Retry once; keep the first status if the retry itself throws.
-      const retried = await attempt().catch(() => status);
-      logAuditEvent("nav_retry_result", { first: status, retried });
+      logAuditEvent("nav_retry", { reason: `transient status ${first.status}`, url });
+      // Retry once; keep the first result if the retry itself throws.
+      const retried = await attempt().catch(() => first);
+      logAuditEvent("nav_retry_result", { first: first.status, retried: retried.status });
       return retried;
     }
-    return status;
+    return first;
   } catch (err) {
     if (!isTransientNavError(err)) throw err;
     navRetriesThisRun += 1;
@@ -2166,9 +2230,92 @@ export async function navigateAndSettle(
       url,
     });
     const retried = await attempt(); // single retry; a second throw propagates
-    logAuditEvent("nav_retry_result", { recovered: true, status: retried });
+    logAuditEvent("nav_retry_result", { recovered: true, status: retried.status });
     return retried;
   }
+}
+
+/** Status-only form for the resident probe, which does not record the settle. */
+export async function navigateAndSettle(
+  page: Page,
+  url: string,
+  onAttempt?: () => void,
+): Promise<number | null> {
+  return (await navigateForCapture(page, url, onAttempt)).status;
+}
+
+/** Bound on the page-authored `declared` string; every well-formed `color-scheme`
+ *  value fits, so an artifact cannot pad the record. */
+const COLOR_SCHEME_DECLARED_CHARS = 64;
+
+/** Computed `color-scheme` of `:root`, falling back to `<meta name="color-scheme">`
+ *  when it computes to `normal`. A style read, never page text. */
+const COLOR_SCHEME_SCRIPT = `(() => {
+  const computed = (getComputedStyle(document.documentElement).colorScheme || "normal").trim();
+  if (computed !== "normal") return computed;
+  const content = document.querySelector('meta[name="color-scheme"]')?.getAttribute("content");
+  return content && content.trim() ? content.trim().split(/\\s+/).join(" ") : computed;
+})()`;
+
+const DARK_SCREENSHOT_FILENAME = "screenshot-dark.png";
+
+/** Light frames stay primary. When the document declares `color-scheme: dark`, the
+ *  desktop pass compares a light fold with a fold under the dark preference, records
+ *  whether the pixels differ (the render depends on a dark media query), keeps the
+ *  dark fold for the critic only when they do and the light fold held still, and
+ *  resets to light before the primary frames. Only an exact computed `dark` flips
+ *  the emulation: scaffolded artifacts declare `light dark`, and emulating dark for
+ *  those would flip fleet-wide captures. */
+async function probeColorScheme(
+  page: Page,
+  outputDir: string | null,
+  settleAgain: () => Promise<void>,
+): Promise<ColorSchemeRecord> {
+  let declared: string | null = null;
+  try {
+    const value = await page.evaluate(COLOR_SCHEME_SCRIPT);
+    declared = typeof value === "string" ? value.slice(0, COLOR_SCHEME_DECLARED_CHARS) : null;
+  } catch {
+    // unknown; the light capture stands
+  }
+  const record: ColorSchemeRecord = { declared, media_dependent: null, dark_frame: false };
+  if (declared !== "dark" || outputDir === null) return record;
+  // Compare pixels, not styles: template Spaces paint on a wrapper, not <body>, and
+  // frozen animations keep a moving element from reading as a palette change.
+  const fold = () =>
+    page.screenshot({ fullPage: false, animations: "disabled" }).catch(() => null);
+  const same = (a: Buffer | null, b: Buffer | null) => !!a && !!b && a.equals(b);
+  // Content that changes on its own (a timer, a rotator, a blink) would read as a
+  // palette change, so the light fold must hold still across a settle before the
+  // dark fold and after the reset; otherwise the result stays unknown.
+  const light = await fold();
+  await settleAgain();
+  if (!same(light, await fold())) return record;
+  let dark: Buffer | null = null;
+  try {
+    await page.emulateMedia({ colorScheme: "dark" });
+    await settleAgain();
+    dark = await fold();
+  } catch {
+    // best effort; the light frames below are unaffected
+  } finally {
+    await page.emulateMedia({ colorScheme: null }).catch(() => {});
+    await settleAgain();
+  }
+  if (!dark) return record;
+  // A page that is dark without the preference renders the same frame twice;
+  // only a palette that lives in the dark media query earns the extra capture.
+  if (same(light, dark)) {
+    record.media_dependent = false;
+    return record;
+  }
+  if (!same(light, await fold())) return record;
+  record.media_dependent = true;
+  record.dark_frame = await writeFile(join(outputDir, DARK_SCREENSHOT_FILENAME), dark).then(
+    () => true,
+    () => false,
+  );
+  return record;
 }
 
 /** Hard ceiling on the mobile overflow probe.
@@ -2401,6 +2548,8 @@ async function captureViewport(
   aria_snapshot: string | null;
   /** Sandbox-incompatible affordances found on the desktop pass; [] on mobile. */
   blocked_affordances: BlockedAffordance[];
+  readiness: ViewportReadiness;
+  color_scheme: ColorSchemeRecord;
   // Phase-0 telemetry: cold Chromium launch time for this pass (ms). 0 when a
   // shared browser is reused (the launch cost is attributed once in runAudit).
   launch_ms: number;
@@ -2465,7 +2614,7 @@ async function captureViewport(
       },
     );
     let priorAttemptTransportFailed = false;
-    const navStatus = await navigateAndSettle(page, url, () => {
+    const navigation = await navigateForCapture(page, url, () => {
       // An existing navigation retry starts a fresh capture. A recovered
       // connection must not retain the prior attempt's infrastructure flag.
       priorAttemptTransportFailed ||= captureTransportFailed;
@@ -2478,9 +2627,23 @@ async function captureViewport(
       }
       throw error;
     });
+    const navStatus = navigation.status;
     if (navStatus === null || navStatus < 200 || navStatus >= 300) {
       throw new AuditNavigationError(navStatus);
     }
+
+    // Everything below reads the page as it is now, so settle it first. One retry,
+    // same bound: a page still loading at the first window usually finishes inside
+    // a second one, and the critic once read the first frame as missing content.
+    let settle = navigation.settle;
+    const settleAgain = async () => {
+      const again = await settleForCapture(page);
+      settle = { ...again, settle_ms: settle.settle_ms + again.settle_ms };
+    };
+    const retried = !settle.settled;
+    if (retried) await settleAgain();
+    const color_scheme = await probeColorScheme(page, isMobile ? null : outputDir, settleAgain);
+    const readiness: ViewportReadiness = { ...settle, retried };
 
     const text_issues = scanTextIssues(await readBodyText(page));
     const rawImages = await collectRawImages(page);
@@ -2586,6 +2749,8 @@ async function captureViewport(
       fullpage_screenshot_path,
       aria_snapshot,
       blocked_affordances,
+      readiness,
+      color_scheme,
       launch_ms,
     };
   } catch (error) {
@@ -2735,6 +2900,10 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
         report.nav_status = desktop.nav_status;
         report.images = desktop.images;
         report.text_issues = desktop.text_issues;
+        report.readiness.desktop = desktop.readiness;
+        // Desktop is authoritative for the scheme; a mobile pass that finished
+        // first only held the slot until now.
+        report.color_scheme = desktop.color_scheme;
         // In shared mode the launch is counted once (sharedLaunchMs); the
         // per-pass desktop.launch_ms is 0 because it reused the shared browser.
         report.cold_launch_ms =
@@ -2790,6 +2959,8 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
           report.interactive_nodes,
           mobile.interactive_nodes,
         );
+        report.readiness.mobile = mobile.readiness;
+        report.color_scheme ??= mobile.color_scheme;
         return true;
       } catch (err) {
         // Mobile failure is non-fatal — desktop is the primary signal — but the
@@ -2912,6 +3083,11 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
     concurrent_mobile_retry: concurrentMobileRetried,
     shared_launch_failed: sharedLaunchFailed,
     nav_retries: navRetriesThisRun,
+    // Counted from the records the shipped images came from, so a pass the
+    // concurrency guard re-ran serially is counted once, for its final run.
+    settle_retries:
+      (report.readiness.desktop?.retried ? 1 : 0) +
+      (report.readiness.mobile?.retried ? 1 : 0),
   };
   logAuditEvent("done", {
     ok: report.ok,
@@ -3327,6 +3503,8 @@ async function main(): Promise<number> {
       aria_snapshot: null,
       interactive_nodes: 0,
       audit_session_id: args.auditSessionId,
+      readiness: { desktop: null, mobile: null },
+      color_scheme: null,
       error:
         startFailure !== null
           ? startFailure
