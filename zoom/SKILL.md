@@ -5,7 +5,6 @@ description: >-
   catch up on missed calls, summarize decisions, and extract action items and
   owners; also work with Team Chat, Canvas, Tasks, Whiteboard, Hub, and Revenue
   Accelerator through Zoom's official MCP servers.
-icon: "zoom"
 metadata: { "includeInPrompt": false }
 ---
 

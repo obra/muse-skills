@@ -5,7 +5,6 @@ description: >-
   interfaces. Use to read component variants, spacing and design tokens, inspect
   layouts and design-system libraries, and extract image assets for implementing
   a design through Figma's official MCP server.
-icon: "figma"
 metadata: { "includeInPrompt": false }
 ---
 

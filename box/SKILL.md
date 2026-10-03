@@ -1,6 +1,5 @@
 ---
 name: "box"
-icon: "box"
 description: "Search, read, upload, download, move, rename, delete, restore, and share Box content; manage comments and metadata."
 metadata: { "includeInPrompt": false }
 ---
@@ -88,8 +87,11 @@ Use `restore-file` or `restore-folder` to recover them. Their
 Downloads report the saved path and byte count; other results appear under
 `result`. `ok: false` means the operation failed. REST commands make one attempt:
 retry a download later if Box returns HTTP 202 (file not ready), and run
-`refresh` on HTTP 401 before retrying. Check whether a failed change was applied
-before retrying it.
+`refresh` on HTTP 401 before retrying. Read-only hosted MCP requests refresh and
+retry once after HTTP 401. A hosted MCP write is never automatically replayed
+after it is sent: if it returns HTTP 401, first check Box to see whether the
+change applied, then run `/opt/hatch/bin/box-cli refresh` and retry manually only
+if needed. Reconnect Box only if refresh fails.
 Do not retry an access-denied operation through another command.
 
 `/opt/hatch/bin/box-cli refresh` refreshes the connection.

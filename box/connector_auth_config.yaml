@@ -1,5 +1,10 @@
-# Reference policy; Jarvis embeds its live copy from config/surrogation.yaml.
-# Keep the hosts aligned with the Box row in that companion repository.
+# Reference policy, not a byte-for-byte copy of live surrogation. The Box row in
+# config/surrogation.yaml intentionally lists only mcp.box.com because Sentinel
+# injects credentials only for hosted MCP. This reference also retains the
+# trusted-worker REST OAuth host and refresh metadata. Authenticated upload
+# requests remain in the trusted worker, while signed *.boxcloud.com downloads
+# are unauthenticated and constrained by box-cli's download validator; neither
+# belongs in the live bearer-injection host list.
 name: box
 schema: oauth
 mode: direct_oauth

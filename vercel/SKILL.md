@@ -5,7 +5,6 @@ description: >-
   deployments. Use to read build and runtime logs, investigate production errors
   and failed deployments, check deployment status, and deploy projects through
   Vercel's official MCP server.
-icon: "vercel"
 metadata: { "includeInPrompt": false }
 ---
 

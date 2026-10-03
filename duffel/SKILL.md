@@ -501,11 +501,16 @@ rebook a successful order to repair loyalty.
 
 ## Recovery
 
+For a Stripe Link `requires_action` result, use only `user_action.url` as a
+link. Do not share or open an `action_url` inside `provider_response`.
+
 | Result | Action |
 |---|---|
 | Validation failure or expired offer before approval | Correct all fields together. If the offer expired, report that and ask the user to continue in a new turn before searching again. No spend exists. |
-| `stripe_link_action_required` with `auto_resume` | Send the complete Markdown link once, wait for the user to connect, then rerun the identical `book`. |
-| `replacement_required` | Stop; do not change card/offer or create another spend without explicit recovery guidance. |
+| `requires_action` with `resolution: auto_resume` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination. Wait for the user to complete it, then rerun the identical `book`. If `user_action` is absent, stop and report the blocker. |
+| `requires_action` with `resolution: replacement_required` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination. Do not rerun `book`. After the user completes the action and asks to continue, start a fresh search and obtain new payment approval. If `user_action` is absent, stop and report the blocker. |
+| `requires_action` without a recognized `resolution` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination, then stop. Do not infer whether the existing request can resume. If `user_action` is absent, stop and report the blocker. |
+| `failed`, `terminal_status`, or `unsupported` | Report the Stripe Link result and stop. Do not retry `book` or create another spend request. |
 | Partially completed split booking | Stop. Report the successful bookings and PNRs plus every unpurchased leg. Do not buy a replacement or cancel anything without the user's explicit instruction. |
 | Definitive native-provider rejection | Say no booking was created and the card was not captured; any temporary authorization will fall off on the issuer's schedule. Do not retry until the user explicitly requests a new attempt in a later message. |
 | Timeout, 5xx, or ambiguous mutation | Do not claim success/failure or retry. Inspect `booking-status`; otherwise escalate. |

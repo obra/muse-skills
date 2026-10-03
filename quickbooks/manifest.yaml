@@ -16,8 +16,7 @@ cli:
   skill: quickbooks
   service: quickbooks
 # The connected 3LO grant declares one complete consent tier. Every reviewed
-# tool currently uses the user grant; the CLI keeps a 2LO app-token path only
-# for tools it lists explicitly, and lists none. Hatch permissions gate execution.
+# tool uses the user grant. Hatch permissions gate execution.
 declarable_scopes:
   - foundations.tools.companyprofile.read
   - foundations.tools.businessreports.read
@@ -147,9 +146,6 @@ commands:
   refresh: null
   disconnect: null
   list-tools: business_tools.read
-  # Reserved for tools the CLI explicitly routes through the 2LO app token.
-  # None do today; every reviewed tool uses call-tool.
-  call-public-tool: null
   # The CLI classifies every reviewed tool at runtime. Unknown or newly
   # advertised tools remain unavailable until their approval posture is reviewed.
   call-tool: null

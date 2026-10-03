@@ -6,7 +6,6 @@ description: >-
   and slide decks, campaign artwork, flyers and banners, applying saved brand kits
   and templates, and resizing designs for social posts and stories through Canva's
   official MCP server.
-icon: "canva"
 metadata: { "includeInPrompt": false }
 ---
 
@@ -17,10 +16,13 @@ Use the installed `canva` CLI. Start with `canva status`. If it reports
 `connect_url`. If the CLI reports outdated OAuth settings, have the user
 disconnect Canva in Settings and reconnect. Never request tokens in chat.
 
-Run `canva list-tools` for live schemas and use only tools returned there.
-Follow their input schemas exactly and include a concise `user_intent`.
-`hatch_permission_overrides` identifies argument-dependent permissions;
-opening an editing transaction is a write and deleting pages is a delete.
+Run `canva list-tools` for live schemas and use only tools returned by that
+call. Treat omission as authoritative for the current task: never infer tool
+availability from this skill, a prior turn, a cached schema, or a tool expected
+to launch later.
+Follow returned input schemas exactly and include a concise `user_intent`.
+`hatch_permission_overrides` identifies argument-dependent permissions such as
+deleting pages.
 Some tools require Canva Pro, Enterprise, or available AI credits.
 
 Save each raw response before parsing. Check `result.isError`, then read
@@ -31,7 +33,6 @@ continuing. Never repeat a copy, creation, or commit just to obtain its output.
 
 ```text
 canva search-designs [--query <keywords>] [--continuation <token>]
-canva get-design-content --design-id <id>
 canva get-design-pages --design-id <id>
 canva list-tools
 canva call-tool --name <tool-name> --arguments-json '<JSON object>'
@@ -72,6 +73,19 @@ moderation failures. Show completed results using the preview workflow below.
 For generated images,
 include the returned Canva upload link with the text **Open generated image**.
 
+For `get-create-design-async-job`, save the non-empty `job_id` and
+`continuation_token` returned by `create-design`. Every poll must send that same
+`job_id` and the latest `continuation_token`; replace the token only when the
+previous poll returns a new one. A retry must resend both values unchanged.
+Never omit either argument, send it blank, or restart the polling chain with an
+older token.
+
+Treat an explicit creation count as a hard mutation limit. After a
+`create-design` job succeeds, do not create, copy, or resize another design to
+correct its wording, layout, or quality unless the user explicitly authorizes
+another design. Report the mismatch and provide the Canva link so the user can
+correct the completed design in the Canva editor.
+
 ## Upload and transform images
 
 For attachments, local files, or generated files up to 256 MiB, use
@@ -86,33 +100,24 @@ JSON, or base64. Never retry a consumed upload URL.
 `upload-asset-from-url` and `import-design-from-url` accept already-public
 HTTPS sources only. Do not publish local or private files to use those tools.
 Uploading media does not place it into a design. `create-design` has no asset
-input parameter: when exact supplied media must appear, use the editing flow
-to insert or replace media with its verified Canva ID, then inspect the result.
+input parameter. When exact supplied media must appear and no listed tool can
+place it, explain that limitation and offer the Canva editor rather than using
+an unavailable workflow.
 
 Use `remove-background` with an already-uploaded `MEDIA` reference to produce
 a new image with transparent alpha. It does not replace the scene or crop the
 subject. Use `separate-image-layers` with an uploaded image's `asset_id` to turn
 a flat graphic into a new editable design; the original stays unchanged.
-Verify editable elements with `read-design`, not appearance alone.
+When the live catalogue has no tool capable of inspecting editable elements,
+say that layer verification is unavailable rather than calling an absent tool.
 
 ## Read, edit, and organize
 
-Use `read-design` for metadata, text, page metadata, thumbnails, and presenter
-notes. The old MCP names `get-design`, `get-design-content`,
-`get-presenter-notes`, and `get-design-thumbnail` are removed. The CLI
-`get-design-content` convenience command now calls `read-design`.
-`get-design-pages` remains available for saved page previews.
-
-To edit, call `read-design` with `open_transaction: true` and include
-`thumbnails` in `filter.fields` for a before preview. Use its transaction ID,
-element locators, and page flags in `edit-design` with `finalize: keep_open`.
-Read that transaction to inspect unsaved changes. Show the preview and obtain
-explicit approval before `edit-design` with `finalize: commit` and no
-operations. Use `finalize: cancel` to discard edits. These replace
-`start-editing-transaction`, `perform-editing-operations`,
-`commit-editing-transaction`, and `cancel-editing-transaction`, even when
-older server descriptions still mention those names. Cancel stale
-transactions and open a fresh one.
+The current launch catalogue supports design and page discovery but not design
+content reads or editing transactions. Do not try remembered or future tool
+names for those workflows. Use `get-design-pages` when it is listed for saved
+page previews. When the user needs an unsupported content read or edit, provide
+the Canva link and explain that they must complete it in the Canva editor.
 
 `merge-designs` combines or reorders whole pages. Obtain explicit approval of
 the exact operations before each call; deleting pages is permanent.
@@ -121,10 +126,12 @@ Before `autofill-design`, inspect `get-design-dataset` or
 `get-brand-template-dataset` and match its field names/types. Set
 `update_in_place` only when the user requested overwriting that design.
 
-For brand-template updates, start with `create-brand-template-draft`, edit and
-save its design through the current transaction flow, then use
-`publish-brand-template` only when the user requested organization-wide
-publication. Publishing affects a reusable shared template.
+Updating a brand template requires creating its draft, editing and saving that
+draft, then publishing it. The current launch catalogue cannot edit or save the
+draft, so provide the Canva link and ask the user to complete those steps in the
+Canva editor. Use `publish-brand-template` only after the user confirms the
+edited draft is ready and requests organization-wide publication. Publishing
+affects a reusable shared template.
 
 Resolve Canva shortlinks before using designs. Confirm `get-export-formats`
 before `export-design`. Use `help` for current Canva product support questions,

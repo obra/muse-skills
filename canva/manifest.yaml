@@ -73,7 +73,6 @@ commands:
   refresh: null
   disconnect: null
   search-designs: content.read
-  get-design-content: content.read
   get-design-pages: content.read
   list-tools: content.read
   upload-file: content.import

@@ -1,7 +1,6 @@
 ---
 name: "evernote"
 description: "Read and create notes through Evernote's official MCP server."
-icon: "evernote"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -114,13 +114,8 @@ direct completion for that checkout.
 ```
 
 ```sh
-HATCH_SHOPPING_PRODUCT_CONTEXTS='[<each product hatch_telemetry_context, copied verbatim>]' shopify-ucp-cli checkout create --input-file "<checkout.json>" --format json
+shopify-ucp-cli checkout create --input-file "<checkout.json>" --format json
 ```
-
-Copy each runtime-authored context whole, including its eligibility flags, in
-the same order as `items`. Set that same environment value on every
-`shopify-ucp-cli` checkout, cart, and order command for this purchase attempt.
-It is read only by local telemetry and is not sent to Shopify.
 
 Put the complete item set in this initial create call. `checkout update` cannot
 add or remove products. Do not use the separate `cart` commands to assemble
@@ -134,8 +129,7 @@ one.
 If create returns an error or rejects the item, explain the result and offer
 browser checkout from the original catalog `url`; do not retry automatically.
 When the user accepts, follow
-`/opt/hatch/skills/shopping/references/browser-checkout.md`. Set `stage` to
-`agentic_fallback` and `reason` to `agentic_create_failed`.
+`/opt/hatch/skills/shopping/references/browser-checkout.md`.
 
 Only a successful create response with a usable `.agent_state.checkout_id` may continue below. Save that checkout ID. The CLI stores the endpoint-derived checkout behind the trusted runtime boundary. Inspect `.result` without copying its trusted fields into later commands.
 
@@ -160,17 +154,7 @@ available method does not select a route.
 After the user chooses, follow *Route after creation* to decide whether
 checkout continues directly or through a BrowserTask.
 
-As soon as a wallet route is settled, record it once before calling any wallet
-or browser tool:
-
-```sh
-shopping payment-lane-selected --lane <shop-pay|stripe-link> --selection-source user --product-contexts-json '[<each product hatch_telemetry_context, copied verbatim>]'
-```
-
-Emit one lane once. Do not emit it again when browser or direct completion
-starts. If this best-effort command fails, continue the checkout unchanged.
-
-After recording the route, follow the Wallet setup sequence in Payments &
+After choosing a wallet route, follow the Wallet setup sequence in Payments &
 Wallet. Use the exact provider ID, payment-method ID, and masked label only for
 this purchase. If the user declines setup or no usable method remains, return
 to route selection. Connection and method selection do not approve the
@@ -194,8 +178,6 @@ When the user selects `Use another method`, load
 existing checkout in a BrowserTask from the exact checkout URL. Include the
 user's payment choice in the brief without including card details. State that
 the user will enter payment during browser takeover.
-Set `stage` to `agentic_fallback` and `reason` to `user_selected_browser`. The
-user chose this route; no provider limit forced it.
 
 If the user does not choose, stop and wait. Do not select a route for them.
 
@@ -236,12 +218,7 @@ creating approval.
 
 ```json
 {
-  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. The user selected Shop Pay for this purchase with saved method <masked card label>. Complete the purchase using these known choices: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Shipping preference: <deadline/budget/speed, or none>.",
-  "shopping_checkout": {
-    "products": [<each product hatch_telemetry_context, copied verbatim>],
-    "stage": "payment_lane",
-    "reason": "shop_pay_selected"
-  }
+  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. The user selected Shop Pay for this purchase with saved method <masked card label>. Complete the purchase using these known choices: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Shipping preference: <deadline/budget/speed, or none>."
 }
 ```
 
@@ -257,17 +234,9 @@ not include the opaque payment-method ID in `task`.
 
 ```json
 {
-  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. Use provider stripe-link with saved method <masked label>. Use these known choices for every item: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Continue through checkout and hand off the exact final terms before submission. Shipping preference: <deadline/budget/speed, or none>.",
-  "shopping_checkout": {
-    "products": [<each product hatch_telemetry_context, copied verbatim>],
-    "stage": "agentic_fallback",
-    "reason": "<provider_requires_browser | agentic_completion_ineligible | buyer_details_required | stripe_link_unavailable>"
-  }
+  "task": "<what the user asked for, in their words>. Open <exact Shopify checkout URL> for <selected products>. Use provider stripe-link with saved method <masked label>. Use these known choices for every item: <color/size/quantity/other variants>. Ask only for missing required purchase choices. Continue through checkout and hand off the exact final terms before submission. Shipping preference: <deadline/budget/speed, or none>."
 }
 ```
-
-Choose the reason from the first matching *Route after creation* condition.
-Do not use a post-create fallback reason for an initial browser route.
 
 Follow `/opt/hatch/skills/shopping/references/browser-checkout.md` for
 continuation.
@@ -282,9 +251,7 @@ flow.
 Reuse the selected provider and exact payment method resolved above. Do not ask
 the route question again. If the selected method is no longer available, stop
 before completion or browser delegation and return to *Choose the payment
-route*. Do not substitute another route. A browser route taken because Stripe
-Link cannot complete this checkout uses `stage: "agentic_fallback"` and
-`reason: "stripe_link_unavailable"`.
+route*. Do not substitute another route.
 
 ## Refresh delivery, discounts, and totals
 
@@ -296,8 +263,7 @@ user choose. Update the trusted quote before completion:
 
 If the checkout requires independent delivery choices for different item
 groups, do not attempt direct completion; continue in the browser from the
-returned checkout URL with `stage: "agentic_fallback"` and
-`reason: "provider_requires_browser"`.
+returned checkout URL.
 
 ```json
 {
@@ -307,7 +273,7 @@ returned checkout URL with `stage: "agentic_fallback"` and
 ```
 
 ```sh
-HATCH_SHOPPING_PRODUCT_CONTEXTS='<same JSON array used for create>' shopify-ucp-cli checkout update --input-file "<update.json>" --format json
+shopify-ucp-cli checkout update --input-file "<update.json>" --format json
 ```
 
 To apply promo or coupon codes, pass the complete desired set in
@@ -369,7 +335,7 @@ a separate buyer identity token.
 Omit `selected_delivery_option_id` when the checkout has no delivery selection.
 
 ```sh
-HATCH_SHOPPING_PRODUCT_CONTEXTS='<same JSON array used for create>' shopify-ucp-cli checkout complete --input-file "<complete.json>" --format json
+shopify-ucp-cli checkout complete --input-file "<complete.json>" --format json
 ```
 
 Read the top-level `ok`: `true` means the order was placed; `false` means it was

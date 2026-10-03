@@ -1,7 +1,6 @@
 ---
 name: "replit"
 description: "Read, create, update, and publish apps through Replit's official MCP server."
-icon: "replit"
 metadata: { "includeInPrompt": false }
 ---
 

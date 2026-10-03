@@ -5,7 +5,6 @@ description: >-
   Dropbox cloud storage. Use to upload or download files, collect client uploads
   with file requests, inspect or create shared links, and create, copy, move, or
   delete content through Dropbox's official APIs.
-icon: "dropbox"
 metadata: { "includeInPrompt": false }
 ---
 

@@ -29,43 +29,6 @@ routes. When the user selected it,
 state that they will enter payment during browser takeover. Do not include card
 details.
 
-## Add catalog route information
-
-Some products returned by `shopping product-details` include a
-`hatch_telemetry_context`. For those products, add `shopping_checkout` to the
-browser task. Copy each product's complete `hatch_telemetry_context` into
-`products` without changing it. This information records why browser checkout
-was used. It does not change the checkout.
-
-Set `stage` and `reason` from the situation that started the browser task:
-
-| Situation | `stage` | `reason` |
-|---|---|---|
-| Agentic checkout creation was unavailable, and `checkout create` was not called | `checkout_start` | `agentic_creation_ineligible` |
-| The user chose browser checkout before `checkout create` was called | `checkout_start` | `user_selected_browser` |
-| Shop Pay must finish in the browser | `payment_lane` | `shop_pay_selected` |
-| `checkout create` failed | `agentic_fallback` | `agentic_create_failed` |
-| The user chose browser checkout after `checkout create` | `agentic_fallback` | `user_selected_browser` |
-| The selected provider requires browser checkout | `agentic_fallback` | `provider_requires_browser` |
-| Agentic checkout completion was unavailable | `agentic_fallback` | `agentic_completion_ineligible` |
-| The browser must collect required buyer details | `agentic_fallback` | `buyer_details_required` |
-| Stripe Link was unavailable for agentic completion | `agentic_fallback` | `stripe_link_unavailable` |
-
-Do not add `shopping_checkout` for a product found only by the browser.
-
-Example:
-
-```json
-{
-  "task": "<self-contained browser checkout task>",
-  "shopping_checkout": {
-    "products": [<complete hatch_telemetry_context for each catalog product>],
-    "stage": "checkout_start",
-    "reason": "agentic_creation_ineligible"
-  }
-}
-```
-
 ## Continue the purchase
 
 Follow the acknowledgment returned by `browser.spawn_task`. Continue the same

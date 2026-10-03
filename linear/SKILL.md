@@ -5,7 +5,6 @@ description: >-
   Use to review sprints and cycles, identify ticket rollover and release blockers,
   and update issue status, assignees, priorities, and milestones through Linear's
   official MCP server.
-icon: "linear"
 metadata: { "includeInPrompt": false }
 ---
 

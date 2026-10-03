@@ -274,10 +274,6 @@ For a specific Meta catalog product returned by catalog search, retrieve its cor
 shopping product-details --product-id "<product_id>"
 ```
 
-Keep the response's runtime-authored `hatch_telemetry_context` unchanged for
-the selected product and pass it whole to the checkout route as described by
-the route reference. Never invent, edit, or reuse it for another product.
-
 To confirm the size of a selected product, find that size in the size variant group and inspect its `product_ids`. Keep every non-size selected attribute (such as color) constant. Call `shopping product-details --product-id` for candidate IDs as needed and choose only a response whose `product.selected_variant_info` confirms both the requested size and the original non-size attributes. Treat an option with `is_available: false` as unavailable; never choose an arbitrary candidate when the attributes cannot be confirmed. Use the confirmed response's `product.id` for checkout, not the product ID from the `variant_groups`. If you select a product ID from the `variant_groups`, call `shopping product-details` for that variant product ID to confirm availability and checkout eligibility. Do not expose product IDs or this lookup process to the user.
 
 ### Widget

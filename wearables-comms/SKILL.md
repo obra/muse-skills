@@ -264,6 +264,32 @@ exception to the default workflow. Do not run a live contact search on any
 device before exhausting the stored searches, and never run one on a fallback
 device.
 
+### Contacts haven't synced
+
+Apply this step when the selected device's search reports
+`contacts_never_synced: true` and every stored and live search above still
+found no recipient. The flag means no contacts are stored for that device:
+none have synced since it paired or since the user deleted Muse's stored
+contacts. It does not show whether the user skipped setup, so never say they
+did. The setup steps to check are: in the Meta AI app, open Settings, then
+Apps, Communicate hands-free, then Phone, and make sure it is connected with
+every permission it asks for, including contacts. When `contacts_platform` is
+`ios`, also open iPhone Settings, Bluetooth, tap the glasses, and make sure
+Sync Contacts and Show Notifications are on.
+
+If there was no fallback device, or every fallback search also reported
+`contacts_never_synced: true`, no contacts are stored on the user's devices,
+so the name can't be looked up. Do not say the contact was not found or ask
+the user to spell it differently. Tell the user their phone contacts haven't
+synced yet and give the setup steps to check.
+
+If a fallback device without `contacts_never_synced` was searched, the name
+may be misheard or absent. Say it wasn't found on their other devices, ask
+whether it could be spelled differently, then briefly give the setup steps so
+the glasses can use their contacts directly.
+
+Keep the reply brief and spoken-friendly, and do not invoke a call or message.
+
 ### The advertised command or schema changed
 
 If the documented call, message, or call-control invocation returns

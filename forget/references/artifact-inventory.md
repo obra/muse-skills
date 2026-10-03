@@ -115,6 +115,23 @@ subject:
   `~/workspace/objectives/goals/STUDYING.md`;
 - Ideas, idea sources, embeddings, cards, accepted builds, and Feed prompts or
   units derived from them;
+- Feed's own derived claims about the reader, concluded from repeated
+  connector evidence rather than from anything they said, plus the per-run
+  signal snapshots and per-post signal citations whose keys carry the same
+  subject or a person's page name, and Feed's label cache, which holds a
+  subject word for each of the reader's signals. These live outside
+  `memory.claims` and outside the supersession cascade, so claim retraction
+  does not reach them. The runtime forget fence clears ALL of them with the
+  retraction, including ones unrelated to the request; do not attempt a
+  targeted delete. They do not return from already-consumed evidence, only
+  from new connector events and only after repeated sightings, so their later
+  reappearance is re-derivation from fresh mail rather than a failed cleanup;
+  the label cache is recomputed by the next feed run, so its reset loses
+  nothing. EVERY plan lists this as an irreversible side effect the reader
+  approves, in everyday words -- for example, "this also resets the interests
+  your feed learned from your email and calendar; they rebuild only as new
+  mail arrives" -- whatever the request is about, and the final report says it
+  happened;
 - Discovery Pool or other community cards and previews published from those
   Ideas;
 - Skill-improvement proposals, staged artifacts, installed user skill changes,
