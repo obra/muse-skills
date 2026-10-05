@@ -393,7 +393,7 @@
       "instructions": [
         "For each applicable managed cron, identify the exact published action and the object arguments its current body passes.",
         "Update that cron with execution.kind set to space_action, execution.slug set to the artifact's slug, execution.action set to the published action name, and execution.args set to the same object arguments. Keep the existing internal owner value unchanged.",
-        "Keep a concise body that describes the refresh for failure handoff and run history; do not leave action selection only in prose.",
+        "Keep a concise body that describes the refresh for run history; do not leave action selection only in prose.",
         "Do not convert a cron whose body performs reasoning, chooses among actions, or prepares a user-facing response."
       ],
       "verification": [

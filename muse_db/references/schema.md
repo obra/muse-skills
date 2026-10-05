@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `b3d04f9a6e96a1517a229d86089401c0c15cdee5ec7dacf6bb629182195ad3eb`.
+Migration-set fingerprint: `caca6b1333d5019b1b448e984dffd7537cf87740ed1f9547c4386f0ef5e7ef7a`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -2628,6 +2628,9 @@ Keys and relationships:
 | `items_json` | `text` | no | `'[]'::text` |  |
 | `revision` | `bigint` | no | `1` |  |
 | `updated_at_ms` | `bigint` | no | `((EXTRACT(epoch FROM now()) * (1000)::numeric))::bigint` |  |
+| `continuation_key` | `text` | yes |  |  |
+| `continuation_generation` | `bigint` | no | `0` |  |
+| `continuation_reminders` | `smallint` | no | `0` |  |
 
 Keys and relationships:
 

@@ -27,12 +27,17 @@ device-data contacts search --match-mode ranked \
                             [--device <node_id>] [--limit <n>] [--offset <n>]
 device-data calendar search [--query <text>] [--device <node_id>] \
                             [--start-date <YYYY-MM-DD>] \
-                            [--end-date <YYYY-MM-DD>]
+                            [--end-date <YYYY-MM-DD>] [--limit <n>] \
+                            [--cursor <next_cursor>]
 device-data calendar --delete-all
 ```
 
 Both searches default to every eligible paired device. Use `--device` to scope
 to one and omit `--query` to list.
+
+For calendar results, pass `next_cursor` unchanged as `--cursor` to continue,
+keeping the same device, query and dates. An absent cursor ends pagination;
+check `cache.coverage` separately to understand whether the cache is complete.
 
 Contact search combines literal display-name, phone, and email substring
 matches with token-level exact, locale-aware personal-name nickname, and

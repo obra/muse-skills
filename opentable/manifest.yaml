@@ -2,7 +2,7 @@ version: 1
 connector: opentable
 category: social
 display_name: OpenTable
-description: Explore restaurants and book and manage reservations
+description: Find and book restaurants with OpenTable
 icon: opentable
 actions:
   read:
@@ -45,4 +45,4 @@ consent_screen:
       text: "Muse may take unexpected actions. Monitor it carefully."
   footer_paragraphs:
     - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
-    - "Muse will exchange info with OpenTable. To learn more, view their [terms](https://www.opentable.com/legal/terms-and-conditions) and [privacy policy](https://www.opentable.com/legal/privacy-policy)."
+    - "Muse will exchange info with OpenTable. By connecting, you agree to OpenTable's [Terms of Use](https://www.opentable.com/legal/terms-and-conditions) and [Privacy Policy](https://www.opentable.com/legal/privacy-policy)."
