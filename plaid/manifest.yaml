@@ -4,6 +4,9 @@ category: productivity
 display_name: Finances (Plaid)
 description: Securely connect to institutions to access financial data
 icon: plaid
+multi_account:
+  backend: plaid
+  auth_provider: plaid
 actions:
   read:
     default: allow

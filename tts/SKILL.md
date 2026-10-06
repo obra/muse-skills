@@ -1,6 +1,6 @@
 ---
 name: "tts"
-description: "Turn supplied text into spoken audio, single or multi-speaker. For composed audio content (a podcast, briefing, or narrated summary), use podcast."
+description: "Generate spoken audio from text, single or multi-speaker, including voice notes or messages for chat, audio for artifacts, and audio from cron jobs. For podcasts, briefings, or narrated summaries, use podcast."
 metadata: { "includeInPrompt": true }
 ---
 
@@ -8,6 +8,28 @@ metadata: { "includeInPrompt": true }
 
 ## Purpose
 Use the bundled `tts` CLI to synthesize spoken audio files from text. It writes audio to a caller-chosen path and supports both single-speaker and multi-speaker dialogue.
+
+## Voice messages and audio delivery
+Use this skill to send a voice note or voice message in chat, create audio for
+an artifact, or generate audio in a cron job. Use `tts speak` for a short spoken
+reply.
+
+For a voice message you compose, write the TTS input in spoken form, without
+Markdown, citation markers, or attachment syntax. Write numbers, times, and
+URLs as they should be spoken. Keep links, citations, and the audio attachment
+in the chat message. If the user asks to read supplied text verbatim, preserve
+that text.
+
+For a chat response, write the audio under `~/workspace/`, for example
+`~/workspace/your_files/voice-message.mp3`. Use the returned `path` as the
+authoritative output location. Attach the file on its own line:
+
+```text
+![Voice message](sandbox://workspace/your_files/voice-message.mp3)
+```
+
+For artifacts and cron jobs, use the generated file through that task's
+output and delivery workflow.
 
 ## Voice Sources
 Use two authoritative sources: system voices in

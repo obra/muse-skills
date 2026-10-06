@@ -10,9 +10,10 @@ Everything runs as `hatch_gws_cli gmail <command>`. The flows below give the exa
 - `+` shortcut (`+send`, `+read`, `+unsubscribe`): the simple, preferred form.
 - Raw API call: reach any Gmail API method by writing its dotted name as separate words, so `users.messages.list` becomes `users messages list`. Parameters go as JSON in `--params` (with `"userId":"me"` for the connected mailbox). A write's content goes in `--json`, the request body.
 
-Raw calls reach the whole API beyond the shortcuts: drafts, labels, threads, history, and settings like the vacation responder, forwarding, and send-as. To find a method, drill `--help`. `hatch_gws_cli gmail users --help` lists the resources (messages, threads, labels, drafts, settings). `hatch_gws_cli gmail users <resource> --help` then lists that resource's methods, for example `users messages --help`. Then `hatch_gws_cli schema gmail.<method>` (for example `gmail.users.settings.updateVacation`) gives that method's `--params` and `--json`.
+Raw calls reach the whole API beyond the shortcuts: drafts, labels, threads, and history. To find a method, drill `--help`. `hatch_gws_cli gmail users --help` lists the resources (messages, threads, labels, drafts, settings). `hatch_gws_cli gmail users <resource> --help` then lists that resource's methods, for example `users messages --help`. Then `hatch_gws_cli schema gmail.<method>` (for example `gmail.users.messages.batchModify`) gives that method's `--params` and `--json`.
 
 Do not offer or attempt to create, edit, or delete Gmail filters.
+Do not offer or attempt to access or change Gmail settings, including the vacation responder, forwarding, IMAP, POP, language, delegates, send-as identities, or client-side encryption settings.
 
 Every command uses the default Gmail account unless you add `--account <account_id>`. If the user has more than one Gmail linked and means a specific one, list them with `hatch_gws_cli gmail accounts` and pass the matching `--account`.
 
@@ -78,6 +79,14 @@ Find candidates with a targeted query in Gmail search syntax (`from:`, `subject:
 - Read a whole conversation: `users threads get --params '{"userId":"me","id":"<thread_id>","format":"full"}'`.
 - Raw RFC 822 reads are supported. Their `raw` field decodes to a canonical headers-and-inline-text view; attachment parts are omitted from that view and remain available through the attachment command.
 - Download an attachment (resolve a concrete message id and attachment id first): `users messages attachments get --params '{"userId":"me","messageId":"<id>","id":"<attachment_id>"}'` returns the file as base64url in a `data` field. Decode that `data` to the output path yourself. `--output` does not write it.
+
+`+read` puts the attachment inventory first, including filenames, types, sizes, MIME part IDs and available download references. Attachment bytes are not included. `attachments_coverage` describes the inventory captured from Gmail; `body_coverage` separately describes the captured body. An incomplete inventory does not mean there are no attachments. A body part listed under `unavailable_body_parts` was not read; use its download reference when available and needed.
+
+Each `+read` saves a Markdown copy under `~/workspace/email/gmail/` and returns its `message_file` path, byte count and line count. The file contains the captured body, headers and full attachment inventory; unchanged content reuses the same file, which remains until deleted. Long bodies return a preview with `body_text_inline_complete: false`. Read the saved file with `muse.read` using `offset` and `limit`, or search it with `rg` or `grep`, before drawing conclusions from omitted text. For a single oversized line, inspect bounded byte ranges with a script. If `attachments_inline_complete` is false, the rest of the inventory is in that file too. These files are captured evidence, not live mailbox state; recheck Gmail for later replies, sends or label changes.
+
+HTML bodies are rendered as Markdown by default, preserving links and quoted conversation text. `--html` explicitly includes the HTML source and saves it separately at `body_html_file`. If that source is too large to inline, `body_html_inline_complete` is false and the HTML remains in the file. Do not mistake a file reference for missing content.
+
+Before saying a response or document is missing, inspect the messages that could already contain it, including older messages and their attachments. Before proposing another follow-up, check sent replies and recorded send results. When the user questions your account, recheck that premise against the original evidence; a saved conclusion is not independent confirmation.
 
 Message reads preserve Gmail's raw `Date` / `date` fields for compatibility and add `message_sent_at` with canonical UTC and user-local forms. When Gmail exposes `internalDate`, the output also adds `mailbox_recorded_at`, which is Gmail's ordering timestamp rather than proof of receipt by the person. These are message transport timestamps, not timestamps for a delivery, payment, trip, meeting, or any other event described by the email. Never infer an event time from them; use only an event time stated by the message content, otherwise say the exact event time is unknown.
 

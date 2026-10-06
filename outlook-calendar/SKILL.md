@@ -16,6 +16,7 @@ Use `exec` to run the installed CLI directly from `PATH`.
 
 ```sh
 outlook-calendar --status
+outlook-calendar accounts
 outlook-calendar disconnect
 outlook-calendar list --page-size 10 [--time-min <RFC3339>] [--time-max <RFC3339>] [--query <text>] [--page-token <token>]
 outlook-calendar get "<event_id>"
@@ -23,6 +24,21 @@ outlook-calendar create --summary "<title>" --start "<RFC3339-or-date>" --end "<
 outlook-calendar update "<event_id>" [--summary <title>] [--start <RFC3339>] [--end <RFC3339>] [--timezone <iana_tz>] [--location <text>] [--description <text>]
 outlook-calendar delete "<event_id>"
 ```
+
+Commands use the default linked calendar account unless `--account
+<account_id>` is provided. When the user clearly means a particular account,
+run `outlook-calendar accounts`, match its `display_name`, and pass its opaque
+`account_id` with `--account`. Ask when the match is ambiguous, and never
+silently retry against the default account. `--account` applies only to
+calendar operations; `--status`, `accounts`, and `disconnect` are
+connector-wide. To remove one calendar account while keeping the others,
+direct the user to that account under Connectors in Settings; do not run
+`disconnect`.
+
+Once an account is selected, repeat the same `--account <account_id>` on every
+follow-up that uses results from that calendar, including pagination with
+`--page-token`, `get`, `update`, and `delete`. Event IDs and page tokens belong
+to the account that returned them.
 
 For `list`, use `--page-size` for result count. `--top`, `--limit`, and
 `--max-results` are compatibility aliases only; do not use them in new
@@ -45,6 +61,16 @@ First-use or reconnect flow:
 2. If the response includes `connect_url`, replace `<connect_url>` with the returned URL and share exactly this Markdown link: `[Connect Outlook Calendar](<connect_url>)`; do not paste the raw URL separately. Wait for the user to finish linking.
 3. Re-run the same status command before continuing.
 4. If the response includes `disconnect_url`, the account is already connected.
+5. If the connected response includes `add_account_url`, use it as `[Add Outlook Calendar account](<add_account_url>)` when another account should be linked.
+6. If any command reports an auth failure, stop and run
+   `outlook-calendar --status`. If it returns `connect_url`, share the normal
+   connect link. Otherwise run `outlook-calendar accounts`: check the selected
+   account when the failed command used `--account`, or every account when it
+   did not. For each relevant row with `needs_reauth: true`, share the status
+   response's `add_account_url` as
+   `[Reconnect Outlook Calendar account](<add_account_url>)` and ask the user
+   to sign in with that same Microsoft account. Never rerun a failed
+   `--account` command without `--account`.
 
 For disconnect requests, run `outlook-calendar disconnect`. When `disconnect_url` is present, replace `<disconnect_url>` with the returned URL and share exactly this Markdown link: `[Disconnect Outlook Calendar](<disconnect_url>)`; do not paste the raw URL separately. If it is absent, say the account is already disconnected.
 

@@ -35,9 +35,11 @@ Use the first rule that matches:
 
 ### Start the music
 
-Call `muse.music` once with `action` set to `play` and the destination chosen
-above. Do not call `spotify-api play`, `spotify-api wearable-play`, or
-`muse.device.invoke` for this request.
+Call `ui.set` once with target `voice.play_music` and params `title` (the
+track, or the artist or search term when no track was named), `artist` only
+when it differs from `title`, and the destination chosen above
+(`destination`, plus `spotify_device_id` for `spotify_connect`). Do not call `spotify-api play`,
+`spotify-api wearable-play`, or `muse.device.invoke` for this request.
 
 For `auto`, trusted host code checks the exact device that started this voice
 call. If its live tool list contains `music_fulfillment`, the host calls that
@@ -46,9 +48,9 @@ host uses the active Spotify Connect device. If a resolved device disappears
 or loses the command during dispatch, the host stops instead of switching
 devices. Do not inspect or call device tools yourself.
 
-If `muse.music` fails, report the failure. Do not try another device or
+If `voice.play_music` fails, report the failure. Do not try another device or
 playback route. If Spotify was disconnected, let the tool show the connection
-flow. When the user connects and asks again, call `muse.music` again.
+flow. When the user connects and asks again, call `voice.play_music` again.
 
 ## Tooling
 Use the installed CLI directly from `PATH`.
@@ -92,7 +94,7 @@ Use the installed CLI directly from `PATH`.
 - `spotify-api update-collection --collection-uri <uri> --name <new_name>` — rename a playlist
 
 #### Playback Control
-- `spotify-api play [--context-uri <uri>] [--uid <uid>] [--target-device-id <id>]` — start playback outside a voice conversation (optionally of a specific album/playlist/context, starting from a specific item UID, on a specific device). For new playback during voice, follow **Voice playback** above and use `muse.music` instead.
+- `spotify-api play [--context-uri <uri>] [--uid <uid>] [--target-device-id <id>]` — start playback outside a voice conversation (optionally of a specific album/playlist/context, starting from a specific item UID, on a specific device). For new playback during voice, follow **Voice playback** above and use `ui.set` target `voice.play_music` instead.
 - `spotify-api pause` — pause playback on the active device
 - `spotify-api resume` — resume paused playback on the active device
 - `spotify-api skip` — skip to the next item
@@ -125,10 +127,10 @@ Auth contract:
 2. Browse with `search`, `library`, and `experience`. Extract relevant items; never dump full responses.
 3. When a section includes `next`, call `spotify-api next-page --url <next>` to fetch additional pages. Continue following `next` until it is absent or the user has enough results.
 4. The documented Save to Spotify show and episode deletions may proceed from a clear, unambiguous user request without an additional confirmation. Do not promise unsupported `spotify-api` cleanup (unsave/remove, playlist deletion, remove-from-playlist, or reordering).
-5. Direct `spotify-api` playback requires an active Spotify Connect device. Run `spotify-api devices` or `spotify-api now-playing` first and prefer an explicit `--target-device-id` where supported. Voice playback through `muse.music` with `auto` may instead use the calling device's live `music_fulfillment` capability.
+5. Direct `spotify-api` playback requires an active Spotify Connect device. Run `spotify-api devices` or `spotify-api now-playing` first and prefer an explicit `--target-device-id` where supported. Voice playback through `voice.play_music` with `auto` may instead use the calling device's live `music_fulfillment` capability.
 6. Every response referencing existing Spotify content must include a Spotify deep link. Use `spotify_url`, or construct `https://open.spotify.com/{type}/{id}` from `spotify_uri`. A Save to Spotify deletion confirmation is the exception: the resource no longer exists, so name the deleted title without exposing its internal ID or constructing a dead link.
 7. Reference Spotify by name ("on Spotify" / "via Spotify") whenever you surface content or confirm an action.
 8. Flag explicit content: when `is_explicit: true`, show `[E]` next to the title.
-9. After a direct `spotify-api` playback change (`play`, `skip`, `previous`, `resume`), follow up with `now-playing` and name the track plus creator; never confirm with only a device name. For `muse.music`, use its result and do not issue a second playback action.
+9. After a direct `spotify-api` playback change (`play`, `skip`, `previous`, `resume`), follow up with `now-playing` and name the track plus creator; never confirm with only a device name. For `voice.play_music`, use its result and do not issue a second playback action.
 10. A successful playback response means the action took effect. If playback still errors after CLI retries, surface it once in plain user-facing language. If an action is not available, point the user to the Spotify app rather than speculating.
 11. If an exact song or album by an artist is missing from search, or a known Spotify item cannot be resolved for playlist or playback actions, do not substitute a cover, tribute, karaoke, or similarly named item. Relay `catalog_fallback.message` verbatim; it already renders the approved Muse copy with Markdown links to the requested content search and the exact artist page. Do not add a cause, preamble, follow-up, or alternative wording; blame the user's account; suggest reconnecting; or claim the item was removed from Spotify.

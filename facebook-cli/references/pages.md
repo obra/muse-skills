@@ -44,14 +44,14 @@ facebook-cli pages access --page-id <page-id>
 facebook-cli pages account-insights --page-id <page-id> [--time-range LAST_28D] [--metrics views,unique_viewers]
 facebook-cli pages posts list --page-id <page-id> [--time-range LAST_28D] [--fields views,engagements] [--limit 5] [--cursor <opaque>]
 facebook-cli pages posts get --page-id <page-id> --post-ids <post-id,post-id> [--fields views,engagements]
-facebook-cli pages drafts create --page-id <page-id> --text 'Exact text' --request-id <uuid> [--file <PNG/JPEG/MP4> ...]
+facebook-cli pages drafts create --page-id <page-id> --text 'Exact text' [--file <PNG/JPEG/MP4> ...]
 facebook-cli pages drafts show --page-id <page-id> --draft-id <draft-id>
-facebook-cli pages drafts publish --page-id <page-id> --draft-id <draft-id> --request-id <uuid> --privacy PUBLIC [--scheduled-publish-time <Unix-seconds>]
-facebook-cli pages drafts edit --page-id <page-id> --draft-id <draft-id> [--text 'Exact text'] [--media <id|file:PATH> ... | --clear-media | --remove-media-id <id> ...] [--media-caption INDEX=TEXT ...] --request-id <uuid>
-facebook-cli pages drafts delete --page-id <page-id> --draft-id <draft-id> --request-id <uuid>
-facebook-cli pages posts create --page-id <page-id> --text 'Exact text' --request-id <uuid> --privacy PUBLIC [--file <PNG/JPEG/MP4> ...] [--scheduled-publish-time <Unix-seconds>]
-facebook-cli pages posts reschedule --page-id <page-id> --post-id <post-id> --scheduled-publish-time <Unix-seconds> --request-id <uuid>
-facebook-cli pages posts cancel-schedule --page-id <page-id> --post-id <post-id> --request-id <uuid>
+facebook-cli pages drafts publish --page-id <page-id> --draft-id <draft-id> --privacy PUBLIC [--scheduled-publish-time <Unix-seconds>]
+facebook-cli pages drafts edit --page-id <page-id> --draft-id <draft-id> [--text 'Exact text'] [--media <id|file:PATH> ... | --clear-media | --remove-media-id <id> ...] [--media-caption INDEX=TEXT ...]
+facebook-cli pages drafts delete --page-id <page-id> --draft-id <draft-id>
+facebook-cli pages posts create --page-id <page-id> --text 'Exact text' --privacy PUBLIC [--file <PNG/JPEG/MP4> ...] [--scheduled-publish-time <Unix-seconds>]
+facebook-cli pages posts reschedule --page-id <page-id> --post-id <post-id> --scheduled-publish-time <Unix-seconds>
+facebook-cli pages posts cancel-schedule --page-id <page-id> --post-id <post-id>
 ```
 
 ## Reading and interpreting results
@@ -144,11 +144,13 @@ facebook-cli pages posts cancel-schedule --page-id <page-id> --post-id <post-id>
   must remain more than 300 seconds away for reschedule/cancel. Both are checked
   again after approval. Expiry requires a new time and new approval. Cancellation
   retains the same native content as a draft; an in-flight publisher may still run.
-- Request UUIDs are correlation only, not idempotency. If a write returns an
-  unknown outcome, times out, disconnects, has a malformed receipt, or receives
-  rollout denial, do not retry it or change UUIDs. Ask the user to verify the
-  target Page, post, or draft in Facebook before attempting another write. Never
-  fall back to a raw endpoint or use a write as a status check.
+- The CLI assigns each write a fresh mutation UUID; use only the UUID returned in
+  its receipt or error when investigating that write. These UUIDs are correlation
+  only, not idempotency. If a write returns an unknown outcome, times out,
+  disconnects, has a malformed receipt, or receives rollout denial, do not retry
+  it. Ask the user to verify the target Page, post, or draft in Facebook before
+  attempting another write. Never fall back to a raw endpoint or use a write as a
+  status check.
 - Only a confirmed `published` receipt proves publication; `scheduled` is pending.
   Show the confirmed returned `post_url` as a clickable link. Do not invent links
   when absent or report unproven content or URLs from an unknown outcome. A known

@@ -72,10 +72,18 @@ Create one JSON file containing every selected product. Use each catalog
 `product_id` as `items[].item_id`; use one entry per distinct variant and fold
 repeated identical IDs into its quantity. Quantity defaults to `1`. Do not add
 a merchant field: the endpoint resolves the merchant from the catalog IDs. The
-endpoint requires buyer email and USD. Include phone and address fields only
-when known. Native completion additionally requires a trusted cardholder first
-or last name and billing/shipping address with street, city, state, postal code,
-and ISO alpha-2 country.
+endpoint requires buyer email and a checkout currency. Use the exact currency
+from the selected product's latest catalog details, including `CAD` for a
+CAD-priced product. If the product currency is absent, default to `USD`. Do not
+infer currency from the shipping country. Every product in one checkout must
+use the same currency. If their currencies differ, do not call `checkout
+create`; offer browser checkout for all selected products instead. If accepted,
+follow `/opt/hatch/skills/shopping/references/browser-checkout.md`. Shopify may
+select a different market currency during checkout creation; handle that
+authoritative response below rather than predicting the override here. Include
+phone and address fields only when known. Native completion additionally
+requires a trusted cardholder first or last name and billing/shipping address
+with street, city, state, postal code, and ISO alpha-2 country.
 
 Before this call, use buyer details already known from the conversation and
 `~/USER.md`. Ask only for a missing email, because the endpoint requires it.
@@ -109,7 +117,7 @@ direct completion for that checkout.
     {"item_id": "<product_id-1>", "quantity": 1},
     {"item_id": "<product_id-2>", "quantity": 2}
   ],
-  "currency": "USD"
+  "currency": "<catalog-currency-or-USD>"
 }
 ```
 
@@ -125,6 +133,21 @@ Inspect the authoritative create response before branching on the catalog
 completion capability. A returned `continue_url` does not by itself require a
 browser handoff because checkouts ready for direct completion may also include
 one.
+
+Read `requested_currency`, `checkout_currency`, and `currency_changed` from the
+create output. A supported Shopify market-currency override is not a create
+error and does not require browser fallback. When `currency_changed` is `true`,
+use only the returned checkout currency and amounts for every later checkout,
+wallet, budget, and approval step. Tell the user both the catalog/requested
+currency and the authoritative checkout currency, explain that Shopify selected
+the checkout market after seeing the shipping destination, and call out the
+new item price and total. Re-evaluate any budget constraint using the
+authoritative checkout amounts. If the budget is in a different currency and
+no user-approved equivalent is available, explain that the amounts cannot be
+compared directly and ask the user for a limit in the checkout currency before
+proceeding. Do not compare amounts in different currencies as raw numbers or
+invent a conversion. The user must approve the final quote in that returned
+currency; never reuse a decision made for the catalog price.
 
 If create returns an error or rejects the item, explain the result and offer
 browser checkout from the original catalog `url`; do not retry automatically.

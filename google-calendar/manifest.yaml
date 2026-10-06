@@ -4,6 +4,29 @@ category: productivity
 display_name: Google Calendar
 description: Manage calendar events and scheduling
 icon: google_calendar
+multi_account:
+  backend: oauth
+  auth_provider: google_calendar
+  credential_namespace: google_oauth_accounts
+  domains:
+    - batch.googleapis.com
+    - gmail.googleapis.com
+    - calendar.googleapis.com
+    - drive.googleapis.com
+    - people.googleapis.com
+    - docs.googleapis.com
+    - sheets.googleapis.com
+    - slides.googleapis.com
+    - forms.googleapis.com
+    - tasks.googleapis.com
+    - content.googleapis.com
+    - www.googleapis.com
+  authorization_query:
+    prompt: consent select_account
+  identity:
+    endpoint: https://www.googleapis.com/calendar/v3/calendars/primary
+    display_name_fields:
+      - id
 request_quota:
   mode: enforce
   workers:

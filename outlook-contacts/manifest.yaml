@@ -4,6 +4,22 @@ category: productivity
 display_name: Outlook Contacts
 description: Search and manage your contacts and address book
 icon: outlook_contacts
+multi_account:
+  backend: oauth
+  auth_provider: microsoft_contacts
+  credential_namespace: oauth_accounts
+  domains:
+    - graph.microsoft.com
+  authorization_query:
+    prompt: select_account
+  identity:
+    endpoint: https://graph.microsoft.com/v1.0/me?$select=id,displayName,mail,userPrincipalName
+    provider_account_id_field: id
+    display_name_fields:
+      - mail
+      - userPrincipalName
+      - displayName
+  expose_routing_metadata: true
 request_quota:
   mode: enforce
   workers:

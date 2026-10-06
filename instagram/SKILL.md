@@ -430,6 +430,16 @@ instagram-cli saved-collections --account-id <user_own_fbid> --after <cursor>
 
 ### Manage saved posts and collections
 
+When the user explicitly asks to organize saved posts into Instagram
+collections, assign each post to the most specific existing collection that
+matches it. If no existing collection matches, create a new collection.
+
+When categorizing a post, always inspect that post with
+`instagram-cli media-understanding`.
+
+After categorizing, report any low-confidence assignments so the user can
+request changes.
+
 ```sh
 instagram-cli create-saved-collection --account-id <user_own_fbid> --name "<name>"
 instagram-cli rename-saved-collection --account-id <user_own_fbid> --collection-id <collection_id> --name "<name>"

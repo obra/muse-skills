@@ -1,13 +1,16 @@
 ---
 name: "generate_podcast"
-description: "Compose and deliver audio content: a podcast episode, briefing, or narrated summary, with one or more voices, as an MP3. For reading supplied text aloud verbatim, use tts."
+description: "Compose and deliver audio content: a podcast episode, briefing, or narrated summary, with one or more voices, as an MP3. For voice messages, artifact audio, or reading supplied text aloud verbatim, use tts."
 metadata: { "includeInPrompt": true }
 ---
 
 # Generate Podcast
 
 ## Purpose
-Generate audio content — podcasts, audio briefings, narrated summaries, or any spoken audio. Use this skill for all generated audio, not just podcasts. The `podcast-helper` script handles synthesis, catalog management, cover art generation, and publishing.
+Generate podcasts, audio briefings, and narrated summaries. For voice messages,
+artifact audio, or reading supplied text aloud verbatim, use `tts`. The
+`podcast-helper` script handles synthesis, catalog management, cover art
+generation, and publishing.
 
 ## Workflow
 

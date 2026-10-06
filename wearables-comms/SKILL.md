@@ -307,6 +307,34 @@ switch devices during recovery.
 Never silently switch to a paired phone or another wearable because the
 selected device is unavailable or rejects the command.
 
+### Bluetooth messaging is off
+
+Apply this step when a native SMS send fails with `device_error_code`
+`map_not_connected`. Only an iPhone reports it: the iPhone has not given the
+glasses its Bluetooth messaging connection, so the message was not sent and
+nothing left the phone. The iPhone gives this connection to only one device at
+a time, so another device connected to it with messaging, such as a car, a
+headset, or another pair of glasses, can hold it and cause this failure. This
+is an iPhone Bluetooth setting, not a Meta AI app setting, so do not give the
+contacts setup steps above, and do not say "MAP".
+
+Tell the user the message was not sent, then give the fix: on the iPhone, open
+Settings, then Bluetooth, tap the info icon next to the glasses, and turn on
+Show Message Notifications, or check that it is already on. If the toggle is
+missing or already on, turning Bluetooth off and back on in iPhone Settings
+usually restores the connection. Offer to send the message again once they have
+done that, and do not resend it before they ask.
+
+When the user asks you to try again, send the same message once more. If it
+fails again with `map_not_connected`, do not repeat a step the user already
+tried. If they have not turned Bluetooth off and back on yet, suggest that.
+Otherwise, explain that the iPhone gives this connection to only one device at
+a time, so a car, a headset, or another pair of glasses connected to the iPhone
+with messaging may be holding it, and ask them to disconnect or turn off that
+device first. Do not send again unless the user asks.
+
+Keep the reply brief and spoken-friendly.
+
 ## Report the result
 
 - Report success only when `device.invoke` reports success.
@@ -314,6 +342,7 @@ selected device is unavailable or rejects the command.
   error is a failure even if the outer tool call succeeded. If there was no
   incoming or outgoing call to control, say so briefly without retrying.
 - Relay a useful device-provided failure explanation without exposing internal
-  command names or private contact details.
+  command names or private contact details. For `map_not_connected`, follow
+  *Bluetooth messaging is off* above instead.
 - Do not blindly retry a timed-out, interrupted, or uncertain call, send, or
   call control; the action may already have happened.

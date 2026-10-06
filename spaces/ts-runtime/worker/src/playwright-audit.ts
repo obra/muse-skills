@@ -204,14 +204,10 @@ export const CHROME_HARDENING_ARGS = [
   "--disable-sync",
   "--disable-domain-reliability",
   "--disable-component-update",
-  // The audit loads the VM's own ingress-rev-proxy `:4431` edge (the nginx
-  // replacement for `/spaces/**`) through Sentinel's proxy. Keep the audit
-  // Chromium on HTTP/1.1 (out of Sentinel's HTTP/2 relay path).
-  //
-  // No cert-error bypass here: the VM's own Meta Hatch CA (which signs the
-  // `:4431` leaf) is imported into the runtime cell's NSS trust store by
-  // `build-cell-trust-store.sh`, so Chromium validates `:4431` normally — and
-  // every other origin keeps normal TLS validation too.
+  // Keep the audit Chromium on HTTP/1.1 (out of Sentinel's HTTP/2 relay path)
+  // for the cross-origin loads it proxies. The Space itself is fulfilled over
+  // the local sandbox UDS, and the runtime cell deliberately does NOT trust
+  // the VM's ingress CA (see `build-cell-trust-store.sh`).
   "--disable-http2",
   // Pin every network flow to TCP through the configured proxy so the
   // transport ledger's view is complete: QUIC is UDP (invisible to a SOCKS
