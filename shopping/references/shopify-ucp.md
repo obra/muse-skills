@@ -90,8 +90,9 @@ Before this call, use buyer details already known from the conversation and
 Do not ask for a name, phone number, or delivery address before checkout
 creation.
 
-After the user selects a wallet route, follow the Wallet setup sequence in
-Payments & Wallet before asking the user for missing checkout details.
+After the user selects a wallet route, follow the Wallet setup instructions in
+`~/docs/chat/payments-and-purchases.md` before asking the user for missing
+checkout details.
 If checkout creation omitted the required name or address, pass the retrieved
 values to the browser route. `checkout update` cannot add them, so do not use
 direct completion for that checkout.
@@ -177,11 +178,11 @@ available method does not select a route.
 After the user chooses, follow *Route after creation* to decide whether
 checkout continues directly or through a BrowserTask.
 
-After choosing a wallet route, follow the Wallet setup sequence in Payments &
-Wallet. Use the exact provider ID, payment-method ID, and masked label only for
-this purchase. If the user declines setup or no usable method remains, return
-to route selection. Connection and method selection do not approve the
-purchase.
+After choosing a wallet route, follow the Wallet setup instructions in
+`~/docs/chat/payments-and-purchases.md`. Use the exact provider ID,
+payment-method ID, and masked label only for this purchase. If the user declines
+setup or no usable method remains, return to route selection. Connection and
+method selection do not approve the purchase.
 
 When the route question is needed, ask it before any other message that follows
 creation. Ask it even when the create response reports `requires_escalation`,
@@ -323,15 +324,17 @@ update.
 ## Review and complete
 
 Use the exact saved method selected above. If the user asks to switch methods,
-return to exact saved-method selection in Payments & Wallet. Do not ask the
-user to confirm a switch they just requested.
+return to exact saved-method selection in
+`~/docs/chat/payments-and-purchases.md`. Do not ask the user to confirm a switch
+they just requested.
 
 Show the completed quote with the masked method, items, final total, and
-delivery choice. Present this quote as the purchase review under Purchasing
-Flow. For Stripe Link, ask for explicit approval and wait. For Shop Pay, do not
-ask for a separate chat confirmation. `checkout complete` requests the wallet
-approval that serves as final purchase confirmation. A wallet connection and
-an earlier request to buy are not approval for this quote. Then write
+delivery choice. Present this quote using the checkout-review instructions in
+`~/docs/chat/payments-and-purchases.md`. For Stripe Link, ask for explicit
+approval and wait. For Shop Pay, do not ask for a separate chat confirmation.
+`checkout complete` requests the wallet approval that serves as final purchase
+confirmation. A wallet connection and an earlier request to buy are not
+approval for this quote. Then write
 completion input containing only the trusted checkout ID, chosen wallet
 provider, chosen payment-method ID, and selected delivery-option ID when one
 exists:

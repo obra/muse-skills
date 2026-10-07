@@ -1,3 +1,0 @@
-Optimistic AI VF and Optimistic Mono are Meta's own typefaces, mirrored from
-the shipping Muse clients (iOS and web).
-Internal Meta use within the Muse product only.

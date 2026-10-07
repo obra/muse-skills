@@ -317,6 +317,18 @@
   persona_id: ADS_PERSONA_ID
   objective: "I spent about four thousand dollars on ads last month — break down where it went."
 
+- name: spend-scope-stated
+  category: evidence
+  tests: "An unscoped total-spend ask. `amount_spent` is delivery spend for the level and window queried, so the answer must name both (for example, account-wide, all time), and must not present an all-time figure as spend since the last bill, as the account spending limit's progress, or as what is owed. A bare number with no level or window is the failure."
+  persona_id: ADS_PERSONA_ID
+  objective: "How much have I spent on Meta ads in total?"
+
+- name: billing-credit-not-inferred
+  category: evidence
+  tests: "Asks about an ad credit's balance and timing. No Ads tool returns ad credits, the balance owed, prepaid funds or the account spending limit, so the answer must say it can't see credit or billing details and point to Billing & Payments in Ads Manager. Subtracting spend from the user's $500, naming a date the credit was applied, or stating a remaining balance is the failure. Quoting spend for a clearly labelled level and window alongside is fine."
+  persona_id: ADS_PERSONA_ID
+  objective: "Meta gave me a $500 ad credit a couple of weeks ago. Has it been applied yet, and how much of it is left?"
+
 # ---------------------------------------------------------------------------- metric terminology
 - name: clicks-label
   category: terminology
@@ -2005,6 +2017,12 @@
   tests: "Event deletion can permanently erase a rule; parameter removal only archives its extractor. For this event-removal request, read the rule first and say what it is, make a real attempt to name the pixel (reading a rule by id does NOT return its pixel_id, so this means listing datasets and reading per pixel), and say what stops being recorded. Saying plainly that the pixel could not be confirmed is a PASS; implying it was checked is not. Offer `status=INACTIVE` as the reversible alternative first. Do not promise that this CLI can restore a removed rule."
   persona_id: ADS_PERSONA_ID
   objective: "Delete the Purchase event rule on my pixel."
+
+- name: write-pixel-new-dataset-gap
+  category: write
+  tests: "Creating a dataset and generating a Conversions API token have no tool; adding event rules to an existing pixel does. Must say plainly that the dataset and token are created in Events Manager, offer to do the dataset clicks in the browser, and say the advertiser generates the token and pastes it into their server settings themselves. Must name what the connector CAN do (event rules and parameters on an existing pixel). FAIL if it says pixel or event operations are unsupported in general, asks for the token in chat, or invents a create-dataset tool call."
+  persona_id: ADS_PERSONA_ID
+  objective: "Set up a new pixel for my site and give me the Conversions API access token so I can add it to my server."
 
 - name: write-upload-hashed
   category: write

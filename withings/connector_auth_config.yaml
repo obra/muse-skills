@@ -1,6 +1,6 @@
 name: withings
 schema: oauth
-mode: account_center
+mode: direct_oauth
 privsep: true
 hosts:
 - wbsapi.withings.net

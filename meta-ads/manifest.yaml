@@ -97,14 +97,14 @@ actions:
         approval_phrase: delete your Meta Ads products, product sets, feeds or rules
   pixels_write:
     default: ask
-    label: Pixels
+    label: Pixel event rules and parameters
     methods:
       pixels.create:
         default: allow
-        label: Create new pixel events and parameters
-        approval_phrase: create Meta Pixel events or parameters
+        label: Add event rules and parameters to existing pixels
+        approval_phrase: add event rules or parameters to your existing Meta Pixels
       pixels.edit:
-        label: Edit or archive pixel settings
+        label: Edit or enable pixel event rules, or edit or archive parameters on existing pixels
         approval_phrase: edit or enable your Meta Pixel events or parameters, or archive parameters
       pixels.delete:
         approval_policy: fresh_consent_only

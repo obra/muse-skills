@@ -30,12 +30,17 @@ reading transaction history.
 Dates are inclusive; posted transactions use posting dates. A successful read returns all available
 transactions in the requested date range; no manual pagination is needed.
 
-Results are returned directly as JSON. If the JSON response is too large to return inline,
-it is written to the file named by `output_file`. Transactions are in `body.transactions`;
-match `body.accounts` using `_plaid_source.credential_id` and `account_id`. Failed reads can
-contain partial results: when `ok` is false, use `body.institutions` to explain missing coverage.
+The full result prints to stdout as JSON. Long ranges can be large, so pipe it into a script or
+redirect it to a file rather than reading it raw.
+
+Transactions are in `body.transactions`; match `body.accounts` using
+`_plaid_source.credential_id` and `account_id`. Failed reads can contain partial results: when
+`ok` is false, use `body.institutions` to explain missing coverage.
 
 Positive amounts are outflows; negative amounts are inflows, including refunds.
+
+Don't count money moving between the user's own accounts as spending or income, such as a transfer
+to savings or a payment to a linked card.
 
 Merchant names vary. Before saying a charge isn't there, try alternate merchant names, also search by amount and date, and include pending rows.
 
@@ -51,7 +56,7 @@ institution. Do not use `--days-requested` to select a date range; it does not f
 transactions. Use `transactions-get` with explicit dates to select a time range.
 
 ### Recurring bills and subscriptions
-`plaid transactions-recurring` returns recurring money in (`body.inflow_streams`, e.g. paychecks) and out (`body.outflow_streams`, e.g. subscriptions and regular bills). Use it for "what am I subscribed to" or "what are my monthly bills." `is_active` indicates whether Plaid considers the recurring payment pattern ongoing. Keep it and `last_date` when parsing streams, and exclude inactive streams from current-bill totals. `average_amount` can include one-off payments, so check recent charges with `transactions-get` before quoting a monthly cost.
+`plaid transactions-recurring` returns recurring money in (`body.inflow_streams`, e.g. paychecks) and out (`body.outflow_streams`, e.g. subscriptions and regular bills). Use it for "what am I subscribed to" or "what are my monthly bills." `is_active` indicates whether Plaid considers the recurring payment pattern ongoing. Keep it and `last_date` when parsing streams, and exclude inactive streams from current-bill totals. `average_amount` and `last_amount` are `{amount, iso_currency_code}` objects; read `.amount`. `average_amount` can include one-off payments, so check recent charges with `transactions-get` before quoting a monthly cost.
 
 ### Loans and credit
 `plaid liabilities` returns credit-card, student-loan, and mortgage details — balances, rates, minimum payments, and due dates — under `body.liabilities`. Use it for what's owed or when a payment is due. A card's `last_statement_balance` is the amount billed on `last_statement_issue_date`. Payments made before that date are already accounted for in the bill. Payments posted afterward reduce the amount still unpaid. If the statement balance is null, say the statement amount is unavailable. Only say a card costs interest if its transactions show interest charges or the user says so.

@@ -4,6 +4,9 @@ Use browser checkout when the Purchase workflow sends a purchase through a
 product or checkout page. Use this reference to start and continue the
 BrowserTask.
 
+Follow `~/docs/chat/payments-and-purchases.md` for the payment flow. Use this
+reference only to start the BrowserTask and continue the same task.
+
 ## Start the browser task
 
 Call `browser.spawn_task` with the exact product or checkout URLs and every
@@ -23,11 +26,9 @@ checkout-supported providers to the BrowserTask handoff.
 Do not ask the BrowserTask to infer providers from checkout buttons. When the
 user selects Link with a condition such as "if it is there" or "if available",
 pass `stripe-link` as the selected provider. Do not turn that condition into a
-requirement for a merchant Link button. Browser checkout permits `Use another
-method` through browser takeover. Present that choice with the other eligible
-routes. When the user selected it,
-state that they will enter payment during browser takeover. Do not include card
-details.
+requirement for a merchant Link button. When the user selected browser
+takeover, state in `task` that they will enter payment during browser takeover.
+Do not include card details.
 
 ## Continue the purchase
 

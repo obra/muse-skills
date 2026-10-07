@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `c7bcfc4870b4cfbf5c36f91ac817ddebb0b8a2a1463d80fde3dacc317908dd1e`.
+Migration-set fingerprint: `0ca7d45f66fa43fbf32f36e4979c67bc9da308d7a1a6a0fabe19b296ab36ec45`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -551,7 +551,7 @@ Keys and relationships:
 
 #### `agent.context_item_resume_projection`
 
-Redacted. Rows projected from model-reasoning items (thinking or redacted-thinking) are withheld, and the legacy item copy is withheld because it can hold model reasoning. Saved per-turn developer instructions are also withheld from this inspection surface. They are instruction snapshots, not model reasoning. Queries against this table run against the security-barrier view `inspection.context_item_resume_projection`, which projects the columns listed below. Withheld columns: `item_json`, `turn_developer_context`.
+Redacted. Rows projected from model-reasoning items (thinking or redacted-thinking) are withheld, and the legacy item copy is withheld because it can hold model reasoning. Saved per-turn developer instructions are also withheld from this inspection surface. They are instruction snapshots, not model reasoning. Queries against this table run against the security-barrier view `inspection.context_item_resume_projection`, which projects the columns listed below. Withheld columns: `item_json`, `turn_developer_context`, `public_import_exempt`, `public_import_done_provenance_md5`.
 
 | Column | Type | Nullable | Default | Key / identifier meaning |
 |---|---|---:|---|---|

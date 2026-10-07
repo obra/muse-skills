@@ -1,6 +1,6 @@
 name: spotify
 schema: oauth
-mode: account_center
+mode: direct_oauth
 privsep: true
 hosts:
 - partner.spotify.dev

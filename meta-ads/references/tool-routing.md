@@ -376,6 +376,10 @@ single object (`event_rule_id` or `parameter_id`) or the pixel to list from
 (`pixel_id`). To read one pixel's event configuration, pass one item carrying
 that `pixel_id` — not `pixel_id` on its own.
 
+Creating a pixel or dataset, or generating a Conversions API access token, has
+no tool. Follow the pixel section of `references/writes.md` instead of telling
+the advertiser pixels are unsupported.
+
 Conversions API setup, how-to, and documentation go through
 `ads_get_help_article`, not here. Catalog event-source health belongs to the
 catalog section above.

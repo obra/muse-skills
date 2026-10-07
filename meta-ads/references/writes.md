@@ -911,6 +911,18 @@ element; it cannot read a URL fragment, an attribute, or JavaScript state. If th
 value lives somewhere a selector cannot reach, say so rather than shipping one
 that will not match.
 
+**These tools change event rules on a pixel that already exists — nothing
+more.** There is no tool here to create a pixel or dataset, generate a
+Conversions API access token, create a custom conversion, or send events. When
+asked for one of those, say so in one sentence, name what IS possible (event
+rules and parameters on an existing pixel, dataset reads), and offer the real
+path: the advertiser creates the dataset in Events Manager, or you do it there
+through the browser while they watch. The access token is a secret: the
+advertiser clicks Generate and pastes it straight into their server or hosting
+settings. Never ask for it in chat. Do not describe the pixel tools as missing
+or say "the API cannot do any of this"; check `list-tools` first, and keep the
+missing operation separate from the ones that exist.
+
 ## Not covered here
 
 Additional tools without domain-specific guidance in this file:

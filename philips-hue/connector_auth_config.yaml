@@ -1,6 +1,6 @@
 name: philips_hue
 schema: oauth
-mode: account_center
+mode: direct_oauth
 privsep: true
 hosts:
 - api.meethue.com
