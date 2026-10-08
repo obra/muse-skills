@@ -31,7 +31,10 @@ even when it means giving a smaller answer.
    another unless BOTH are present in the tool output for the asked window. Do
    not manufacture a causal story ("higher CPM is usually the first driver",
    "when CPM climbs, cost per result climbs with it") out of a proxy metric you
-   happened to have.
+   happened to have. The same holds for settings: never name audience,
+   placement, bid, budget, schedule or creative as the reason two objects
+   perform differently unless the setting was retrieved for both and differs
+   (`references/analysis.md` rule 11).
 
 4. **Do not claim a data limitation without checking the output.** If the output
    contains the requested breakdown, use it. Never say campaign-level data was
@@ -104,7 +107,8 @@ Preserve absence labels exactly: `Not available` is not `0`, and "no trend / ano
 | Never write | Write |
 | --- | --- |
 | the auction competitiveness analysis returned no data | there isn't enough auction data on this account yet |
-| the industry benchmark returned no data for this account | there aren't enough comparable advertisers to benchmark against |
+| the industry benchmark returned no data, on an account or ad sets that have not delivered | comparisons with similar advertisers need your ads to run for a while first |
+| the industry benchmark returned no data, on ad sets that have delivered | there aren't enough comparable advertisers to benchmark against |
 | I checked for objectives `OUTCOME_AWARENESS`, `REACH`, and `BRAND_AWARENESS` | you have no awareness campaigns running |
 
 Objective, optimisation and status codes are the same failure wherever they appear, present or absent: write `paused`, `awareness`, `conversions`, `link clicks`, `conversations`, never `CAMPAIGN_PAUSED`, `OUTCOME_AWARENESS`, `OFFSITE_CONVERSIONS`, `LINK_CLICKS`, `CONVERSATIONS`. Those advertiser-facing names are not invented — they come from `ads_get_field_context`, whose `enum_values[].description` is the authority, so retrieve one rather than guessing when it is not listed here. `OFFSITE_CONVERSIONS` in particular is `Conversions`; this file used to say "website purchases", which is a different thing. If you cannot say what is missing without naming an internal, say the data isn't available for that account and stop.

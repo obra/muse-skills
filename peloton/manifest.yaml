@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: peloton
+  required: true
+cli:
+  binary: peloton
+  skill: peloton
 connector: peloton
 category: health
 display_name: Peloton

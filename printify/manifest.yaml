@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: printify
+  required: true
+cli:
+  binary: printify
+  skill: printify
 connector: printify
 category: business
 display_name: Printify

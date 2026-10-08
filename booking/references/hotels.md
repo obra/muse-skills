@@ -53,7 +53,7 @@ shortlist, ask whether they care about proximity to a particular place,
 neighborhood, event, office, or transit stop. If they name a target, calculate
 or verify travel time and rerank the options around it.
 
-When `widget.create` is available, automatically show a `local_map` for a
+When `widget.create_map_widget` is available, automatically show a map for a
 multi-property shortlist. Use only provider coordinates or coordinates
 verified with an available maps/places tool; never guess them. Give every
 marker the same stable option label and property name used in the comparison,

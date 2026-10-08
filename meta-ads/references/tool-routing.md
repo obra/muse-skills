@@ -94,6 +94,15 @@ Match on intent, not exact words. You may call more than one tool when a questio
 genuinely spans intents, but lead with the single tool that most directly answers
 it.
 
+`ads_insights_industry_benchmark` compares ad sets that have delivered against
+their peers. Omit `entity_ids` for the whole account, or pass campaign or ad set
+IDs; ad IDs sit below the level it analyses and return no data. It has nothing
+to compare for an account or campaign that has not delivered yet, so do not call
+it to size a launch: use `ads_budget_estimate` for what a new campaign would
+cost, and say plainly that peer comparisons need live delivery. An empty
+result therefore says nothing about the advertiser's industry or peers unless
+the ad sets compared have delivered; `references/evidence.md` has the wording.
+
 ### Specialized reads are the primary call
 
 When one row above matches the question, call that tool before any general or

@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: microsoft_email
+  required: true
 connector: outlook_mail
 category: productivity
 display_name: Outlook Mail
@@ -79,7 +84,7 @@ consent_screen:
 
 cli:
   binary: outlook-mail
-  skill: outlook-mail
+  skill: outlook_mail
 commands:
   list: messages.list
   search: messages.list

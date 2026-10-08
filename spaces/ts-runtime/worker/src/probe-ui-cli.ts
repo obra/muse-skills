@@ -63,6 +63,7 @@ import {
 } from "./transport-ledger";
 import {
   OBSERVE_ATTR,
+  SCENARIO_CLOCK_OFFSET_MS,
   ariaSnapshot,
   freezeTimeScript,
   clippedNodes,
@@ -101,11 +102,12 @@ const OP_TIMEOUT_MS = 30_000;
  * wrong day during its own audit (a habit tracker showed "Thursday, January 1"
  * on July 28), which invites the builder to "fix" correct date logic against
  * what it saw and puts a wrong date in the screenshots a human reviews. So
- * freeze to the session's own start time unless a caller pins one explicitly.
+ * freeze to the session's own start time unless a caller pins one explicitly,
+ * on the daemon's scenario clock when an eval fakes it.
  */
 function frozenEpochMs(flags: Map<string, string>): number {
   const raw = Number((flags.get("frozen-epoch-ms") ?? "").trim());
-  return Number.isFinite(raw) && raw > 0 ? raw : Date.now();
+  return Number.isFinite(raw) && raw > 0 ? raw : Date.now() + (SCENARIO_CLOCK_OFFSET_MS ?? 0);
 }
 
 const OPS = new Set(["observe", "act", "viewport", "flag", "status", "close", "batch", "reload", "key"]);
@@ -818,7 +820,7 @@ async function handle(
         severity: req.severity ?? "major",
         what: req.what ?? "",
         viewport: state.viewport,
-        at_ms: Date.now(),
+        at_ms: Date.now() + (SCENARIO_CLOCK_OFFSET_MS ?? 0),
       });
       return { ok: true, findings: state.findings.length };
     case "reload": {

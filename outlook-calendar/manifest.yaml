@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: microsoft_calendar
+  required: true
+cli:
+  binary: outlook-calendar
+  skill: outlook_calendar
 connector: outlook_calendar
 category: productivity
 display_name: Outlook Calendar

@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: box
+  required: true
 connector: box
 category: business
 display_name: Box

@@ -119,10 +119,13 @@ shows the photo. Call `shopping.resolve_results` with the `--out` path and the
 
 Use the returned markers for those listings instead of copying their
 `product_url`; the resolver preserves the exact long URLs. Then
-call `widget.create` with the returned `path`, `kind: "shopping_results"`, and
-`present_now: true`. The widget supplies the browsable result images and links;
+call `shopping.create_shopping_results_widget` with the returned `path`; it
+presents the cards immediately. The widget supplies the browsable result images and links;
 inline markers are compact citations and are not a replacement for the visual
 cards. Keep the rest of the shortlist and recommendation workflow unchanged.
+If `shopping.create_marketplace_map_widget` is in your tool list and a map of
+pickup locations would help, call it after the shopping results with the same
+`path`; its description owns timing and pin selection.
 
 Search results carry only `seller_id`, **not** a seller display name or ratings.
 Don't show a seller name from search output. To present the seller's name/ratings

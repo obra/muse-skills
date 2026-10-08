@@ -481,6 +481,46 @@ export function freezeTimeScript(epochMs: number): string {
 })()`;
 }
 
+/**
+ * How far the daemon's clock is from this process's, or null when they agree.
+ *
+ * Evals run the daemon at a scenario date under libfaketime. Chromium hangs with
+ * libfaketime loaded, so the daemon starts this harness without it, on the real
+ * clock, and passes its own clock at spawn in HATCH_SPACES_PAGE_EPOCH_MS. Pages
+ * rendered for the builder are shifted by this offset so they show the scenario
+ * date, not the real one. Read once at startup; the spawn-to-read delay is the
+ * harness's boot time.
+ */
+export const SCENARIO_CLOCK_OFFSET_MS: number | null = (() => {
+  const raw = Number((process.env.HATCH_SPACES_PAGE_EPOCH_MS ?? "").trim());
+  return Number.isFinite(raw) && raw > 0 ? raw - Date.now() : null;
+})();
+
+/**
+ * Shift the page's wall clock by `offsetMs` while leaving it running, unlike
+ * `freezeTimeScript`. Only `Date` moves; timers and `performance.now()` keep
+ * their real behavior. `Date()` called as a function and subclasses still work.
+ *
+ * Installed as an init script so it lands before artifact code runs.
+ */
+export function shiftTimeScript(offsetMs: number): string {
+  return `(() => {
+  const OFFSET = ${offsetMs};
+  const RealDate = Date;
+  const now = () => RealDate.now() + OFFSET;
+  function ShiftedDate(...args) {
+    if (!new.target) return new RealDate(now()).toString();
+    return Reflect.construct(RealDate, args.length === 0 ? [now()] : args, new.target);
+  }
+  ShiftedDate.prototype = RealDate.prototype;
+  ShiftedDate.now = now;
+  ShiftedDate.parse = RealDate.parse;
+  ShiftedDate.UTC = RealDate.UTC;
+  Object.defineProperty(ShiftedDate, "name", { value: "Date" });
+  globalThis.Date = ShiftedDate;
+})()`;
+}
+
 /** One settle attempt's outcome. `in_flight` is null when the page exposes no SDK
  *  hook and the attempt waited on Playwright's network idle instead. */
 export interface SettleResult {

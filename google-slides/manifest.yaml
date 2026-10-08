@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: google_slides
+  required: true
 connector: google_slides
 category: productivity
 display_name: Google Slides

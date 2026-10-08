@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: meta_ads
+  required: true
 connector: meta_ads
 category: business
 display_name: Meta Business Manager

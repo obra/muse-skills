@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: threads_messages
+  required: true
+cli:
+  binary: threads-messages-cli
+  skill: threads_messages
 connector: threads_messages
 category: social
 display_name: Threads Messages

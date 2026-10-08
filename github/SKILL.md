@@ -24,7 +24,7 @@ generated; do not create a widget, invent a link, or claim setup is complete.
 
 Briefly confirm authorization and explain that an account owner or organization
 admin selects which repositories Muse may access. Present the exact returned
-`install_url` with `widget.create`, using `kind: "list"`. In `data.items`, include
+`install_url` with `widget.create_list_widget`. In `items`, include
 exactly one row with `title: "Select repositories"`,
 `subtitle: "Choose which repositories Muse can access"`, `type: "link"`, and
 `data.url` copied from `install_url`. Set the row's `image_url` to GitHub's
@@ -33,7 +33,7 @@ Omit the list heading. Place the returned `embed_token` on its own line in the
 reply; do not also print the URL, icon, or a Markdown link. The row opens GitHub
 to install or configure repository access.
 
-If `widget.create` is unavailable or creation fails, use a Markdown link labeled
+If `widget.create_list_widget` is unavailable or creation fails, use a Markdown link labeled
 **Select repositories** within a sentence, with words after the link on the same
 line (for example, "Open [Select repositories](URL) to choose which repositories
 Muse can access.", substituting the exact returned URL). Do not put the link on

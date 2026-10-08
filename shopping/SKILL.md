@@ -30,7 +30,7 @@ After selecting products, call `shopping.resolve_results` with the product-searc
 }
 ```
 
-The tool resolves and normalizes those selections, returns a `path` for optional widget presentation, and returns `product_citations` markers for the response. This is the single product-resolution and citation path. It does not create or present UI; call `widget.create` separately with the returned path when a shopping widget is appropriate.
+The tool resolves and normalizes those selections, returns a `path` for optional widget presentation, and returns `product_citations` markers for the response. This is the single product-resolution and citation path. It does not create or present UI; call `shopping.create_shopping_results_widget` separately with the returned path when a shopping widget is appropriate.
 
 ### Markers belong to the product, not to the widget
 
@@ -72,9 +72,9 @@ Once resolved, apply every required attribute to every search for that request, 
 1. Ensure you fully understand the user's request, resolving every required attribute above before you search.
 2. Gather any relevant context that will be useful when writing product search queries. Use `browser.search` to discover trends, well-known sellers for a product category, reviews, or typical prices.
 3. Use the relevant search tools to execute product search queries. Always call browser product search (unless the user explicitly asked only for products from Facebook Marketplace, e.g. "couches on marketplace"); run it in parallel with any other applicable product search tools. Include all user constraints in every search; catalog retries may relax only the parameters allowed under Meta Catalog Search below. Don't re-use previous search results unless it makes sense in context; by default always make new searches to get fresh results.
-4. Review the search results. Filter out any that don't match the user constraints, aren't high quality, or are outside the normal price distribution for that product. Call `browser.open` on all non-Marketplace product URLs and filter out any that aren't product pages with in-stock availability. `browser.open` cannot fetch Meta first-party links (instagram.com, facebook.com, threads.com/threads.net, and other Meta-owned hosts are blocked for it). Use the platform's native tools for those. Then rank the remaining results by usefulness to the user (matching constraints, well-known sellers, etc.). Prefer the version of each retailer's site for the user's country.
+4. Review the search results. Filter out any that don't match the user constraints, aren't high quality, or are outside the normal price distribution for that product. Call `browser.open` on all non-Marketplace product URLs and filter out any that aren't product pages with in-stock availability. `browser.open` cannot fetch Meta first-party links (instagram.com, facebook.com, threads.com/threads.net, and other Meta-owned hosts are blocked for it). Use the platform's native tools for those. Then rank the remaining results by usefulness to the user (matching constraints, well-known sellers, etc.). Products should ideally be sourced from the country-specific version of a site that matches the user's home location; for example, if based in the US, source from Walmart US instead of Walmart Canada.
 5. If you don't find enough relevant search results, adjust your queries (and potentially your product search tools) and repeat steps 3-4.
-6. A request gets one shopping-results presentation, and it comes after every product search for that request has finished. Until then, do not create a `shopping_results` widget. Always mention products in your text responses while you wait for all product searches to finish if there are quality interim results (e.g. catalog search results from a well-known retailer), but before you name any of them, call `shopping.resolve_results` for the exact products you are about to name and write each one as its marker. A marker you already have stays good for the rest of the conversation. Once those products are resolved, mention 1-2 products using product markers as long as the update says it is early and says what is still running. Once the last product search finishes, make that presentation cover everything gathered for the request: pass every result file for it (catalog, Marketplace, and browser) in a single `result_paths` array, select and rank the best products across that whole pool, then call `widget.create` with the returned `path`. That is one widget, unless the request spans distinct product groups: those get one widget each in the same response, each resolving its own selection from that same pool (see Response Formatting). A group split is still one presentation, never a sequence of them over time. A later search adds candidates to the pool; it never replaces the searches that came before it, and the presentation must not be only about the search task that finished last. A search that fails or returns nothing usable has finished: present what the other sources returned rather than withholding the widget. Follow the Response Formatting section below.
+6. A request gets one shopping-results presentation, and it comes after every product search for that request has finished. Until then, do not create a `shopping_results` widget. Always mention products in your text responses while you wait for all product searches to finish if there are quality interim results (e.g. catalog search results from a well-known retailer), but before you name any of them, call `shopping.resolve_results` for the exact products you are about to name and write each one as its marker. A marker you already have stays good for the rest of the conversation. Once those products are resolved, mention 1-2 products using product markers as long as the update says it is early and says what is still running. Once the last product search finishes, make that presentation cover everything gathered for the request: pass every result file for it (catalog, Marketplace, and browser) in a single `result_paths` array, select and rank the best products across that whole pool, then call `shopping.create_shopping_results_widget` with the returned `path`. That is one widget, unless the request spans distinct product groups: those get one widget each in the same response, each resolving its own selection from that same pool (see Response Formatting). A group split is still one presentation, never a sequence of them over time. A later search adds candidates to the pool; it never replaces the searches that came before it, and the presentation must not be only about the search task that finished last. A search that fails or returns nothing usable has finished: present what the other sources returned rather than withholding the widget. Follow the Response Formatting section below.
 7. If the user continues the original query in follow-up turns, maintain the constraints of the original request. Drop constraints only when the user explicitly instructs you to do so or pivots to a new search query, in which case drop all previous constraints that aren't generally applicable or based on high-level user preference. On a pivot, close every active browser search for the old request with `browser.close_task` before starting the new search. Use `browser.list_tasks` if you need the task IDs. Ignore late results from the old request.
 
 Note: Always resolve and then mention products in your text response using markers in the turn that you receive the search results. Don't wait for all the search results to be returned before doing this.
@@ -230,27 +230,48 @@ be parsed, use the other search results rather than issuing diagnostic catalog
 calls or silently dropping constraints.
 <!-- catalog-search-v1-only:end -->
 <!-- catalog-search-v2-only:start -->
-`shopping catalog-search` accepts one to four semantic `--query` values. Put
-every required attribute and useful preference into every query because this
-backend has no structured constraint flags. Use repeated `--brand` values only
-when the user names preferred brands; brand is a ranking preference, not a hard
-filter.
+`shopping catalog-search` accepts up to four semantic `--query` values. Put all
+required attributes in every query. If there are relevant brands for the user's
+request that you know they personally prefer based on their shopping profile or
+other sources, include semantic queries which specify them.
 
 ```sh
 CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
 shopping catalog-search \
   --query "<specific product query including every constraint>" \
+  --query "<specific product query including every constraint from preferred brand A>" \
+  --query "<specific product query including every constraint from preferred brand B>" \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
 # Inspect the returned products while retaining their ids
 jq -r '.products[] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
 ```
 
-The command supports semantic text queries only. Filter returned products
-against every hard requirement before selecting them. If too few match, refine
-the query without dropping required attributes. A failure or malformed result
-ends this catalog attempt; use results from the other search tools instead of
-issuing diagnostic calls.
+Constraint flags for the `shopping catalog-search` CLI:
+- `--category` for a hard category constraint.
+- `--gender` for a hard gender/audience constraint resolved under Required attributes. Use exactly `male`, `female`, or `unisex`, preserve it on refinements, and do not infer it from product type or styling.
+- `--brand` for a hard brand constraint. Always specify `--brand` when the user requests results exclusively from a specific brand. If the user names several acceptable brands, make one CLI call per brand.
+- `--prefer-brand` for returning more results from a brand that the user personally prefers, but didn't specify in their request. One preferred brand: pass `--prefer-brand` (and a brand-specific query). Multiple preferred brands: use one brand-specific query each and omit `--prefer-brand`.
+- `--domain` ensures available products from the specified seller domain are returned. Always specify `--domain` when the user requests results from a specific seller; pass its canonical hostname without a scheme or path.
+- `--currency` for specifying the currency (which indirectly specifies a market), defaults to the currency of the user's home location.
+
+```sh
+CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
+shopping catalog-search \
+  --query "Nike men's cushioned daily training shoes from Nordstrom" \
+  --category "footwear" --gender male --brand "Nike" \
+  --domain "nordstrom.com" \
+  --retries 2 --out "$CATALOG_RESULTS_JSON"
+
+# Inspect the returned products while retaining their ids
+jq -r '.products[] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+```
+
+Filter returned products against every hard requirement before selecting them.
+If too few match, refine the query without dropping required attributes. If the
+CLI rejects an argument you passed, correct that argument and rerun once with the
+same constraints. Any other failure or malformed result ends this catalog attempt;
+use results from the other search tools instead of issuing diagnostic calls.
 <!-- catalog-search-v2-only:end -->
 
 ### Product details
@@ -276,15 +297,11 @@ The `shopping_results` widget can be used to surface Meta catalog products in a 
 }
 ```
 
-Call `widget.create` with the `path` returned by `shopping.resolve_results`:
+Call `shopping.create_shopping_results_widget` with the `path` returned by `shopping.resolve_results`:
 
 ```json
 {
-  "kind": "shopping_results",
-  "present_now": true,
-  "data": {
-    "path": "<path returned by shopping.resolve_results>"
-  }
+  "path": "<path returned by shopping.resolve_results>"
 }
 ```
 
@@ -354,15 +371,11 @@ products by `result_id`, then resolve them into the presentation payload:
 }
 ```
 
-Pass catalog or Marketplace result files in the same `result_paths` array when combining sources. Then call `widget.create` with the following payload:
+Pass catalog or Marketplace result files in the same `result_paths` array when combining sources. Then call `shopping.create_shopping_results_widget` with the following payload:
 
 ```json
 {
-  "kind": "shopping_results",
-  "present_now": true,
-  "data": {
-    "path": "<path returned by shopping.resolve_results>"
-  }
+  "path": "<path returned by shopping.resolve_results>"
 }
 ```
 
@@ -436,15 +449,11 @@ The `shopping_results` widget can be used to surface Marketplace listings in a d
 }
 ```
 
-Then call `widget.create` with the `path` returned by `shopping.resolve_results`:
+Then call `shopping.create_shopping_results_widget` with the `path` returned by `shopping.resolve_results`:
 
 ```json
 {
-  "kind": "shopping_results",
-  "present_now": true,
-  "data": {
-    "path": "<path returned by shopping.resolve_results>"
-  }
+  "path": "<path returned by shopping.resolve_results>"
 }
 ```
 

@@ -103,8 +103,9 @@ the pre-dispatch compatibility recovery below.
 
 ## Resolve a recipient
 
-Skip contact lookup when the user supplied a complete phone number. Otherwise,
-search the stored contacts first, even when the wearable is online:
+Skip contact lookup when the user supplied a complete phone number, or when
+*Recently announced messages* says to reply at a message's `sender_ref`.
+Otherwise, search the stored contacts first, even when the wearable is online:
 
 ```bash
 device-data contacts search --match-mode ranked --device <selected_device_id> \
@@ -212,6 +213,41 @@ any candidate before then.
 Do not substitute a draft or send command from a paired phone. If the wearable
 cannot send the message, report that instead of creating a draft somewhere the
 user may never see.
+
+## Recently announced messages
+
+The user's glasses can read incoming messages aloud. When the turn says this
+happened and the user asks about those messages, make the fetch call the turn
+names before answering or asking the user to choose a message.
+
+When the user refers to a single message without saying which, such as
+"read it", "who sent it" or "reply to it", they mean only the most recently
+announced message, even when several are new, unless they are following up on a
+message they chose after the glasses' latest announcement. Read any message the
+user asks to hear and identify its sender. When reading several messages, go
+oldest first, in the order the fetch returns them. Unless the user asks for an
+earlier message or none are new, skip a message returned earlier only when this
+conversation shows you already read or summarized it to the user; a message that
+was only fetched is still new to the user. If the result contains only the
+newest part of a larger set, or the set is long, summarize it instead of reading
+every message. If the fetch cannot return the messages, say so, and never guess
+what a message said.
+
+To respond to a message, follow the instructions for its returned provider, and
+do not substitute a different provider. `mms`, `rcs` and `imessage` messages
+can only be answered here by text message: say so, and ask before following
+*Send a message*. If the provider is `other`, ask the user how to reply before
+sending anything. An `sms` message may come from a group, but a reply here
+reaches only its sender. The first time you reply to one in this conversation,
+add that replies go only to the sender, not to a group, when you report the
+send; do not ask for confirmation before sending. When its `sender_ref` is a
+full phone number in international format, such as `+15555550100`, and the user
+did not name a different recipient, number or saved line, reply to that number:
+set `params_json.phone_number` to it, and `params_json.contact_name` to the
+`sender_name` when there is one, without a contact search or asking which number
+to use. If you asked what to reply and the user answers with only the text,
+reply to the message you asked about, even if another message was announced in
+the meantime.
 
 ## Recovery and explicit device overrides
 

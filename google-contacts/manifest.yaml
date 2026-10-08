@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: google_contacts
+  required: true
 connector: google_contacts
 category: productivity
 display_name: Google Contacts

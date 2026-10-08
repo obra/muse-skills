@@ -64,6 +64,11 @@ Present one executable creative plan in natural prose containing:
   words to them; and
 - material constraints and only evidence that changed the recommendation.
 
+Write the ad's words in the language the ads will run in, which is the
+advertiser's unless they name another, and keep each ad in one language. Before
+you present words in a language other than English, reread them for spelling,
+accents and agreement: a typo there ships to every person who sees the ad.
+
 Do not recap the approved delivery strategy. Create one source-action
 `muse.create_options` widget first, then write the complete plan in the final
 response with that widget's token after it. Offer
@@ -115,7 +120,17 @@ advertiser answer:
 | Instagram Direct | `INSTAGRAM_MESSAGE` | `https://www.instagram.com/` | the Page's connected Instagram account as `instagram_user_id` |
 
 Never guess a Page or Instagram ID. When a channel's prerequisite is missing,
-say what the advertiser must connect instead of building the ad. Describe the
+say what the advertiser must connect instead of building the ad.
+
+`instagram_user_id` takes only an ID that `ads_get_ig_accounts` returned for
+this ad account. When that call returns none, or a create rejects the ID as
+"not a valid Instagram account id", the ID is the problem, not a missing
+account: leave the field out and build the ad on the Page. Only an Instagram
+Direct or Instagram profile destination needs the Instagram account itself.
+Never tell the advertiser they must connect Instagram before an ad can publish
+because of that rejection. If Instagram placements are in the plan, say that no
+Instagram account is linked to the ad account and that linking one would show
+their Instagram profile on those ads. Describe the
 button as opening a chat and keep links out of advertiser-facing text.
 
 **Generating the ad's content is not available for every advertiser.** Making a
@@ -308,8 +323,13 @@ gate. Do not add copy approval or promise a rendered ad preview.
 
 ## Carry approved media into execution
 
-Do not upload during this stage. Retain exactly one accepted source per planned
-creative for `campaign-execution.md`. Upload approved new media only after final
+Do not upload during this stage, and do not tell the advertiser an upload is
+starting. Once the media is approved, take the next step in the same turn:
+when `campaign-manual-setup.md` governs (the advertiser is building it in Ads
+Manager, or the account is write-disabled or rejected writes), that file's setup
+guide; otherwise the final review under `campaign-execution.md` for a new
+campaign, or the write under `writes.md` for an ad added to an existing ad set. Retain exactly one
+accepted source per planned creative for `campaign-execution.md`. Upload approved new media only after final
 campaign approval; use an existing account-owned image hash or ready video ID
 directly. Carry new media as:
 

@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: github
+  required: true
 connector: github
 category: business
 display_name: GitHub

@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: messenger_companion
+  required: true
+cli:
+  binary: hatch_messenger_cli
+  skill: messenger_read
 connector: messenger_read
 category: social
 display_name: Messenger

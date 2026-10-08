@@ -118,10 +118,12 @@ import type { Duplex } from "node:stream";
 import type { Browser, Page } from "playwright";
 
 import {
+  SCENARIO_CLOCK_OFFSET_MS,
   ariaSnapshot,
   clippedNodes,
   observeNodes,
   pollSdkIdle,
+  shiftTimeScript,
   type ClippedNode,
   type SettleResult,
   type UnreachableControl,
@@ -2582,6 +2584,9 @@ async function captureViewport(
       // context; global TLS validation elsewhere is unchanged.
       ignoreHTTPSErrors: true,
     });
+    if (SCENARIO_CLOCK_OFFSET_MS !== null) {
+      await context.addInitScript(shiftTimeScript(SCENARIO_CLOCK_OFFSET_MS));
+    }
     const page = await context.newPage();
     const daemonOrigin = new URL(url).origin;
     const failedImageResponses: FailedImageRequest[] = [];

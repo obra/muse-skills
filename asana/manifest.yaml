@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: asana
+  required: true
 connector: asana
 category: business
 display_name: Asana

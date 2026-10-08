@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: microsoft_contacts
+  required: true
+cli:
+  binary: outlook-contacts
+  skill: outlook_contacts
 connector: outlook_contacts
 category: productivity
 display_name: Outlook Contacts

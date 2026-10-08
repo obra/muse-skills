@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: google_forms
+  required: true
 connector: google_forms
 category: productivity
 display_name: Google Forms

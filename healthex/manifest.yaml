@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: healthex
+  required: true
+cli:
+  binary: healthex
+  skill: healthex
 connector: healthex
 category: health
 display_name: HealthEx

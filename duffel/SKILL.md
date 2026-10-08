@@ -3,7 +3,7 @@ name: "duffel"
 description: "Use Duffel to search, book, pay for, or manage flights. Use Duffel to monitor an already booked flight's fare when the user directly asks for ongoing price monitoring."
 allowed-tools:
   - "exec"
-  - "widget.create"
+  - "widget.create_list_widget"
   - "read"
   - "write"
   - "edit"
@@ -59,10 +59,10 @@ do not pipe the search through `head` or a parser, which can hide errors or
 required offer data. After the direct search succeeds, a read-only command may
 inspect the saved JSON to group and rank offers, but it must not overwrite the
 file. Reuse the unchanged file for presentation. If an earlier search was
-piped, truncated, reduced, or overwritten, do not repeat it in the same turn;
-explain that a complete result was not retained and ask the user to continue in
-a new turn. A hand-built summary is not sufficient input for the required
-structured flight list.
+piped, truncated, reduced, or overwritten, rerun the search directly into a
+new temporary JSON file and verify the complete response before presenting.
+A hand-built summary is not sufficient input for the required structured
+flight list.
 
 ## Booking flow
 
@@ -94,9 +94,14 @@ mix, fare, or seats before booking.
 
 ## Search and compare
 
+Carry the requested cabin into every search with `--cabin`: `economy`,
+`premium_economy`, `business`, or `first`. The CLI defaults to economy when
+this flag is omitted. Before searching, check the complete dated itinerary,
+passenger mix, cabin, and any carrier constraints against the user's request.
+
 ```sh
 duffel search --origin SFO --destination LAX --departure-date 2026-09-30 \
-  --limit 300
+  --cabin business --sort duration --limit 300
 duffel search --origin SFO --destination LAX --departure-date 2026-09-30 \
   --return-date 2026-10-04 --adults 2 --child-age 8 --lap-infants 1 --limit 300
 duffel search --leg SFO:LAX:2026-09-30 --leg LAX:JFK:2026-10-03 --adults 2 \
@@ -114,19 +119,19 @@ the same search: use
 `--return-date` for a round trip and repeated `--leg` arguments for multi-city
 travel.
 
-Treat each search as a live snapshot, not a price-monitoring loop. Do not
-refresh an identical search in a shell loop or launch duplicate searches in the
-background. The CLI suppresses completed and concurrent duplicate searches and
-bounds all provider attempts within one user turn. On `duplicate_search`, reuse
-the completed result. On `search_in_progress`, wait for the original invocation.
-On `search_terminal`, do not retry. On `search_budget_exhausted`, use any results
-already available and ask the user before expanding in a new turn.
+Treat each search as a live snapshot, not a price-monitoring loop. Reuse a
+complete saved response while its offers remain valid. Do not refresh an
+identical search in a shell loop or launch duplicate searches in the
+background. Continue the authorized search when it needs corrected arguments,
+another relevant itinerary, an expired-offer refresh, or recovery of missing
+output. These searches do not require another user message. A CAGI or provider
+429 is terminal for the current task: stop Duffel calls and report the limit;
+do not change the query to bypass it.
 
 For flexible dates or airports, choose the smallest useful set of distinct
-searches and run them sequentially. Show useful results as soon as they are
-available. If the requested comparison exceeds the CLI's turn budget, tell the
-user which combinations remain and ask them to continue in a new turn. Do not
-silently search the Cartesian product of every possible date and airport.
+searches and run them sequentially. Inspect each result before expanding and
+show useful results as soon as they are available. Do not silently search the
+Cartesian product of every possible date and airport.
 
 Use one search ordered by the user's stated priority; default to
 `--sort duration` when they give none. Do not automatically run separate
@@ -192,8 +197,7 @@ alternatives such as cheapest, fastest, nonstop, and explicitly refundable,
 and identify all legs and total party price. Treat native-provider inventory as
 one live source, not exhaustive coverage across every airline channel.
 
-Present the shortlist with native flight rows through `widget.create`, using
-`kind: "list"`. Read the Flights section in
+Present the shortlist with native flight rows through `widget.create_list_widget`. Read the Flights section in
 `/opt/hatch/skills/booking/references/flights.md` for
 complete-trip rows and presentation.
 For list creation, redirect each search to a distinct temporary JSON file.
@@ -216,7 +220,7 @@ its `data` to the file path and that offer's JSON pointer, for example:
 ```
 
 Use the original offer's zero-based index in `/offers/<index>`. Keep the file
-until `widget.create` succeeds. Do not copy the offer JSON into the tool call,
+until `widget.create_list_widget` succeeds. Do not copy the offer JSON into the tool call,
 rewrite timestamps, remove fields, or generate a separate widget payload file.
 The runtime reads the selected object, maps timestamps, and
 stores the complete flight data. It does not retain the path or pointer.
@@ -287,10 +291,8 @@ rule, failure behavior, and stop date. Record the cron identifier in
 
 Run exactly one Duffel `search` during each fare cron run. Search the complete
 itinerary and passenger mix together with `--limit 30`. Do not use a browser or
-web search for repricing. Do not retry `duplicate_search` in the same turn. On
-`duplicate_search`, reuse a completed result only when the CLI returns that
-completed result in the same command response. On `search_in_progress`, wait
-for the original invocation. Retain only results that match the booked dated
+web search for repricing or retry a failed scheduled search; let the next
+scheduled run try again. Retain only results that match the booked dated
 flight numbers, airports, passenger count, cabin or fare family, included bags,
 stop pattern, and material refund or change restrictions. Compare a candidate
 only when its priced scope exactly matches the baseline's complete priced
@@ -506,7 +508,7 @@ link. Do not share or open an `action_url` inside `provider_response`.
 
 | Result | Action |
 |---|---|
-| Validation failure or expired offer before approval | Correct all fields together. If the offer expired, report that and ask the user to continue in a new turn before searching again. No spend exists. |
+| Validation failure or expired offer before approval | Correct all fields together. If the offer expired, search again for the requested itinerary and present the fresh offer and terms for purchase approval. No spend exists. |
 | `requires_action` with `resolution: auto_resume` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination. Wait for the user to complete it, then rerun the identical `book`. If `user_action` is absent, stop and report the blocker. |
 | `requires_action` with `resolution: replacement_required` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination. Do not rerun `book`. After the user completes the action and asks to continue, start a fresh search and obtain new payment approval. If `user_action` is absent, stop and report the blocker. |
 | `requires_action` without a recognized `resolution` | If `user_action.kind` is `open_url`, send one Markdown link with `user_action.label` as its text and `user_action.url` as its destination, then stop. Do not infer whether the existing request can resume. If `user_action` is absent, stop and report the blocker. |
@@ -550,7 +552,8 @@ airline or support.
   `book`.
 - Any change to flight, date, passengers, fare, services, or total requires a
   fresh purchase approval.
-- Retry `search` only when its response explicitly says `retriable: true`;
-  successful, duplicate, in-progress, terminal, and budget-exhausted searches
-  must not be repeated in the same turn. Other reads may be retried. Do not
-  automatically retry an ambiguous mutation.
+- Retry an unchanged failed `search` only when its response explicitly says
+  `retriable: true`; stop on a CAGI or provider 429. Corrected searches,
+  expired-offer refreshes, and missing-output recovery follow Search and compare.
+  Scheduled fare checks keep their one-search-per-run rule. Other reads may be
+  retried. Do not automatically retry an ambiguous mutation.

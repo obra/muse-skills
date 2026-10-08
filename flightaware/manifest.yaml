@@ -1,4 +1,7 @@
 version: 1
+metadata:
+  visible_in_settings: false
+auth: none
 connector: flightaware
 display_name: FlightAware
 description: Query FlightAware AeroAPI through Muse's server-side broker. No FlightAware credentials live on the VM.

@@ -37,7 +37,8 @@ schema returned by
 `dropbox list-tools` exactly. Never call a tool that is absent from that list.
 
 Use `create-file` to create or replace a Dropbox file from a local file. It
-accepts text and binary files up to 150 MiB.
+accepts text and binary files and uses Dropbox upload sessions for files larger
+than 150 MiB, subject to Dropbox's upload-session limits.
 
 File requests collect uploads from other people; they do not upload a local file
 from this VM. The CLI does not expose revision history or version restore.

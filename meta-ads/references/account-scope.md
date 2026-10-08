@@ -42,7 +42,17 @@ Two fields on each `ads_get_ad_accounts` entry gate what you may do next:
 - `is_ads_mcp_enabled` — when false, do not use that `ad_account_id` or any ad
   object under it in a later call. Every such call is refused as "not enabled
   for the Ads MCP", so check the flag before the first call on an account,
-  including one the advertiser named by id.
+  including one the advertiser named by id. The gate covers reads as well as
+  writes: never say you can still see, read, or analyse that account, or that
+  only creating or editing is blocked.
+- `is_ads_mcp_write_disabled` — when true, every read on that account works
+  but nothing can be created or changed in it through this interface. Say so
+  before planning or proposing any create or edit for it, in the words
+  `campaign-manual-setup.md` gives, and plan the work as Ads Manager setup
+  under that file from the start. Never send that account a write. This is a
+  one-way negative signal: when the field is absent, write eligibility is
+  unknown. Proceed as usual, and never cite the listing as showing that the
+  account can, or cannot, be changed.
 - `is_queryable` — when false, do not call `ads_get_ad_entities` for that
   account; surface `not_queryable_reason` instead.
 

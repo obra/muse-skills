@@ -392,6 +392,11 @@ Never follow a failed write with a different write meant to compensate for it.
 A different route to the same outcome is a new proposal: offer it and wait for
 its own approval.
 
+**An account listed with `is_ads_mcp_write_disabled: true` takes no write at
+all.** Do not send one to find out. Say what `campaign-manual-setup.md` says,
+then give the exact setting and value to apply in Ads Manager for a single
+change, or plan a new campaign in full under that file.
+
 🚨 **An `Ads MCP Access Denied` rejection saying the ad account cannot create or
 modify ads through this interface is about the account, not the call.** Every
 write to that account will be rejected the same way for the rest of the
@@ -409,6 +414,14 @@ required, or the post being boosted no longer exists. No retry and no other
 write that depends on the same thing can succeed. Say plainly what it is and
 where they fix it, as the error names it, then carry on with whatever does not
 depend on it.
+
+**An ad set that reaches any EU country needs a named advertiser and payer.**
+`ads_create_ad_set` fills `dsa_beneficiary` and `dsa_payor` from the ad
+account's business name, so an account with no business gets neither, and the
+create is rejected with "No advertiser indicated". Ask the advertiser for the
+person or organization the ads promote and the one paying for them (usually the
+same name), then pass both fields. Never drop the EU countries they asked for to
+get past the rejection.
 
 A pixel write returns `results[]` per item and **can partially succeed**: report
 which items applied and which did not, rather than summarising the call as one
@@ -626,16 +639,21 @@ missing one.
 **Duplication is a real capability — use the source parameters rather than
 building an empty copy.** `ads_create_campaign` takes `source_campaign_id`,
 `ads_create_ad_set` takes `source_adset_id`, and `ads_create_ad` takes
-`source_ad_id`, which also carries the creative across in draft mode. Asked to
-duplicate something, pass the source id: a bare create named "... Copy" produces
-an empty shell, and the approval card cannot tell the two apart, so the
-advertiser approves expecting their ad sets, ads and creatives to come with it
-and gets nothing.
+`source_ad_id`. Asked to duplicate something, pass the source id: a bare create
+named "... Copy" produces an empty shell, and the approval card cannot tell the
+two apart, so the advertiser approves expecting their ad sets, ads and creatives
+to come with it and gets nothing.
 
-**You do not need to read the original first** — the copy happens server-side.
-That matters because a source object is not always readable here, and refusing
-to duplicate what you cannot read turns a working capability into a false
-"I can't do that".
+**`source_ad_id` copies the creative only in draft mode.** A live
+`ads_create_ad` still needs `creative`. Because the caller cannot select the
+mode, read the source ad with `ads_get_ad_entities` and pass its `creative_id`
+as `{"creative_id": "..."}` alongside `source_ad_id`. Supplying it is safe in
+both modes and prevents a live call from being rejected.
+
+**For a campaign or ad set you do not need to read the original first** — the
+copy happens server-side. That matters because a source object is not always
+readable here, and refusing to duplicate what you cannot read turns a working
+capability into a false "I can't do that".
 
 **Read the parent campaign BEFORE you compose an ad set.** Whether an ad set may
 carry a budget at all depends on the parent, and only the campaign can tell you.
@@ -916,8 +934,11 @@ more.** There is no tool here to create a pixel or dataset, generate a
 Conversions API access token, create a custom conversion, or send events. When
 asked for one of those, say so in one sentence, name what IS possible (event
 rules and parameters on an existing pixel, dataset reads), and offer the real
-path: the advertiser creates the dataset in Events Manager, or you do it there
-through the browser while they watch. The access token is a secret: the
+path: the advertiser creates the dataset in Events Manager, or you can try
+creating it there through the browser. Offer live watching or takeover only
+when the advertiser's client supports it; browser sign-in is separate from the
+connector, and the task result determines whether creation succeeds. The
+access token is a secret: the
 advertiser clicks Generate and pastes it straight into their server or hosting
 settings. Never ask for it in chat. Do not describe the pixel tools as missing
 or say "the API cannot do any of this"; check `list-tools` first, and keep the

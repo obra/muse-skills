@@ -2,7 +2,6 @@
 name: "meta_ads"
 title: "Meta Ads"
 description: "Create, write, or manage Meta ads and assets: ad copy, campaigns, spend, reports, audiences, catalogs, product feeds, feed refresh schedules, experiments, and policy. Always load for any request to create or write an ad, or to advertise a product or service, even when no platform is named; this includes sensitive or restricted categories. Always load for any question asking what a Meta, Facebook, or Instagram advertising policy means, allows, prohibits, or requires, including a standalone policy-definition question with no account context. Those questions must use ads_policy_tool, never browser search or memory. Load for a specifically named catalog or feed with an upload or refresh-schedule request; use Ads reads to resolve ownership before writing. Generic unnamed feeds need context. Whether an image, claim or piece of copy may be used in an ad is ALWAYS a Meta Ads task — 'can I use this in an ad', 'is it allowed', 'is this against policy', and any rights, likeness, celebrity, logo or trademark question about advertising with an image, including a follow-up about one just generated. Those are ads-policy questions, not general legal ones. An ad request uses the campaign workflow unless explicitly only an image or organic post."
-icon: "meta_ads"
 metadata: { "includeInPrompt": true }
 ---
 
@@ -46,8 +45,10 @@ means, allows, prohibits, or requires as a Meta Ads task, even when it names no
 account, campaign, or ad. Load `references/policy.md`, pass the user's policy
 question to `ads_policy_tool`, and call it before answering.
 Browser search, a public policy page, and model memory are not substitutes for
-the canonical tool result. If the tool is unavailable or returns `N/A`, say the
-policy could not be confirmed instead of answering from another source.
+the canonical tool result. If the tool is unavailable, still returns `N/A`
+after the one catalogue-title retry in `references/policy.md`, or returns a
+policy that does not cover the question, say the policy could not be confirmed
+instead of answering from another source.
 
 ## Resolve the owning system before routing
 
@@ -108,7 +109,7 @@ task touches **before** answering, not after drafting.
 | `references/campaign-creative.md` | Only when preparing or approving any campaign creative, including image, video, carousel, boosted-post, and partnership-ad formats. |
 | `references/campaign-execution.md` | Only when preparing the final review, collecting its exact approval, creating the paused hierarchy, presenting its immediate handoff, or recovering partial creation. |
 | `references/campaign-handoff.md` | Only after the advertiser selects a post-create delivery or editing action. |
-| `references/campaign-manual-setup.md` | When a write was rejected as not available for this ad account — by a tool result, or quoted by the advertiser from an earlier attempt — or the advertiser asks to set the campaign up themselves in Ads Manager. Read it before explaining that rejection. |
+| `references/campaign-manual-setup.md` | When an account is listed with `is_ads_mcp_write_disabled: true`, when a write was rejected as not available for this ad account — by a tool result, or quoted by the advertiser from an earlier attempt — or the advertiser asks to set the campaign up themselves in Ads Manager. Read it before explaining that rejection. |
 | `references/writes.md` | Before executing a standalone create, update, activate, pause, delete, connect, or upload, and before saying whether a pixel, dataset, or Conversions API setup step can be done here. Complete campaigns load it only when their staged references direct. |
 
 ## Tooling
@@ -367,7 +368,10 @@ approval permits and what may be claimed after a write.
    user's decision, not staged, queued, or underway. A refusal or cancellation
    means no change was made. An error means the action failed. Use completed
    past tense only for the exact fields and objects a successful write result
-   proves changed.
+   proves changed. Never announce a write as happening ("uploading it now",
+   "creating it now") unless that write is called in the same response; a
+   response that only says so ends the turn with nothing running, and the
+   advertiser is left waiting for a result that never comes.
 8. **Do not turn task observations into persistent state.** Existing memory may
    inform stable business facts under the planning rules, but never write or
    update memory from an Ads workflow. Tool availability, rollout or gating,
@@ -379,7 +383,7 @@ approval permits and what may be claimed after a write.
    campaign ledger. A read-only Ads request permits only reads; user-requested
    output artifacts are the sole exception.
 9. **Never fabricate a metric value.** Report only figures a tool returned, and never compute, average, or extrapolate one. `references/evidence.md` and `references/response-style.md` carry the detail.
-10. **Never state what a Meta ad policy says without retrieving it this turn, and read `references/policy.md` before any `ads_policy_tool` call.** Pass the user's policy question as `query`; the tool resolves it against the current live catalogue.
+10. **Never state what a Meta ad policy says without retrieving it this turn, and read `references/policy.md` before any `ads_policy_tool` call.** Pass the user's policy question as `query`; on "N/A", retry once with the exact catalogue title the result lists that covers the question.
 11. **Never claim readiness from credential presence alone.** Say Meta Ads is connected and ready only after `meta-ads-cli status` returns `authenticated: true` together with a `tools` catalogue.
 12. **Never invent an audience.** Do not infer age, gender, geography,
     interests, exclusions, or lookalikes from business or account context.
@@ -439,3 +443,12 @@ approval permits and what may be claimed after a write.
     each returned `embed_token` placed where its widget belongs and an options
     token last. A response whose only visible text is a token shows buttons
     with no question.
+20. **Three delivery claims to get right.** Ads from the same ad account are
+    deduplicated before the auction, so they never bid against each other or
+    raise each other's CPM: consolidate ad sets for budget, frequency and
+    learning, never "so they stop competing". Never recommend pausing, cutting
+    or replacing an ad on its first days of delivery or in the learning phase,
+    including in a plan for later weeks. Never attribute a performance
+    difference to a setting (audience, placement, bid, budget, schedule or
+    creative) you have not read for every object compared; read it, or say the
+    cause is not known yet. `references/analysis.md` has the detail.

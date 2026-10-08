@@ -36,7 +36,7 @@ not claim the Idea is shared until `idea.share` returns a link.
 
 On success, `idea.share` also creates the native Idea widget for that same
 Idea. Include `widget.embed_token` exactly once on its own line. Do not call
-`widget.create` for the same Idea. If the result has `widget_warning` instead
+`idea.create_idea_widget` for the same Idea. If the result has `widget_warning` instead
 of `widget.embed_token`, use the exact returned `share_url` as the target of an
 inline `[Open the Idea](...)` link in the same response without claiming a card
 appeared.

@@ -15,7 +15,7 @@ For a user-facing event-ticket search or purchase, first read
 `/opt/hatch/skills/booking/references/presentation.md`. Those files define the
 routing, presentation, browser checkout, and commitment rules. Use this file
 for the Ticketmaster CLI contract. Do not call `seat-view-carousel`, create
-HTML, or use `widget.create` for a booking flow. Use the compact Markdown ticket
+HTML, or use a widget creator for a booking flow. Use the compact Markdown ticket
 table and optional verified Markdown images.
 Do not call `create_options` for ticket choices or checkout decisions.
 

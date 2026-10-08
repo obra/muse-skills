@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: instagram
+  required: true
+cli:
+  binary: instagram-cli
+  skill: instagram
 connector: instagram
 category: social
 display_name: Instagram

@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: google_sheets
+  required: true
 connector: google_sheets
 category: productivity
 display_name: Google Sheets

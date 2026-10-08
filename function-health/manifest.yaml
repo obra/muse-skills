@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: function_health
+  required: true
+cli:
+  binary: function-health
+  skill: function_health
 connector: function_health
 category: health
 display_name: Function Health

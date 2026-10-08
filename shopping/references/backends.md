@@ -35,8 +35,7 @@ Call `shopping.resolve_results`:
 ```
 
 The resolver maps Marketplace `listing_id` values into shopping result cards.
-Present the returned `path` with `widget.create` using
-`kind: "shopping_results"` and `data.path`.
+Present the returned `path` with `shopping.create_shopping_results_widget` and `path`.
 
 To present catalog and Marketplace picks together:
 
@@ -47,5 +46,4 @@ To present catalog and Marketplace picks together:
 }
 ```
 
-Present the returned `path` with `widget.create` using
-`kind: "shopping_results"` and `data.path`.
+Present the returned `path` with `shopping.create_shopping_results_widget` and `path`.

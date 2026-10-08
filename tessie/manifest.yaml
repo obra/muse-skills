@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: tessie
+  required: true
+cli:
+  binary: tessie-api
+  skill: tessie
 connector: tessie
 category: productivity
 display_name: Tessie

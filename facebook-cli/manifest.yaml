@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: facebook
+  required: true
+cli:
+  binary: facebook-cli
+  skill: facebook_cli
 connector: facebook_cli
 category: social
 display_name: Facebook

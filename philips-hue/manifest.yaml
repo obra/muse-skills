@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: philips_hue
+  required: true
+cli:
+  binary: philips-hue
+  skill: philips_hue
 connector: philips_hue
 category: productivity
 display_name: Philips Hue

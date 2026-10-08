@@ -76,24 +76,21 @@ coordinates. This applies to recommendations, comparisons, named-place
 lookups, and other uses where a map could ground the user. See Response
 formatting for which places go on it.
 
-Create one `local_map` widget with `widget.create` and this payload:
+Create one `local_map` widget with `widget.create_map_widget` and this payload:
 
 ```json
 {
-  "kind": "local_map",
-  "data": {
-    "elements": [
-      {
-        "kind": "rich_place",
-        "place_id": "<numeric ID>",
-        "name": "<name from the same result>",
-        "coordinate": {
-          "latitude": 0.0,
-          "longitude": 0.0
-        }
+  "elements": [
+    {
+      "kind": "rich_place",
+      "place_id": "<numeric ID>",
+      "name": "<name from the same result>",
+      "coordinate": {
+        "latitude": 0.0,
+        "longitude": 0.0
       }
-    ]
-  }
+    }
+  ]
 }
 ```
 

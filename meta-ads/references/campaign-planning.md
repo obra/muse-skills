@@ -244,7 +244,10 @@ evidence. Use sparse clickable links for any external claims and never expose
 raw IDs. State only assumptions or missing evidence that materially bound the
 recommendation. Do not include a creative plan, render `campaign-summary`,
 prepare media, upload, or write Ads objects. Ask `Proceed with this strategy?`,
-then show exactly:
+and in the same short paragraph say what approving does: it settles these
+delivery settings and moves on to the creative; nothing is created in the ad
+account and nothing spends until the advertiser approves the final review.
+Then show exactly:
 
 - `Approve this strategy`
 - `No, make changes`
@@ -275,7 +278,19 @@ geography. Do not derive geography from account currency, timezone, Page
 language or location, a destination domain, prior campaigns, or market
 convention. It must come from the advertiser or verified service-area evidence;
 otherwise ask one geography question before pricing. Do not ask about
-evidence-backed defaults. Unless constrained, use
+evidence-backed defaults.
+
+**A business people visit, or one that serves a local area, needs its service
+area, not a state.** For a restaurant, shop, salon, clinic, gym or local
+service, the geography question asks where customers come from: the city or
+neighbourhood, or a radius around the address. A whole state, region or country
+is not a local audience. When the advertiser gives only that, ask once whether
+customers really come from all of it before pricing. Resolve the answer under
+`campaign-targeting.md`; an address with a radius is an actual place
+requirement there. With Advantage+ Audience on, offer two or three interests the
+business itself supports as suggestions (for a Japanese restaurant, Japanese
+cuisine or sushi), look them up in the same `ads_targeting_search` batch, and
+say they guide delivery rather than limit who sees the ads. Unless constrained, use
 auction buying, campaign-level daily budgeting, broad Advantage+ Audience,
 automatic placements, no end date, and compatible billing/optimization. Keep
 native messaging destinations native. Name the executable placement choice

@@ -1,4 +1,7 @@
 version: 1
+metadata:
+  visible_in_settings: false
+auth: none
 connector: ticketmaster
 display_name: Ticketmaster
 description: Search live events and get ticket listings, prices, and seat views.

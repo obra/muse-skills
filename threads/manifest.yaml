@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: threads
+  required: true
+cli:
+  binary: threads-cli
+  skill: threads
 connector: threads
 category: social
 display_name: Threads

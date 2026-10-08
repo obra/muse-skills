@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: calendly
+  required: true
+cli:
+  binary: calendly
+  skill: calendly
 connector: calendly
 category: productivity
 display_name: Calendly

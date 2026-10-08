@@ -15,8 +15,8 @@ hierarchy for other bookings and the flight Markdown fallback:
 
 1. **One-sentence recommendation.** Name the best option and the decisive
    reason. Keep any caveat to one short clause.
-2. **One compact comparison.** For flights, `widget.create` in the current tool
-   set means the native structured flight list is available and must be used;
+2. **One compact comparison.** For flights, load the `widget` namespace and use `widget.create_list_widget`
+   for the native structured flight list;
    use the Markdown fallback only when that tool is absent or a valid call
    explicitly fails. For hotels, use the native map/list presentation in the
    hotel reference together with the category's compact Markdown table. For
@@ -65,9 +65,9 @@ source exists.
 
 Use the native structured flight list described in
 `/opt/hatch/skills/booking/references/flights.md` for every live flight
-comparison when `widget.create` is available. Do not substitute Markdown based
+comparison when `widget.create_list_widget` is available. Do not substitute Markdown based
 on uncertainty, convenience, output size, or schema complexity. Use this table
-only when `widget.create` is absent or a valid widget call explicitly returns an
+only when `widget.create_list_widget` is absent or a valid widget call explicitly returns an
 unsupported or rendering error:
 
 | Option | Route and local times | Duration | Stops and layovers | Flight and cabin | Full total |

@@ -25,16 +25,25 @@ Confirm both tool names against a successful `meta-ads-cli list-tools
 `list-tools`, `status`, or a `call-tool` probe for discovery; the server
 catalogue is gated per tool and evolves.
 
-## Pass the user's policy question
+## Pass the question, then retry once with a catalogue title
 
-Pass the user's policy question verbatim as `query`, including the subject they
-asked about. The tool resolves that question against the current live policy
-catalogue; do not translate it through a checked-in title list or rely on a
-remembered title. A static list goes stale when the policy inventory changes.
+First call: pass the user's policy question verbatim as `query`, including the
+subject they asked about. The tool matches a query that names a policy or one
+of a few product names; most free-text questions miss, and that is expected.
 
-Make one call for the question the user asked. If the tool returns "N/A" or a
-policy that does not fit, say you could not confirm the policy and point to Ad
-Standards. Do not invent a title or answer from memory. Call the tool whenever
+When it returns "N/A", its `policy_raw_text` ends with `Catalogue titles:`,
+the current policy titles. Pick the one title that covers the product or
+practice in question, judged by what the product is and does even when the
+advertiser uses a brand name, and call the tool once more with exactly that
+title as `query`, copied from the list, never a heading or phrase you remember
+from a policy.
+
+Say you could not confirm the policy, and point to Ad Standards, when no listed
+title covers the question, when the retry also returns "N/A", or when either
+call returns a policy that does not cover the question. Each separate policy
+question gets at most these two calls: its first call and one retry. Never use
+a title that is not on the list, and never answer from memory. Do not tell the
+advertiser how many lookups failed; say what you could or could not confirm. Call the tool whenever
 `references/safety.md` requires retrieval: before you state a policy, and when
 copy you are about to stage makes a claim a policy governs.
 
@@ -57,7 +66,9 @@ suggest wording, framing, or targeting that would help them pass review.
 
 Call `ads_policy_tool` for the category and ground both the restriction and the
 certification route in what it returns, citing its URLs. If it returns "N/A",
-point to Ad Standards rather than improvising the eligibility rules. Declining to
+retry once with the catalogue title as above; if that also misses or the
+policy returned does not cover the category, point to
+Ad Standards rather than improvising the eligibility rules. Declining to
 write the launch guide is not declining to help: say what the policy requires and
 what the advertiser would need in place to become eligible.
 

@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: opentable
+  required: true
+cli:
+  binary: opentable
+  skill: opentable
 connector: opentable
 category: social
 display_name: OpenTable

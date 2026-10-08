@@ -1,4 +1,9 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: google_docs
+  required: true
 connector: google_docs
 category: productivity
 display_name: Google Docs

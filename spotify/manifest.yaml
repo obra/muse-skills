@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: spotify
+  required: true
+cli:
+  binary: spotify-api
+  skill: spotify
 connector: spotify
 category: social
 display_name: Spotify

@@ -1,4 +1,7 @@
 version: 1
+metadata:
+  visible_in_settings: false
+auth: none
 connector: duffel
 display_name: Duffel Flight Booking
 description: Search, validate, book, review, and cancel flights through Duffel.

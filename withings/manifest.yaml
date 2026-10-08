@@ -1,4 +1,12 @@
 version: 1
+metadata:
+  visible_in_settings: true
+auth:
+  provider: withings
+  required: true
+cli:
+  binary: withings
+  skill: withings
 connector: withings
 category: health
 display_name: Withings
