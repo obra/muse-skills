@@ -144,7 +144,11 @@ per-web-artifact R2 bucket bound as `BUCKET`, with HMAC-signed tokens for privat
 blobs. Stateful downloads require a verified viewer and use `Cache-Control:
 no-store`, including blobs marked public within the app. Both Cloudflare and VM
 blob responses carry CSP `sandbox` and `nosniff`; attachments can display passive
-content but cannot execute scripts with the app's origin or permissions.
+content but cannot execute scripts with the app's origin or permissions. Do not
+navigate an iframe, embed, or object directly to a PDF blob URL: the response
+sandbox also blocks the browser's built-in PDF viewer. Generated clients should
+render the fetched bytes with PDF.js through `PdfViewer` from
+`@hatch/space-sdk/pdf`, which keeps the blob response sandbox intact.
 
 Run the local Cloudflare exporter tests with:
 

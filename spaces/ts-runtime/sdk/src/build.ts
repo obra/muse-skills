@@ -11,12 +11,13 @@
 // daemon's `/spaces/v2/<slug>/assets/*` route. NODE_ENV is forced to
 // "production" so React's dev-only paths are tree-shaken out.
 
-import { rm } from "node:fs/promises";
-import { basename } from "node:path";
+import { cp, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
 import tailwindPlugin from "bun-plugin-tailwind";
 
 const ENTRY = "./client/index.html";
 const OUTDIR = "./client/dist";
+const PDFJS_ASSET_ROOT = "./assets/pdfjs/";
 
 export interface BuildClientOptions {
   // Reserved for future per-web-artifact build customization. No fields are
@@ -93,23 +94,29 @@ export async function buildClient(_options: BuildClientOptions = {}): Promise<vo
   const assetFiles = result.outputs
     .filter((output) => output.kind === "asset")
     .map((output) => basename(output.path));
-  if (assetFiles.length > 0) {
-    for (const output of result.outputs) {
-      if (!/\.(js|css|html)$/.test(output.path)) {
-        continue;
-      }
-      let text = await output.text();
-      let changed = false;
-      for (const name of assetFiles) {
-        const bare = `./${name}`;
-        if (text.includes(bare)) {
-          text = text.split(bare).join(`./assets/${name}`);
-          changed = true;
-        }
-      }
-      if (changed) {
-        await Bun.write(output.path, text);
+  let needsPdfjsAssets = false;
+  for (const output of result.outputs) {
+    if (!/\.(js|css|html)$/.test(output.path)) {
+      continue;
+    }
+    let text = await output.text();
+    needsPdfjsAssets ||= text.includes(PDFJS_ASSET_ROOT);
+    let changed = false;
+    for (const name of assetFiles) {
+      const bare = `./${name}`;
+      if (text.includes(bare)) {
+        text = text.split(bare).join(`./assets/${name}`);
+        changed = true;
       }
     }
+    if (changed) {
+      await Bun.write(output.path, text);
+    }
+  }
+
+  if (needsPdfjsAssets) {
+    await cp(join(import.meta.dir, "pdfjs-assets"), join(OUTDIR, "assets", "pdfjs"), {
+      recursive: true,
+    });
   }
 }

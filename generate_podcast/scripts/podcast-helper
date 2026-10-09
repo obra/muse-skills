@@ -10,6 +10,7 @@ available for edge cases.
 
 import argparse
 import hashlib
+import fcntl
 import http.client
 import json
 import os
@@ -53,6 +54,7 @@ def main():
     sp_gen.add_argument("--script", required=True, help="Path to script file")
     sp_gen.add_argument("--title", required=True, help="Episode title")
     sp_gen.add_argument("--description", default="", help="Episode description")
+    sp_gen.add_argument("--generation-id", help="Stable prepared-<sha256> identity for private preparation; reuses completed audio and cannot publish")
     sp_gen.add_argument(
         "--language",
         help="Language code for synthesis (e.g. en, es, pt, pt_BR). Defaults to "
@@ -592,6 +594,29 @@ def find_series_cover(series_id):
 
 
 def cmd_generate(args):
+    generation_id = getattr(args, "generation_id", None)
+    if generation_id is None:
+        return _generate(args)
+    if not re.fullmatch(r"prepared-[a-f0-9]{64}", generation_id) or args.publish:
+        print(json.dumps({"ok": False, "error": "A prepared generation requires its stable identity and cannot publish"}))
+        sys.exit(1)
+    directory = podcasts_dir() / generation_id
+    directory.mkdir(parents=True, exist_ok=True)
+    with (directory / ".generation.lock").open("a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        episode = next((entry for entry in read_manifest().get("episodes", [])
+                        if entry.get("slug") == generation_id), None)
+        audio = Path(episode.get("path", "")) if episode else None
+        if (audio and audio.is_file() and audio.stat().st_size > 0
+                and (episode.get("duration_secs") or 0) > 0):
+            print(json.dumps({"ok": True, "slug": generation_id, "title": episode.get("title"),
+                              "path": episode["path"], "duration_secs": episode.get("duration_secs"),
+                              "published": False, "reused": True}))
+            return
+        return _generate(args)
+
+
+def _generate(args):
     if args.publish and not args.feed_title:
         print(
             json.dumps({"ok": False, "error": "--feed-title required with --publish"})
@@ -599,7 +624,7 @@ def cmd_generate(args):
         sys.exit(1)
 
     catalog = read_manifest()
-    slug = make_slug(args.title)
+    slug = getattr(args, "generation_id", None) or make_slug(args.title)
     published_collision = next(
         (
             episode

@@ -10,7 +10,7 @@ cli:
 connector: facebook_cli
 category: social
 display_name: Facebook
-description: Get highlights from friends, groups, Marketplace listings and more.
+description: Read Facebook highlights and publish personal text posts, comments and replies.
 icon: facebook
 # Valid CLI subcommand paths, consumed by jarvis runtime-event logging to enrich
 # tool-variant telemetry (e.g. `facebook-cli/marketplace/search`). Source of
@@ -29,6 +29,10 @@ cli_subcommands:
   - "me"
   - "me friends"
   - "post read"
+  - "post audiences"
+  - "post crossposting"
+  - "post create"
+  - "post comments add"
   - "pages list"
   - "pages access"
   - "pages account-insights"
@@ -78,6 +82,14 @@ actions:
         label: Read posts and analytics from your Pages
         approval_phrase: read posts and analytics from your Facebook Pages
         response_guard: verification_codes
+      post.audiences.read:
+        label: Read your current Facebook posting audience and choices
+        approval_phrase: read your Facebook posting audience and choices
+        response_guard: disabled
+      post.crossposting.read:
+        label: Read where your Facebook posts are also shared
+        approval_phrase: read where your Facebook posts are also shared
+        response_guard: disabled
       facebook.search:
         label: Search
         approval_phrase: search Facebook
@@ -85,6 +97,14 @@ actions:
     default: ask
     label: Write and delete permissions
     methods:
+      post.create:
+        approval_policy: fresh_consent_only
+        label: Publish text posts to your profile
+        approval_phrase: post to your Facebook profile
+      comment.add:
+        approval_policy: fresh_consent_only
+        label: Add text comments and replies
+        approval_phrase: add this Facebook comment or reply
       pages.posts.write:
         approval_policy: fresh_consent_only
         label: Draft, publish, or schedule page posts

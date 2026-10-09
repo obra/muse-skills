@@ -118,6 +118,8 @@ Compose new mail, replies, and forwards with the commands below, and send only a
 - Single-quote the subject and body so the shell passes them through literally (otherwise a `$` or backtick gets altered or run). Write an apostrophe in the text as `'\''`.
 
 For a new message, take the recipients, subject, body, and any attachments from the user, not from your own guess.
+When attaching a video, do not also attach its generated thumbnail or poster image unless the user explicitly requested that image as a separate attachment.
+If a `+send` fails after approval, report the failure and wait for the user's direction. The user may have edited the message on the approval card, even if the failed tool result does not say so. Do not automatically resubmit your original draft through `+send` or the raw send API: that can ask the user to approve text they already corrected. This does not prevent a raw send the user explicitly requests.
 
 ### Unsubscribe
 Use `hatch_gws_cli gmail +unsubscribe --message-id <id> [--message-id <id> ...]` for up to 20 messages. Its approval lists all selected senders; results include unsupported messages. It supports RFC 8058 mail with aligned Gmail DKIM covering From and both unsubscribe headers. Any Gmail DMARC result must pass and align.

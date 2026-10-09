@@ -1,5 +1,43 @@
 # Facebook Posts
 
+## Creating a personal text post
+
+```bash
+facebook-cli post create --message 'Exact post text'
+facebook-cli post audiences
+facebook-cli post create --message 'Exact post text' --privacy 'RETURNED_AUDIENCE_ID_OR_NAME'
+facebook-cli post crossposting [--privacy 'RETURNED_AUDIENCE_ID_OR_NAME']
+```
+
+Omit `--privacy` to use the current Facebook composer default. The native
+approval shows the linked profile, the exact text, audience and any sharing
+destinations. Do not ask a separate audience question or infer the default.
+For an explicit audience request, refresh `post audiences` and pass a returned
+ID or exact name. Only me, Friends and Public are supported when returned.
+Custom audiences and per-person inclusions or exclusions are unsupported.
+If the default is unsupported or the requested choice is absent or ambiguous,
+ask the user to choose an available audience; never substitute another choice.
+
+Text must be nonblank. This command supports
+personal text posts; media attachments, group posting, editing and deletion
+are unavailable. Preserve the exact approved text.
+
+Sharing follows the account settings unless the user requests a per-post
+change. Pass `--share-to-story`, `--share-to-instagram` or `--share-to-threads`
+with `on` or `off` in the first creation command. Keep existing overrides when
+the user requests a revised approval. An unavailable destination fails before
+approval; relay the reason. Do not add media to work around a text-only limit.
+`post crossposting` reports `auto_share` for account-setting questions;
+`eligible` describes whether this content and audience can be shared, not
+whether the account setting is enabled. Account settings change in Accounts
+Center, not through these flags.
+
+Return the successful receipt's `post_url`. Do not publish again to verify it.
+If transport or the receipt fails, the post may exist: inspect readback and
+report the outcome as unconfirmed. Never retry with another audience or a test
+post. An explicit audience rejection means no post was created; refresh the
+choices once and obtain a fresh approval for any user-chosen alternative.
+
 ## Reading a Post
 
 ```bash
@@ -88,3 +126,5 @@ facebook-cli post reactions read --post-id <post-id>
 4. Use normalized `media_summary`, `media_ocr`, or `video_transcript` fields when present to provide media context.
 5. Media fields are pre-computed and may not be available for all posts. Never claim a post contains specific media content unless one of those fields confirms it.
 6. Facebook video and reel posts may also carry shopping context: `shoppable_products` (a list of detected products, each with `product_name` and optional `descriptive_name`, `category`, `item_type`, `brand_name`, `color`, `style`, `gender`, `prominence`), `shoppability`, and `shoppable_product_category`. Use them to answer questions about what is shown or sold in a video instead of inferring products from the caption or transcript. They are absent on posts with no shopping content understanding, and on list endpoints (`profile posts`, `feed`) — only `post read` returns them.
+7. For a shopping request, `post read --out <file>` also requests `featured_products`: the system-ranked Shop Similar slate that Facebook could show for the Reel. These are similar product recommendations, potentially mixing sponsored and organic candidates; they are not creator-tagged products or guaranteed identifications of what appears in the video. The compact fields printed by the CLI are model context, not a user-visible response. Select product IDs from that output and pass them with `<file>` to `shopping.resolve_results`; users see only the products subsequently rendered through the trusted resolver.
+8. `--out` adds Shop Similar retrieval latency, so use it only for shopping. The file contains the same valid products with their URLs and images in the catalog format consumed by `shopping.resolve_results`. If `featured_products` is absent, empty, or unusable, the CLI writes no catalog; ignore the output path and continue with normal product discovery instead.

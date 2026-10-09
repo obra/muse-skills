@@ -195,6 +195,11 @@ Options:
   --delivery-method [local_pickup_only|shipping_only|pickup_and_shipping]
   --after TEXT                     Cursor for forward pagination (the `after` cursor from a previous response's paging.cursors.after)
   --category-id TEXT               Category ID filter (repeatable)
+  --min-year INTEGER               Lowest vehicle model year (any vehicle flag limits results to vehicles)
+  --max-year INTEGER               Highest vehicle model year
+  --min-mileage-in-miles INTEGER   Lowest odometer reading in miles (1 to 1,000,000)
+  --max-mileage-in-miles INTEGER   Highest odometer reading in miles (1 to 1,000,000)
+  --transmission [automatic|manual]
   --out PATH                       File for `shopping.resolve_results` (created or truncated)
 ```
 

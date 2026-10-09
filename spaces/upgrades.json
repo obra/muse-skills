@@ -1,5 +1,5 @@
 {
-  "currentVersion": 24,
+  "currentVersion": 25,
   "versionField": "platformVersion",
   "upgrades": [
     {
@@ -461,6 +461,29 @@
       "verification": [
         "A signed-in guest can use intended collaborative actions and cannot read or change another viewer’s private data.",
         "Save, reload, validation failure, and an unavailable backend have honest, recoverable UI states."
+      ]
+    },
+    {
+      "version": 25,
+      "id": "2026-09-29-sdk-pdfjs-viewer",
+      "title": "PDF.js rendering for blob-backed PDFs",
+      "runtime": "typescript",
+      "summary": "The TypeScript SDK now exports PdfViewer from @hatch/space-sdk/pdf. It fetches PDF blob bytes and renders them with PDF.js instead of navigating a nested document to the raw blob response, whose required CSP sandbox blocks Chrome's built-in PDF viewer.",
+      "applicability": "TypeScript web artifacts that display a PDF stored in ctx.blobs by navigating an iframe, embed, or object directly to its blob URL. No source change is required for artifacts that only download PDFs, display only external PDFs, or do not display PDFs inline.",
+      "instructions": [
+        "Find client code that sends a ctx.blobs PDF URL to an iframe src, embed src, or object data attribute.",
+        "Import PdfViewer from @hatch/space-sdk/pdf and replace the nested-document PDF element with <PdfViewer src={pdfUrl} ariaLabel=\"...\" />. Use an accessible label that identifies the document.",
+        "Match the artifact's user-facing language. When English defaults are not appropriate, pass the labels prop with translated loading and error text, pager controls and page-count formatting, plus complete navigation and rendered-page accessible names. Write ariaLabel in that language too; it does not translate the viewer's other controls.",
+        "Keep the PDF in ctx.blobs and keep only its blob key in ctx.db. Obtain the fetchable URL with ctx.blobs.getUrl() and return that URL through the existing action response.",
+        "Leave a working cross-origin PDF embed unchanged; this upgrade only applies to PDFs already stored in ctx.blobs.",
+        "Do not remove or bypass the blob response's CSP sandbox or X-Content-Type-Options headers. PdfViewer fetches the inert bytes and renders them to canvas without granting uploaded content the artifact's authority.",
+        "If package.json still points at an older @hatch/space-sdk tarball, update that dependency and run bun install; @hatch/space-sdk/pdf ships pre-bundled and needs no separate pdfjs-dist dependency."
+      ],
+      "verification": [
+        "The client has no iframe, embed, or object that navigates directly to a PDF blob URL.",
+        "The TypeScript web artifact build and typecheck succeed, including the confidential-client transform.",
+        "A PDF stored through ctx.blobs renders its first page, page controls work for a multipage file, and the browser console has no blocked-frame or missing PDF.js asset error.",
+        "An uploaded HTML or SVG blob still receives the existing CSP sandbox and cannot execute with the artifact's authority."
       ]
     }
   ]

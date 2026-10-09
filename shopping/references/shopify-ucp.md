@@ -57,16 +57,49 @@ you:
   and `order_event_occurred_at`. Do not treat an order-status message time as a
   delivery time.
 
+## Prepare buyer details before checkout creation
+
+Keep a payment route explicitly selected for this purchase. If none is
+selected, ask with `muse.create_options` and wait. Offer the Wallet routes
+supported under *Safety and input boundary*, using the provider presentation
+rules in `~/docs/chat/payments-and-purchases.md`, plus `Use another method`.
+
+When the user selects `Use another method`, treat it as browser takeover and
+follow `/opt/hatch/skills/shopping/references/browser-checkout.md` from the
+selected catalog product URLs. Do not create a UCP checkout first.
+
+For a selected Wallet route, call `wallet.list_payment_methods` for its provider
+and resolve one exact saved method using its result guidance. If the user
+declines Wallet connection or card setup, or setup ends without a usable
+method, treat that route as no longer selected and return to the route choice
+above.
+
+Before asking for a missing name, email address, or phone number, call
+`wallet.get_user_info`; when a recipient name or shipping address required for
+direct completion is missing, call `wallet.list_shipping_addresses`. Use Wallet
+values only for matching fields that are missing. Do not tell the user they
+need to provide buyer details before these Wallet lookups finish. Wallet results
+may omit required fields or leave them ambiguous. After applying known, sole,
+or default values, ask one grouped question for every required value that
+remains missing or ambiguous.
+
+Do not create the checkout until every buyer field required for direct
+completion is present. If the user does not want to provide them, follow
+`/opt/hatch/skills/shopping/references/browser-checkout.md` with the selected
+Wallet. For direct UCP, the exact payment-method ID later goes only in the
+trusted `checkout complete` input described here, not checkout creation.
+
 ## Create the checkout
 
-Confirm every product, exact variant, and quantity. Gather the buyer email
-required to create the checkout. Include other buyer details only when they are
-already known. Never guess or fabricate a value. Checkout creation moves no
-money; save final purchase approval for the completed quote.
+Confirm every product, exact variant, and quantity. Include the buyer email,
+recipient first and last name, and complete shipping address prepared for
+direct completion in the `checkout create` request. Never guess or fabricate a
+value. Checkout creation moves no money; save final purchase approval for the
+completed quote.
 
-Creation needs no payment method. Do not resolve Link, connect a wallet, or ask
-about payment before this call. The user picks the payment route after the
-checkout exists, under *Choose the payment route* below.
+Creation needs no payment method. The selected Wallet supplied buyer details
+and determines later completion, but its provider and payment-method ID do not
+enter this request.
 
 Create one JSON file containing every selected product. Use each catalog
 `product_id` as `items[].item_id`; use one entry per distinct variant and fold
@@ -80,22 +113,15 @@ use the same currency. If their currencies differ, do not call `checkout
 create`; offer browser checkout for all selected products instead. If accepted,
 follow `/opt/hatch/skills/shopping/references/browser-checkout.md`. Shopify may
 select a different market currency during checkout creation; handle that
-authoritative response below rather than predicting the override here. Include
-phone and address fields only when known. Native completion additionally
-requires a trusted cardholder first or last name and billing/shipping address
-with street, city, state, postal code, and ISO alpha-2 country.
+authoritative response below rather than predicting the override here. Direct
+native completion additionally requires a trusted recipient first and last name
+and complete shipping address with street, city, state or region, postal code,
+and ISO alpha-2 country. Include a phone number when it is already known; do not
+ask for one before creation unless the user or merchant already made it a
+requirement.
 
-Before this call, use buyer details already known from the conversation and
-`~/USER.md`. Ask only for a missing email, because the endpoint requires it.
-Do not ask for a name, phone number, or delivery address before checkout
-creation.
-
-After the user selects a wallet route, follow the Wallet setup instructions in
-`~/docs/chat/payments-and-purchases.md` before asking the user for missing
-checkout details.
-If checkout creation omitted the required name or address, pass the retrieved
-values to the browser route. `checkout update` cannot add them, so do not use
-direct completion for that checkout.
+Before this call, combine buyer details already known from the conversation and
+`~/USER.md` with the selected Wallet profile and shipping-address results.
 
 ```json
 {
@@ -159,51 +185,34 @@ Only a successful create response with a usable `.agent_state.checkout_id` may c
 
 A response carrying `requires_escalation`, `status: "redirect"`, or a note that
 buyer detail is still missing is a successful create when it returned a
-checkout ID. Do not treat it as an error. It does not say which route's brief to
-send, so ask the route question before handing off.
+checkout ID. Do not treat it as an error. Keep the route selected before
+creation and follow *Route after creation*; do not ask the route question again.
 
 Take the checkout URL now, from `.result.continue_url` or
 `.result.checkout.continue_url`. Use only a value the endpoint returned. When
 it is absent, fall back to one selected product's original catalog `url` from
 that merchant rather than inventing one.
 
-## Choose the payment route
+## Continue the selected payment route
 
-The checkout exists and moves no money yet. Keep a route the user already
-selected. Otherwise, ask with `muse.create_options` and wait. Offer Shop Pay
-with provider `shop-pay`, Link with provider `stripe-link`, and `Use another
-method` through browser takeover. A connected provider, saved default, or
-available method does not select a route.
-
-After the user chooses, follow *Route after creation* to decide whether
+The Wallet route and exact saved method were selected before checkout creation.
+Do not ask for the route again unless the user requests a switch or the selected
+method becomes unavailable. Follow *Route after creation* to decide whether
 checkout continues directly or through a BrowserTask.
 
-After choosing a wallet route, follow the Wallet setup instructions in
-`~/docs/chat/payments-and-purchases.md`. Use the exact provider ID,
-payment-method ID, and masked label only for this purchase. If the user declines
-setup or no usable method remains, return to route selection. Connection and
-method selection do not approve the purchase.
+If the user requests another Wallet, call `wallet.list_payment_methods` for the
+new provider and resolve one exact saved method using its result guidance. Keep
+the existing checkout. If connection or card setup for the requested Wallet is
+declined or produces no usable method, keep the checkout and ask the user to
+choose another route. For `Use another method`, reuse the browser-takeover
+route defined above and follow
+`/opt/hatch/skills/shopping/references/browser-checkout.md` using the existing
+checkout URL; do not recreate the checkout.
 
-When the route question is needed, ask it before any other message that follows
-creation. Ask it even when the create response reports `requires_escalation`,
-`status: "redirect"`, a missing shipping address, no delivery options, or a
-total that is not final. None of those says which route the user wants. Do not
-offer to open the checkout in the browser before the answer arrives, because
-that offer picks the route.
-
-On escalation, redirect, or a name or address missing at creation, say
-alongside the available options that the browser will finish this checkout and
-collect what is missing. Missing delivery options and an unsettled total are
-ordinary direct-checkout work under *Refresh delivery and totals* below, so do not say
-the browser will place the order for those.
-
-When the user selects `Use another method`, load
-`/opt/hatch/skills/shopping/references/browser-checkout.md`. Continue the
-existing checkout in a BrowserTask from the exact checkout URL. Include the
-user's payment choice in the brief without including card details. State that
-the user will enter payment during browser takeover.
-
-If the user does not choose, stop and wait. Do not select a route for them.
+On escalation, redirect, or buyer details still missing at creation, say that
+the browser will finish the already selected route and collect what remains.
+Missing delivery options and an unsettled total are ordinary direct-checkout
+work under *Refresh delivery and totals* below.
 
 ## Route after creation
 
@@ -272,10 +281,9 @@ flow.
 
 ## Use the selected wallet
 
-Reuse the selected provider and exact payment method resolved above. Do not ask
-the route question again. If the selected method is no longer available, stop
-before completion or browser delegation and return to *Choose the payment
-route*. Do not substitute another route.
+Reuse the selected provider and exact payment method resolved above. If the
+selected method is no longer listed, do not substitute another; ask the user to
+choose a current method or another route.
 
 ## Refresh delivery, discounts, and totals
 
@@ -324,9 +332,9 @@ update.
 ## Review and complete
 
 Use the exact saved method selected above. If the user asks to switch methods,
-return to exact saved-method selection in
-`~/docs/chat/payments-and-purchases.md`. Do not ask the user to confirm a switch
-they just requested.
+follow the switch rules under *Continue the selected payment route*. Do not ask
+the user to confirm a switch they just requested and do not create another
+checkout.
 
 Show the completed quote with the masked method, items, final total, and
 delivery choice. Present this quote using the checkout-review instructions in

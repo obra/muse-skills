@@ -1,13 +1,13 @@
 ---
 name: "spotify"
-description: "Discover, search, and manage Spotify music, podcasts, and playlists, including deleting shows or episodes you created with Save to Spotify."
+description: "Discover, search, and manage Spotify music, audiobooks, podcasts, and playlists, including deleting shows or episodes you created with Save to Spotify."
 metadata: { "includeInPrompt": true }
 ---
 
 # Spotify
 
 ## Purpose
-Use `spotify-api` to browse personalized Spotify content, search for music and podcasts, manage the user's library and playlists, check saveability of items, and start or control Spotify playback. For new playback during a voice conversation, follow **Voice playback** below instead of calling `spotify-api play`. Use `save-to-spotify` to manage shows and episodes you created through Save to Spotify.
+Use `spotify-api` to browse personalized Spotify content, search for music, audiobooks, and podcasts, manage the user's library and playlists, check saveability of items, and start or control Spotify playback. For new playback during a voice conversation, follow **Voice playback** below instead of calling `spotify-api play`. Use `save-to-spotify` to manage shows and episodes you created through Save to Spotify.
 
 ## Voice playback
 
@@ -35,10 +35,10 @@ Use the first rule that matches:
 
 ### Start the music
 
-Call `ui.set` once with target `voice.play_music` and params `title` (the
-track, or the artist or search term when no track was named), `artist` only
-when it differs from `title`, and the destination chosen above
-(`destination`, plus `spotify_device_id` for `spotify_connect`). Do not call `spotify-api play`,
+Call `voice.play_music` once with `title` (the track, or the artist or search
+term when no track was named), `artist` only when it differs from `title`, and
+the destination chosen above (`destination`, plus `spotify_device_id` for
+`spotify_connect`). Do not call `spotify-api play`,
 `spotify-api wearable-play`, or `muse.device.invoke` for this request.
 
 For `auto`, trusted host code checks the exact device that started this voice
@@ -65,17 +65,18 @@ Use the installed CLI directly from `PATH`.
 - `spotify-api next-page --url <section_next_url> [--language <lang>]` — fetch the next pagination URL returned as `sections[].next` or `next` by a prior Spotify response. Prefer this over guessing section IDs.
 
 #### Search
-- `spotify-api search --query <text> [--search-type TRACKS,ALBUMS,ARTISTS,PLAYLISTS,EPISODES,PODCASTS] [--language <lang>]` — search for content. For an exact song or album lookup, always format the query as `"<song or album> by <artist>"` so missing originals are distinguished from covers and similarly named content. Use `PODCASTS` to find shows (not `SHOWS` which is invalid). Use `experience --id <show_uri>` to list episodes of a found show.
+- `spotify-api search --query <text> [--search-type TRACKS,ALBUMS,ARTISTS,PLAYLISTS,EPISODES,PODCASTS,AUDIOBOOKS] [--language <lang>]`: search for content. Use `AUDIOBOOKS` for native Spotify audiobooks and `PODCASTS` to find shows (not `SHOWS` which is invalid). For an exact song or album lookup, always format the query as `"<song or album> by <artist>"` so missing originals are distinguished from covers and similarly named content. Use `experience --id <show_uri>` to list episodes of a found show.
+- When an audiobook request requires search, its first search MUST pass `--search-type AUDIOBOOKS`. Never use an untyped search for an audiobook; an untyped response can omit audiobook sections even when this Spotify account has catalog access.
 - Search responses include `spotify_search_url` for opening the same query directly in Spotify. When an exact requested item is unavailable, `catalog_fallback.message` is the fully rendered approved response and must be relayed verbatim; the object also provides `requested_content_label`, `requested_content_url`, `artist_name`, and `artist_url`.
 
 #### Filter values
-- Valid library/browse filter values are `ALBUMS`, `ARTISTS`, `PLAYLISTS`, `EPISODES`, `PODCASTS`, `SHOWS`, and `PODCASTS_AND_SHOWS`.
+- Valid library/browse filter values are `ALBUMS`, `ARTISTS`, `PLAYLISTS`, `EPISODES`, `PODCASTS`, `SHOWS`, `PODCASTS_AND_SHOWS`, and `AUDIOBOOKS`.
 - These filter values are content categories, not field projections. Never use field names such as `title`, `items.title`, `sections`, or `items` as `--filter` values.
 - `TRACKS` is explicitly rejected for library filtering; use unfiltered `spotify-api library` or `spotify-api search --search-type TRACKS` to find tracks.
 
 #### Library
-- `spotify-api library [--filter ALBUMS|ARTISTS|PLAYLISTS|EPISODES|PODCASTS|SHOWS|PODCASTS_AND_SHOWS] [--language <lang>]` — browse user's library. `TRACKS` is not supported as a library filter; use unfiltered `library` or `search --search-type TRACKS` instead.
-- `spotify-api save --uri <spotify_uri>` — save item to library (track, album, artist, show, episode, playlist)
+- `spotify-api library [--filter ALBUMS|ARTISTS|PLAYLISTS|EPISODES|PODCASTS|SHOWS|PODCASTS_AND_SHOWS|AUDIOBOOKS] [--language <lang>]`: browse the user's library, including saved audiobooks with `AUDIOBOOKS`. `TRACKS` is not supported as a library filter; use unfiltered `library` or `search --search-type TRACKS` instead.
+- `spotify-api save --uri <spotify_uri>`: save an item to the library (track, album, artist, show, episode, audiobook, playlist)
 
 #### Delete Save to Spotify shows or episodes
 - When the user asks to delete a podcast, show, or episode Muse added through Save to Spotify, use the installed `save-to-spotify` CLI. These are managed by the CLI, not `spotify-api`, `podcasters.spotify.com`, or `creators.spotify.com`.
@@ -94,7 +95,7 @@ Use the installed CLI directly from `PATH`.
 - `spotify-api update-collection --collection-uri <uri> --name <new_name>` — rename a playlist
 
 #### Playback Control
-- `spotify-api play [--context-uri <uri>] [--uid <uid>] [--target-device-id <id>]` — start playback outside a voice conversation (optionally of a specific album/playlist/context, starting from a specific item UID, on a specific device). For new playback during voice, follow **Voice playback** above and use `ui.set` target `voice.play_music` instead.
+- `spotify-api play [--context-uri <uri>] [--uid <uid>] [--target-device-id <id>]` — start playback outside a voice conversation (optionally of a specific album/playlist/context, starting from a specific item UID, on a specific device). For new playback during voice, follow **Voice playback** above and use `voice.play_music` instead.
 - `spotify-api pause` — pause playback on the active device
 - `spotify-api resume` — resume paused playback on the active device
 - `spotify-api skip` — skip to the next item
@@ -124,10 +125,10 @@ Auth contract:
 
 ## Operating Rules
 1. Verify connection with `spotify-api status` before `spotify-api` data calls. For Save to Spotify management, start with `save-to-spotify --json shows`; if it reports a token or connection error, ask the user to connect Spotify in Settings → Connections → Spotify, then retry. If it reports that management is unavailable, do not present reconnection as a fix.
-2. Browse with `search`, `library`, and `experience`. Extract relevant items; never dump full responses.
+2. Browse music, audiobooks, and podcasts with `search`, `library`, and `experience`. Extract relevant items; never dump full responses.
 3. When a section includes `next`, call `spotify-api next-page --url <next>` to fetch additional pages. Continue following `next` until it is absent or the user has enough results.
 4. The documented Save to Spotify show and episode deletions may proceed from a clear, unambiguous user request without an additional confirmation. Do not promise unsupported `spotify-api` cleanup (unsave/remove, playlist deletion, remove-from-playlist, or reordering).
-5. Direct `spotify-api` playback requires an active Spotify Connect device. Run `spotify-api devices` or `spotify-api now-playing` first and prefer an explicit `--target-device-id` where supported. Voice playback through `voice.play_music` with `auto` may instead use the calling device's live `music_fulfillment` capability.
+5. Direct `spotify-api` playback requires an active Spotify Connect device. Immediately before setting `--target-device-id`, run `spotify-api devices` and use only an ID from that response. If the response is empty or omits a previously named device, do not reuse an older ID; ask the user to choose an available device. Voice playback through `voice.play_music` with `auto` may instead use the calling device's live `music_fulfillment` capability.
 6. Every response referencing existing Spotify content must include a Spotify deep link. Use `spotify_url`, or construct `https://open.spotify.com/{type}/{id}` from `spotify_uri`. A Save to Spotify deletion confirmation is the exception: the resource no longer exists, so name the deleted title without exposing its internal ID or constructing a dead link.
 7. Reference Spotify by name ("on Spotify" / "via Spotify") whenever you surface content or confirm an action.
 8. Flag explicit content: when `is_explicit: true`, show `[E]` next to the title.

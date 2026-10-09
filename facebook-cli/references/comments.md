@@ -1,6 +1,6 @@
 # Facebook Comments
 
-Read comments on Facebook posts.
+Read comments and add approved text comments or replies on Facebook posts.
 
 ## Command
 
@@ -35,3 +35,22 @@ When presenting comments to the user, always include `summary.post_url` so they 
 3. When organizing comments across multiple posts, present them grouped per post with clear separation.
 4. Include timestamps (`created_time`) for comments when presenting them.
 5. When cross-referencing commenters across posts, accurately identify only people who appear in multiple threads. Do not fabricate commenter names.
+
+## Adding a comment or reply
+
+```bash
+facebook-cli post comments add --post-id <post-id> --text 'Exact comment text'
+facebook-cli post comments add --post-id <post-id> --parent-comment-id <comment-id> --text 'Exact reply text'
+```
+
+Read the target with `post read` before commenting, even when an ID is given.
+Decode share links first. Before replying, read the comments and use the
+identified parent comment ID. Reuse successful reads from this request.
+The post accepts numeric IDs or PFBIDs; the parent comment must be numeric.
+Text must be nonblank. The complete target and
+text appear in native approval before the single write attempt.
+
+A successful receipt completes the request: return its `comment_url` as a
+clickable link. Never repeat the write to obtain a link, verify success, or
+handle a later confirmation of the same request. An uncertain outcome needs
+read-only inspection. Editing and deletion are unavailable.

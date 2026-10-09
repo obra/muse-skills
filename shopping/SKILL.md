@@ -32,6 +32,11 @@ After selecting products, call `shopping.resolve_results` with the product-searc
 
 The tool resolves and normalizes those selections, returns a `path` for optional widget presentation, and returns `product_citations` markers for the response. This is the single product-resolution and citation path. It does not create or present UI; call `shopping.create_shopping_results_widget` separately with the returned path when a shopping widget is appropriate.
 
+A subagent should not call `shopping.resolve_results` directly, instead it should take the JSON payload it would have passed to `shopping.resolve_results` and pass it to the main agent instead (which will be responsible for calling `shopping.resolve_results`) in the following format:
+```
+product_search_handoff: <JSON payload>
+```
+
 ### Markers belong to the product, not to the widget
 
 A marker is how you write a product's name anywhere, in every message, for the whole conversation. It is not part of the shopping-results presentation and it is not discharged by having presented one.
@@ -230,10 +235,24 @@ be parsed, use the other search results rather than issuing diagnostic catalog
 calls or silently dropping constraints.
 <!-- catalog-search-v1-only:end -->
 <!-- catalog-search-v2-only:start -->
-`shopping catalog-search` accepts up to four semantic `--query` values. Put all
+`shopping catalog-search` accepts up to eight semantic `--query` values. Put all
 required attributes in every query. If there are relevant brands for the user's
 request that you know they personally prefer based on their shopping profile or
 other sources, include semantic queries which specify them.
+
+When the current user message attaches an image and asks to shop a clear target,
+start with a direct reverse-image search using the uploaded image path from the
+prompt context:
+
+```sh
+CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
+shopping catalog-search --image-path <uploaded_file_path> --retries 2 \
+  --out "$CATALOG_RESULTS_JSON"
+```
+
+Use `--query` alongside `--image-path` only when text is needed to clarify the
+product target or required attributes. Do not replace an available uploaded
+image path with a text description of the image.
 
 ```sh
 CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
@@ -243,17 +262,20 @@ shopping catalog-search \
   --query "<specific product query including every constraint from preferred brand B>" \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
-# Inspect the returned products while retaining their ids
-jq -r '.products[] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+# Preview the first 20 products while retaining their ids
+jq -r '.products[0:20][] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
 ```
 
 Constraint flags for the `shopping catalog-search` CLI:
+- `--num-results` (`-n`) for the number of products requested per semantic query; defaults to `20`.
 - `--category` for a hard category constraint.
 - `--gender` for a hard gender/audience constraint resolved under Required attributes. Use exactly `male`, `female`, or `unisex`, preserve it on refinements, and do not infer it from product type or styling.
-- `--brand` for a hard brand constraint. Always specify `--brand` when the user requests results exclusively from a specific brand. If the user names several acceptable brands, make one CLI call per brand.
-- `--prefer-brand` for returning more results from a brand that the user personally prefers, but didn't specify in their request. One preferred brand: pass `--prefer-brand` (and a brand-specific query). Multiple preferred brands: use one brand-specific query each and omit `--prefer-brand`.
+- `--brand` for hard brand constraints. Always specify `--brand` when the user requests results exclusively from one or more brands; repeat the flag for multiple acceptable brands.
+- `--prefer-brand` for returning more results from brands that the user personally prefers, but didn't specify in their request. Repeat the flag for multiple preferred brands and include one brand-specific query for each.
 - `--domain` ensures available products from the specified seller domain are returned. Always specify `--domain` when the user requests results from a specific seller; pass its canonical hostname without a scheme or path.
 - `--currency` for specifying the currency (which indirectly specifies a market), defaults to the currency of the user's home location.
+- `--min-price` and `--max-price` for inclusive budget bounds in hundredths of `--currency` (for example, `2500` means 25.00).
+- `--seller-type direct|secondhand` for a seller-type ranking preference. Use `secondhand` for used, pre-owned, thrifted, vintage, or refurbished inventory.
 
 ```sh
 CATALOG_RESULTS_JSON=$(mktemp "${TMPDIR:-/tmp}/shopping-catalog-search.XXXXXX")
@@ -263,8 +285,8 @@ shopping catalog-search \
   --domain "nordstrom.com" \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
-# Inspect the returned products while retaining their ids
-jq -r '.products[] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+# Preview the first 20 products while retaining their ids
+jq -r '.products[0:20][] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
 ```
 
 Filter returned products against every hard requirement before selecting them.
@@ -432,7 +454,7 @@ The command prints each listing with `image_url` replaced by a `withheld` object
 
 ### Listing details
 
-Fetch full details and seller trust signals with `facebook-cli marketplace listing details --listing-id <listing_id>` and `facebook-cli marketplace seller-info --listing-id <listing_id>`. Search results carry only `seller_id` (no seller name), so `seller-info` is how you surface the seller's name, rating, and review count. See `references/backends.md` for the full flag set and pagination.
+Fetch full details and seller trust signals with `facebook-cli marketplace listing details --listing-id <listing_id>` and `facebook-cli marketplace seller-info --listing-id <listing_id>`. Search results carry only `seller_id` (no seller name), so `seller-info` is how you surface the seller's name, rating, and review count. See `references/backends.md` for the full flag set, including vehicle year, mileage and transmission filters, and pagination.
 
 ### Pasted listing links
 

@@ -22,6 +22,7 @@ Useful flags:
 - `--allowed-item-conditions new,refurbished,used` for condition filtering
 - `--delivery-method local_pickup_only|shipping_only|pickup_and_shipping`
 - `--max-listing-age-in-days` for recency
+- `--min-year`, `--max-year`, `--min-mileage-in-miles`, `--max-mileage-in-miles` (convert kilometers to miles first) and `--transmission automatic|manual` only when the user wants a vehicle itself. Any of them limits results to vehicles, so pass only the ones the user asked for. For a part or accessory, put the vehicle it must fit in `--query` instead. HTTP 400 after one of them means a year after next year or a min above its max
 - `--limit <N>` for page size (default and max 20; higher values are capped)
 - `--after <cursor>` to continue a search — pass the `paging.cursors.after` value from the previous response (absent `paging` means no more results)
 

@@ -61,7 +61,7 @@ JSON output contract:
 - `disconnect`: parse `ok`, `action`, `status`, and `disconnect_url`
 - `list` / `search`: parse `ok`, `count`, `next_page_token` (when present, pass back as `--page-token`), `total_messages`, `retrieved_at`, and `messages[]` with `id`, `subject`, `from`, `to`, `date`, `message_received_at`, `preview`, `is_read`, and `has_attachments`
 - `get`: parse `ok`, `retrieved_at`, and `message` with `id`, `subject`, `from`, `to`, `cc`, `date`, `message_received_at`, `body`, `body_type`, `is_read`, and `has_attachments`
-- `send`: parse `ok` and `action`
+- `send`: parse `ok`, `action`, and optional `user_edited: true`. If the output includes `Final sent message (supersedes the original request):` JSON, use it as the sent copy rather than the original draft. If a successful send has no such note, the submitted subject and body are the sent copy. Only look up the matching message in Sent Items using the same account when the user explicitly requests verification or the send result is incomplete; if it is ambiguous, say so.
 - `reply`: parse `ok`, `action`, and `message_id`
 - `delete`: parse `ok`, `action` (`trashed`), and `message_id`; the moved message gets a **new** id, so `message_id` is not the id you passed in — use the returned one for any follow-up command
 - `mark-read` / `mark-unread`: parse `ok`, `action`, and `message_id`

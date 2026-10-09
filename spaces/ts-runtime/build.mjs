@@ -106,6 +106,108 @@ function compileSdk(bun) {
   run(bun, ["x", "tsc", "-p", "tsconfig.json"], { cwd: SDK_DIR });
 }
 
+async function bundleSdkPdf() {
+  const dynamicFunction =
+    'return new Function("src", "srcOffset", "dest", "destOffset", compiled);';
+  // PDF.js's optional ICC engine synchronously fetches WASM, which cannot be
+  // implemented by the asynchronous CVM XHR tunnel. Disable that optional color
+  // transform in both builds; PDF.js retains its built-in approximate fallback.
+  const synchronousIccSetup = `    if (!useWorkerFetch) {
+      this.#useWasm = false;
+      return;
+    }
+    this.#useWasm = useWasm;
+    this.#wasmUrl = wasmUrl;`;
+  let patchedWorker = false;
+  const result = await Bun.build({
+    entrypoints: [join(SDK_DIR, "src", "pdf.ts")],
+    outdir: join(SDK_DIR, "dist"),
+    target: "browser",
+    format: "esm",
+    minify: true,
+    external: ["react"],
+    naming: { entry: "pdf.js" },
+    plugins: [
+      {
+        name: "pdfjs-confidential-runtime-compatibility",
+        setup(build) {
+          build.onLoad({ filter: /pdf\.worker\.mjs$/ }, async ({ path }) => {
+            const source = await Bun.file(path).text();
+            const dynamicFunctionOccurrences =
+              source.split(dynamicFunction).length - 1;
+            if (dynamicFunctionOccurrences !== 1) {
+              throw new Error(
+                `expected one PDF.js dynamic Function site, found ${dynamicFunctionOccurrences}`,
+              );
+            }
+            const synchronousIccOccurrences =
+              source.split(synchronousIccSetup).length - 1;
+            if (synchronousIccOccurrences !== 1) {
+              throw new Error(
+                `expected one PDF.js synchronous ICC setup, found ${synchronousIccOccurrences}`,
+              );
+            }
+            patchedWorker = true;
+            return {
+              contents: source
+                .replace(dynamicFunction, "return null;")
+                .replace(
+                  synchronousIccSetup,
+                  "    this.#useWasm = false;\n    this.#wasmUrl = null;",
+                ),
+              loader: "js",
+            };
+          });
+        },
+      },
+    ],
+  });
+  if (!result.success) {
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    throw new Error("PDF SDK bundle failed; see logged diagnostics");
+  }
+  if (!patchedWorker) {
+    throw new Error("PDF SDK bundle did not load the PDF.js worker module");
+  }
+
+  // tsc preserves the worker's side-effect import in pdf.d.ts, but pdf.js now
+  // contains that code. Remove the private build dependency from the public type
+  // surface so generated Spaces do not need pdfjs-dist in node_modules.
+  const declarationPath = join(SDK_DIR, "dist", "pdf.d.ts");
+  const declaration = await Bun.file(declarationPath).text();
+  const workerDeclarationImport = 'import "pdfjs-dist/build/pdf.worker.mjs";\n';
+  if (declaration.split(workerDeclarationImport).length - 1 !== 1) {
+    throw new Error("expected one PDF.js worker import in pdf.d.ts");
+  }
+  await Bun.write(declarationPath, declaration.replace(workerDeclarationImport, ""));
+
+  const pdfjsRoot = join(SDK_DIR, "node_modules", "pdfjs-dist");
+  const pdfjsManifest = JSON.parse(
+    await Bun.file(join(pdfjsRoot, "package.json")).text(),
+  );
+  if (typeof pdfjsManifest.version !== "string" || pdfjsManifest.version.length === 0) {
+    throw new Error("pdfjs-dist package has no version");
+  }
+  const assetRoot = join(
+    SDK_DIR,
+    "dist",
+    "pdfjs-assets",
+    pdfjsManifest.version,
+  );
+  for (const directory of ["cmaps", "standard_fonts", "wasm"]) {
+    cpSync(join(pdfjsRoot, directory), join(assetRoot, directory), {
+      recursive: true,
+      dereference: true,
+    });
+  }
+  // PDF.js's optional no-Wasm fallback is executable JavaScript. Modern Space
+  // browsers provide WebAssembly, and omitting this fallback keeps the generated
+  // artifact closed to one reviewed JavaScript bundle for the CVM transform.
+  unlinkSync(join(assetRoot, "wasm", "openjpeg_nowasm_fallback.js"));
+}
+
 function packSdk(bun) {
   // `bun pm pack` produces a tarball in cwd named after the package + version
   // (e.g. hatch-space-sdk-0.1.0.tgz). Rename to the canonical `space-sdk.tgz`
@@ -423,11 +525,12 @@ function bundleCvmBuilder(bun) {
   );
 }
 
-function main() {
+async function main() {
   const bun = resolveBun();
   clean();
   installDeps(bun);
   compileSdk(bun);
+  await bundleSdkPdf();
   packSdk(bun);
   bundleWorker(bun);
   bundleMigrate(bun);
@@ -477,4 +580,4 @@ function main() {
   );
 }
 
-main();
+await main();
