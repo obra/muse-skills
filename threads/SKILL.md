@@ -77,6 +77,19 @@ surfaced as `provider_error`.
   supported for `dear-algo-whisper` or `publish-post`, because a
   retry could duplicate a mutation.
 
+### Argument limits
+The CLI rejects invalid values before calling Threads:
+- Page sizes (`--first`, `--limit`, `--count`) are 1-50. Fetch more with `--after`.
+- `--user-id`, `--author-id`, and `--reactor-id` take a numeric user ID, never
+  a username, @handle, or profile URL. Take it from `posts[].author_id` in
+  `feed` or `post` output, or from `author_info.user_id` in other results.
+- `--post-id` and `--post-ids` take numeric post IDs, at most 10 per
+  `--post-ids` call. For a post link, run `post --url` and use its
+  `posts[].post_id`.
+- `feed --variant` is `for_you` or `following`; `--sort-by` (`top` or `recent`)
+  applies only to `following`.
+- `search --recent` is `0` or `1`.
+
 ## Commands
 
 ### Accounts
@@ -311,7 +324,8 @@ in one approved operation and returns the post ID. There is no public draft
 step and no creation handle to pass between commands.
 
 Text must contain at least one non-whitespace character when no media is
-present. Every byte of accepted text, including leading or trailing whitespace
+present, and at most 500 characters; longer text is rejected before approval,
+so shorten it first. Every byte of accepted text, including leading or trailing whitespace
 and Unicode, is preserved through confirmation and publication. A post may
 include one to twenty ordered local images or videos from the Hatch workspace,
 optionally reply to a specific post, and set who can reply. If a file is outside
@@ -413,7 +427,8 @@ threads-cli dear-algo-whisper --account-id <threads_account_id> --message "show 
    - **Reuse data from earlier responses.** If you already fetched `accounts` or `profile`, extract IDs and usernames from that response instead of calling again.
    - **Avoid redundant pagination.** Only paginate (`--after`) when the user explicitly needs more results. Don't automatically fetch all pages.
    - **Never call the same command twice with identical arguments** in one conversation unless the previous call failed or the user explicitly asks for a refresh.
-4. Avoid requests to persistently / frequently poll these commands.
+   - **A 429 is final; never retry it.** `Threads Request Rate Limit Reached` means scraping protection is limiting this account: stop calling Threads for now and tell the user. `Threads Write Rate Limit Reached` is the daily post limit: do not try to post again until the next day.
+4. Avoid requests to persistently / frequently poll these commands. A scheduled task must not re-fetch the same posts, comments, or insights on every run; scraping protection blocks accounts that poll this way.
 5. Use numeric Threads FBIDs for account, user, post, and other entity identifiers. Do not derive an identifier from a Threads URL or pass a URL where an FBID is required. The one exception is `post --url`, which takes the original Threads URL as-is and lets WWW resolve it.
 6. Treat U18 enforcement as a server-side invariant. Do not reconstruct filtered fields, retry through `/gq`, or otherwise bypass server results.
 7. Use the structured, filtered media result returned by each named read command; do not reconstruct omitted provider fields.

@@ -75,7 +75,7 @@ facebook-cli
 │   ├── search [--scope connected|discover] [--keywords "..."] [--location "..."] [--latitude N --longitude=-N] [--radius-in-miles N] [--category ...] [--start-date ...] [--end-date ...] [--limit N] [--after <cursor>]  # Paginated: data[] + paging.cursors.after; coordinates beat --location, which is only city-accurate
 │   └── details --event-id <id>           # Read one event; ID from search `id` or `permalink_url`
 ├── saved
-│   ├── list [--type post|video|link|product|reel|event|page] [--collection-id <id>] [--limit N] [--after <opaque>]
+│   ├── list [--type <type>] [--collection-id <id>] [--limit N] [--after <opaque>]  # --type: any item `type` saved list returns, e.g. post_with_photo
 │   ├── add --savable-id <FBID> [--type ...] [--collection-id <id>]      # WRITE — auto-allowed
 │   ├── remove --savable-id <FBID> [--type ...] [--collection-id <id>]   # WRITE — auto-allowed
 │   └── collections

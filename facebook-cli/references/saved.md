@@ -12,7 +12,7 @@ facebook-cli saved list [--type <category>] [--collection-id <id>] [--limit N] [
 
 Lists saved items, most recent first.
 
-- `--type` (optional): filter by category. One of `post`, `video`, `link`, `product`, `reel`, `event`, `page`.
+- `--type` (optional): filter by category. Accepts any `type` value that `saved list` returns, for example `post`, `post_with_photo`, `video`, `link`, `product`, `reel`, `event` or `page`.
 - `--collection-id` (optional): list items from a specific collection.
 - `--limit` (optional): maximum number of items per page (max 20).
 - `--after` (optional): opaque next-page cursor from a previous response's `paging.cursors.after` (`--cursor` accepted as a back-compat alias).
@@ -47,7 +47,7 @@ facebook-cli saved add --savable-id <FBID> [--type <category>] [--collection-id 
 Saves an item. A clear user request may proceed without an additional approval.
 
 - `--savable-id` (required): Facebook ID of the content (post, page, listing, etc.) — sent as the `id` field.
-- `--type` (optional): defaults to `post` server-side. One of `post`, `video`, `link`, `product`, `reel`, `event`, `page`.
+- `--type` (optional): defaults to `post` server-side. For an item from `saved list`, pass its `type` unchanged (for example `post_with_photo`).
 - `--collection-id` (optional): add the item to a specific collection. Omit to save to the default All Saves bucket.
 
 **Response**: `{ "id": "<savable-id>", "saved": true }`
@@ -61,7 +61,7 @@ facebook-cli saved remove --savable-id <FBID> [--type <category>] [--collection-
 Removes a previously-saved item. A clear user request may proceed without an additional approval.
 
 - `--savable-id` (required): Facebook ID of the saved content (post, page, listing, etc.) — the `savable_id` from `saved list`, sent as the `id` field.
-- `--type` (optional): defaults to `post` server-side. Pass the item's category to disambiguate.
+- `--type` (optional): defaults to `post` server-side. Pass the item's `type` from `saved list` unchanged to disambiguate.
 - `--collection-id` (optional): remove the item only from this collection. Omit to fully unsave.
 
 This command only removes the save relationship — it does not delete the underlying post/video/page.

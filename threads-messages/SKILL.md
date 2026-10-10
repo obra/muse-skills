@@ -52,6 +52,9 @@ Targets:
 
 The `inbox` and `thread` commands also accept `--after <cursor>` using the
 pagination cursor from the previous response. Omit it to fetch the first page.
+Their `--first` (alias `--limit`) is 1-20, `inbox --message-count` is 0-20, and
+`inbox --folder` is `INBOX` (default) or `PENDING` (message requests); the CLI
+rejects other values before calling Threads.
 
 ## Commands
 

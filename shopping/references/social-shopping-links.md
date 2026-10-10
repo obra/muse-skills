@@ -19,7 +19,18 @@ Load this file for shopping requests that include an Instagram link or a `facebo
 
 ## Facebook Reel links
 
-1. Use `facebook-cli post read --url '<link>'` to fetch the shopping context for the provided `facebook.com/reel/` link. Do not open the link in the browser. Its `shoppable_products` are the products Facebook identified in the reel.
-2. If the user named a product, shop for that product. Otherwise, shop for the products in `shoppable_products`. If there are none, ask the user which product they want.
-3. Execute the product discovery workflow for those products using the data provided in the shopping context, such as `brand_name`, `color`, and `product_name`, together with any constraints the user gave, but skip browser product search and search with<!-- catalog-search-v1-only:start --> `meta-catalog-search`<!-- catalog-search-v1-only:end --><!-- catalog-search-v2-only:start --> `shopping catalog-search`<!-- catalog-search-v2-only:end --> only.
-4. Surface the found products in the shopping results widget and mention them via product markers in the text response.
+Do not open the Reel in the browser. `shoppable_products` describes detected products; `featured_products` contains similar products, not confirmed identifications.
+
+Before routing, collect only constraints whose applicability is already established. Resolve category-dependent requirements after the first Reel read, using the Shopping Skill's preference and required-attribute rules. Include relevant saved hard requirements even when not repeated in this request; explicit current instructions override conflicting saved requirements. Soft preferences alone do not trigger fresh discovery or change the default featured IDs or their order.
+
+Choose the first matching path:
+
+1. **Choose from shown results:** If the user explicitly limits their request to products already shown, filter only those results using verified attributes. Missing or unclear attributes are not matches. If none match, say so; do not start a new search.
+2. **Specific shopping request:** Otherwise, if the user names a product or category, or there are applicable constraints, use `facebook-cli post read --url '<link>'` without `--out` for Reel context. Run fresh searches through the standard Product discovery workflow for the requested targets, or otherwise the products in `shoppable_products`, with all applicable constraints—even if featured candidates match. If neither provides a target, ask what the user wants to shop for. Do not substitute filtering featured products for fresh discovery.
+3. **General Reel shopping:** Otherwise, use `facebook-cli post read --url '<link>' --out <file>` to fetch the shopping context and a set of similar products. If a hard requirement applies after reading, reuse this context for fresh standard Product discovery with all applicable constraints. Search the products in `shoppable_products`, or ask which product if there are none. Do not filter featured products or repeat `post read`. Only if no hard requirement applies, use the CLI status, not file existence:
+   - `featured_products_status=available`: `<file>` is a resolver-ready catalog. Pass it and every ID in `ordered_featured_product_ids`, unchanged and in order, to `shopping.resolve_results`. Do not drop or rerank IDs or run extra discovery. The CLI summary is sufficient; you do not need to read `<file>`.
+   - `featured_products_status=unavailable`: no resolver catalog was written and `ordered_featured_product_ids` is empty. Never pass `<file>` to the resolver. Use the standard Product discovery workflow for the products in `shoppable_products`; if there are none, ask which product the user wants.
+
+For both search paths, honor an explicit catalog-only request: use only catalog search and skip browser product search. Otherwise, follow the Shopping Skill's standard Product discovery tool selection, including browser product search. Finish all required searches before one shopping-results presentation, passing all usable result files and selected IDs together to `shopping.resolve_results`.
+
+Surface the resolved products in the shopping-results widget and mention them via product markers in the text response.

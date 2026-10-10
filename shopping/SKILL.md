@@ -61,7 +61,7 @@ The only product you may name without a marker is one that has no marker: a prod
 
 Some constraints decide which products are *correct*, not just how they rank: the intended wearer's gender and size for clothing and footwear, the exact device or vehicle a part must fit, the platform for software or games. For a browser purchase, follow `~/docs/chat/payments-and-purchases.md` when BrowserTask reports one of these choices as missing or ambiguous. For other requests, resolve them before searching.
 
-Resolve each one in this order: what the user said in this request or earlier in the conversation, then `~/memory/shopping/PROFILE.md`, then `~/USER.md` (already in your context), then `muse.memory_search` for durable preferences and sizes. Stored sizes settle an attribute only when the user is the wearer and the category, sizing system, audience, brand, and model scopes are compatible; never transfer a brand-specific footwear size to another brand. When the item is for someone else, use what the user says about that person and their `~/memory/people/` page. Never infer the wearer's gender from the user's name, and never fall back to a default.
+Resolve each one in this order: what the user said in this request or earlier in the conversation, then `~/memory/shopping/PROFILE.md`, then `~/USER.md` (already in your context). Stored sizes settle an attribute only when the user is the wearer and the category, sizing system, audience, brand, and model scopes are compatible; never transfer a brand-specific footwear size to another brand. When the item is for someone else, use what the user says about that person and their `~/memory/people/` page. Never infer the wearer's gender from the user's name, and never fall back to a default.
 
 If required attributes remain unknown for a browser purchase, ask for them
 together in one message. Use plain text when several choices need answers.
@@ -153,6 +153,8 @@ For shopping an Instagram or Facebook link, load `/opt/hatch/skills/shopping/ref
   "gender": "gender/audience when present",
   "category": "category when present",
   "rating": "rating and review count when present",
+  "seller_type": "brand_direct, authorized_retailer, new_item_marketplace, secondhand_marketplace, or gray_market when known",
+  "seller_quality": "elite, good, acceptable, poor, not_a_seller, or unrated",
   "is_agentic_checkout_creation_enabled": true,
   "is_agentic_checkout_completion_enabled": true
 }
@@ -263,7 +265,7 @@ shopping catalog-search \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
 # Preview the first 20 products while retaining their ids
-jq -r '.products[0:20][] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+jq -r '.products[0:20][] | [.product_id, .brand, .name, (.sale_price // .price), .seller_type, .seller_quality, .rating, .size] | @tsv' "$CATALOG_RESULTS_JSON"
 ```
 
 Constraint flags for the `shopping catalog-search` CLI:
@@ -286,7 +288,15 @@ shopping catalog-search \
   --retries 2 --out "$CATALOG_RESULTS_JSON"
 
 # Preview the first 20 products while retaining their ids
-jq -r '.products[0:20][] | [.product_id, .brand, .name, .price, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+jq -r '.products[0:20][] | [.product_id, .brand, .name, (.sale_price // .price), .seller_type, .seller_quality, .rating, .size] | @tsv' "$CATALOG_RESULTS_JSON"
+
+# Keep products from nordstrom.com at or under 100.00
+jq -r '
+  .products[]
+  | select(.url // "" | test("^https?://([^/]+\\.)?nordstrom\\.com(/|$)"))
+  | select(((.sale_price // .price // "") | gsub("[^0-9.]"; "")) as $p | $p != "" and ($p | tonumber) <= 100)
+  | [.product_id, .brand, .name, (.sale_price // .price), .seller_type, .seller_quality] | @tsv
+' "$CATALOG_RESULTS_JSON"
 ```
 
 Filter returned products against every hard requirement before selecting them.

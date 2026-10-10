@@ -6,8 +6,8 @@ It tests the first-party Hatch stack; results from the legacy ToolSim/OAuth
 
 ## Pin and preflight
 
-Record the control and candidate hatch-extensions commits, Jarvis commit or
-extension pin, runtime image, tool-catalogue digest, persona ids, and evaluation
+Record the control and candidate Jarvis commits, runtime image,
+tool-catalogue digest, persona ids, and evaluation
 annotations. Use the complete skill tree, including `references/`. Do not
 suppress approvals.
 

@@ -99,6 +99,24 @@ Carry the requested cabin into every search with `--cabin`: `economy`,
 this flag is omitted. Before searching, check the complete dated itinerary,
 passenger mix, cabin, and any carrier constraints against the user's request.
 
+On domestic routes, a premium cabin may be sold as First rather than Business.
+Unless the user excluded First, when a domestic business search has no useful
+match, run one corresponding `--cabin first` search before giving up on premium
+inventory or moving to the browser. Also consider that targeted search when a
+requested carrier is missing and verified route evidence shows it sells its
+premium cabin as First. Preserve the complete itinerary, passenger mix, price
+cap, carrier and stop constraints. Present the actual returned cabin and fare
+brand for every leg; domestic First does not establish lie-flat seating or
+international business-class amenities. Do not broaden to economy without the
+user's agreement.
+
+Inspect `ok` before counting offers. Successful searches always put their
+normalized offer list in top-level `offers`, including `offers: []` with
+`offers_total: 0` and `offers_shown: 0` when no offers match. Read that list,
+not the broker's internal `response.data` field. A missing `offers` field,
+error response, or unrecognized shape is not evidence of empty inventory.
+Retain the original file and pointers for presentation.
+
 ```sh
 duffel search --origin SFO --destination LAX --departure-date 2026-09-30 \
   --cabin business --sort duration --limit 300

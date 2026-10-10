@@ -40,9 +40,8 @@
 #      hatch-swarm.py flight check
 #
 #    The complete tree remains inside the 64 KiB/file and 512 KiB/plan payload
-#    limits. Once a Jarvis build pins a hatch-extensions
-#    commit containing this port, drop the flight plan and use --commit/--pr
-#    instead; the plan is only for testing ahead of that pin.
+#    limits. Once a Jarvis build contains this port, drop the flight plan and
+#    use --commit/--pr instead; the plan is only for testing ahead of that build.
 #
 #    Grade `references-loaded` FIRST. If the model never opens a reference file,
 #    every other result in this suite is measuring the shipped skill.
