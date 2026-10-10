@@ -6,6 +6,8 @@ A day-by-day history of the skill collection shipped with [Hatch](https://muse.a
 
 This repo is generated, not curated. A scheduled job on a Hatch container hashes every file under `/opt` and `/usr` once a day for integrity monitoring; as part of that run it mirrors `/opt/hatch/skills` here and commits whenever anything changed. The daily job then pushes the new commit automatically.
 
+Each snapshot commit's message contains an analysis of that day's changes: new and removed skills, per-skill change counts, and notable file-level changes (new SKILL.md sections, manifest updates, and the like).
+
 ## A note on the early history
 
 The commits for 2026-09-26 through 2026-09-28 were reconstructed after the fact from per-day change archives, which only kept the *new* versions of files that changed each day. Consequences:
