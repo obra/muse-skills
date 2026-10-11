@@ -117,6 +117,18 @@ not the broker's internal `response.data` field. A missing `offers` field,
 error response, or unrecognized shape is not evidence of empty inventory.
 Retain the original file and pointers for presentation.
 
+Read `search_coverage` and disclose incomplete coverage (`complete: false`).
+Even complete searches cover only the returned Duffel offer request;
+`offers_total` counts matches in scanned pages, with airline and price filters
+applied locally.
+
+On `ok: false`, present useful `partial_results.offers` with a failure and
+incomplete-coverage caveat before another search or browser check. If later
+required checks add useful offers, present one replacement comparison explicitly
+superseding the partial list (an exception to the single-comparison rule).
+Report unfinished checks; empty incomplete results do not establish that no
+flights match.
+
 ```sh
 duffel search --origin SFO --destination LAX --departure-date 2026-09-30 \
   --cabin business --sort duration --limit 300
@@ -237,7 +249,8 @@ its `data` to the file path and that offer's JSON pointer, for example:
 }
 ```
 
-Use the original offer's zero-based index in `/offers/<index>`. Keep the file
+Use the original offer's zero-based index in `/offers/<index>` for a successful
+search or `/partial_results/offers/<index>` for partial results. Keep the file
 until `widget.create_list_widget` succeeds. Do not copy the offer JSON into the tool call,
 rewrite timestamps, remove fields, or generate a separate widget payload file.
 The runtime reads the selected object, maps timestamps, and
@@ -570,8 +583,9 @@ airline or support.
   `book`.
 - Any change to flight, date, passengers, fare, services, or total requires a
   fresh purchase approval.
-- Retry an unchanged failed `search` only when its response explicitly says
-  `retriable: true`; stop on a CAGI or provider 429. Corrected searches,
-  expired-offer refreshes, and missing-output recovery follow Search and compare.
+- Do not retry an unchanged failed `search`, even when its response reports
+  `retriable: true`; stop on a CAGI or provider 429.
+  Corrected searches, expired-offer refreshes, and missing-output recovery
+  follow Search and compare.
   Scheduled fare checks keep their one-search-per-run rule. Other reads may be
   retried. Do not automatically retry an ambiguous mutation.

@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `0ca7d45f66fa43fbf32f36e4979c67bc9da308d7a1a6a0fabe19b296ab36ec45`.
+Migration-set fingerprint: `2564e5e2052f91b917d7d56d64f7eba06227515b55190ac3dba21908ea7be529`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -2724,6 +2724,10 @@ Keys and relationships:
 | `broker_instance` | `text` | no | `'user'::text` | Immutable physical browser owner selected by trusted admission: user or cron. Independent of logical owner_kind and retained across continuation. |
 | `wallet_selection_provider` | `text` | yes |  | Validated wallet provider selected for the current browser task |
 | `wallet_selection_payment_method_id` | `text` | yes |  | Opaque correlation identifier; no declared local table relationship. Opaque validated wallet payment-method id selected for the current browser task |
+| `node_id` | `text` | yes |  | Soft local reference → `device.nodes.node_id`. |
+| `node_name` | `text` | yes |  |  |
+| `browser_harness_kind` | `text` | no | `'core_sdk'::text` |  |
+| `browser_harness_version` | `integer` | no | `2` |  |
 
 Keys and relationships:
 
