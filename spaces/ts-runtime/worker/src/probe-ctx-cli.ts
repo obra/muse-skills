@@ -92,7 +92,7 @@ function emitInvokedToolSchemas(invoked: Set<string>): void {
     const schema = TOOL_CONTENT_SCHEMAS[name];
     if (schema === undefined) continue;
     blocks.push(
-      `\nctx.tool.${name}(...).content:\n${JSON.stringify(schema, null, 2)}`,
+      `\nctx.tool.${name}(...).content:\n${JSON.stringify(schema)}`,
     );
   }
   if (blocks.length === 0) return;
@@ -302,7 +302,7 @@ async function main(): Promise<number> {
 
   let serialized: string;
   try {
-    serialized = JSON.stringify(result === undefined ? null : result, null, 2);
+    serialized = JSON.stringify(result === undefined ? null : result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`probe result is not JSON-serializable: ${msg}\n`);
