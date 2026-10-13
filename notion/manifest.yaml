@@ -49,25 +49,85 @@ actions:
     methods:
       pages.write:
         label: Create and edit content
-        approval_phrase: create, edit or move pages and folders in Notion
+        approval_phrase: create, edit, move or duplicate pages and folders in Notion
+        approval_button_variants:
+          create:
+            allow_once: "Create"
+            deny: "Don't create"
+            deny.task: "Don't create"
+          edit:
+            allow_once: "Edit"
+            deny: "Don't edit"
+            deny.task: "Don't edit"
+          move:
+            allow_once: "Move"
+            deny: "Don't move"
+            deny.task: "Don't move"
+          duplicate:
+            allow_once: "Duplicate"
+            deny: "Don't duplicate"
+            deny.task: "Don't duplicate"
       comments.write:
         label: Add comments
         approval_phrase: post a comment in Notion
+        approval_buttons:
+          allow_once: "Comment"
+          deny: "Don't comment"
+          deny.task: "Don't comment"
       databases.write:
         label: Create and edit databases
         approval_phrase: create or change a database in Notion
+        approval_button_variants:
+          create:
+            allow_once: "Create"
+            deny: "Don't create"
+            deny.task: "Don't create"
+          edit:
+            allow_once: "Edit"
+            deny: "Don't edit"
+            deny.task: "Don't edit"
       views.write:
         label: Change database views
         approval_phrase: create or change a database view in Notion
+        approval_button_variants:
+          create:
+            allow_once: "Create"
+            deny: "Don't create"
+            deny.task: "Don't create"
+          edit:
+            allow_once: "Edit"
+            deny: "Don't edit"
+            deny.task: "Don't edit"
       attachments.write:
         label: Upload files
         approval_phrase: upload a file to Notion
+        approval_buttons:
+          allow_once: "Upload"
+          deny: "Don't upload"
+          deny.task: "Don't upload"
       skills.write:
         label: Publish skills
         approval_phrase: publish a skill to your Notion workspace
+        approval_buttons:
+          allow_once: "Publish"
+          deny: "Don't publish"
+          deny.task: "Don't publish"
       agents.write:
         label: Run custom agents
-        approval_phrase: start or message a Notion Custom Agent session
+        approval_phrase: start or stop a Notion Custom Agent session, or send a message to one
+        approval_button_variants:
+          start:
+            allow_once: "Start"
+            deny: "Don't start"
+            deny.task: "Don't start"
+          stop:
+            allow_once: "Stop"
+            deny: "Don't stop"
+            deny.task: "Don't stop"
+          send:
+            allow_once: "Send"
+            deny: "Don't send"
+            deny.task: "Don't send"
 
 consent_screen:
   bullets:

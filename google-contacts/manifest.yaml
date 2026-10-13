@@ -33,8 +33,14 @@ actions:
     methods:
       people.update_contact:
         label: Edit contacts
+        approval_phrase: create or edit contacts, or manage contact groups, in Google Contacts
       people.delete_contact:
         label: Delete contacts
+        approval_buttons:
+          allow_once: "Delete"
+          allow_always: "Always allow deleting contacts"
+          deny: "Don't delete"
+          deny.task: "Don't delete"
 commands:
   status: null
   disconnect: null

@@ -37,6 +37,11 @@ actions:
       tasks.delete:
         label: Delete tasks and lists
         approval_phrase: delete tasks and lists in Google Tasks
+        approval_buttons:
+          allow_once: "Delete"
+          allow_always: "Always allow deleting tasks and lists"
+          deny: "Don't delete"
+          deny.task: "Don't delete"
 commands:
   status: null
   disconnect: null

@@ -33,11 +33,23 @@ actions:
       presentations.create:
         default: allow
         label: Create presentations
+        approval_buttons:
+          allow_once: "Create"
+          deny: "Don't create"
+          deny.task: "Don't create"
       presentations.batch_update.private:
         default: allow
         label: Edit private presentations
+        approval_buttons:
+          allow_once: "Edit"
+          deny: "Don't edit"
+          deny.task: "Don't edit"
       presentations.batch_update.shared:
         label: Edit shared presentations
+        approval_buttons:
+          allow_once: "Edit"
+          deny: "Don't edit"
+          deny.task: "Don't edit"
 commands:
   status: null
   disconnect: null

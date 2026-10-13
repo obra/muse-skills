@@ -15,6 +15,8 @@ icon: plaid
 multi_account:
   backend: plaid
   auth_provider: plaid
+gating:
+  allowed_countries: [US]
 actions:
   read:
     default: allow

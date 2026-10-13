@@ -36,11 +36,14 @@ actions:
       forms.create:
         default: allow
         label: Create forms
+        approval_phrase: create forms or manage form response alerts in Google Forms
       forms.batch_update.private:
         default: allow
         label: Edit private and unpublished forms
+        approval_phrase: edit private and unpublished forms or change their publishing settings in Google Forms
       forms.batch_update.shared:
         label: Edit shared or published forms
+        approval_phrase: edit shared or published forms, or change form publishing settings, in Google Forms
 commands:
   status: null
   disconnect: null

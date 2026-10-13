@@ -83,9 +83,7 @@ carry `date`/`hour`/`week_start` + `record_count`.
 
 **Coverage:** queries return an envelope `{ "coverage": {...}, "records": [...] }`.
 `coverage.complete` is `false` when days in the window aren't synced from the
-device; `coverage.warning` then holds the exact `backfill_data_source` command
-to run. **Surface that warning to the user / act on it** — results are partial
-until the backfill completes.
+device; `coverage.warning` then holds the exact `health.backfill` command to backfill the missing data. Results remain partial until the backfill completes.
 
 ### query samples — raw, unbucketed data points
 
@@ -103,33 +101,32 @@ names from it). For dense reads use `--output <path>`: it writes CSV into the
 agent filesystem for a later script step and prints only a summary, keeping
 thousands of rows out of context.
 
-### status — data-sync status
+## User Permission Status
+Run the `device.describe` tool command and look for the `is_permission_granted`
+field for health data, which indicates whether you can sync data from the
+user's phone (the device must be online as well). If the user hasn't granted
+permission and the phone is online, use
+```bash
+health-cli auth connect --provider healthkit [--timeout-secs N]
+```
+and follow the instructions to ask for permission to sync health data.
 
+### Revoke Permission
+Apple Health cannot be disconnected through this CLI or an in-chat widget.
+Tell the user to go to **settings of the Health app** and edit **data
+access for the Muse app**.
+
+### Data Sync Status
+After the user grants permission, data can be synced from the iOS device
+via the `health.backfill` device command but only when `device.describe` reports
+`connection_state: online`.
 ```bash
 health-cli status --provider healthkit [--timeout-secs N] \
   [--start-date <YYYY-MM-DD>] [--end-date <YYYY-MM-DD>] [--check-missing-entries]
 ```
-Returns `{ categories: [{ name, record_count, earliest_datetime,
-latest_datetime }] }`. With `--check-missing-entries` (requires `--start-date`):
+Shows how many records are synced from the device already. With
+`--check-missing-entries` (requires `--start-date`):
 a deep per-30-min-interval gap report (`unsynced_dates`, `missing_intervals`, …).
-
-### auth connect
-
-```bash
-health-cli auth connect --provider healthkit [--timeout-secs N]
-```
-
-Run this and follow the instruction to connect to apple healthkit data.
-
-### auth disconnect
-
-```bash
-health-cli auth disconnect --provider healthkit [--timeout-secs N]
-```
-
-Apple Health cannot be disconnected through this CLI or an in-chat widget.
-Tell the user to open **Settings → Connectors → Apple Health** and tap
-**Disconnect**.
 
 ### delete — erase stored Apple Health (HealthKit) records
 
@@ -160,26 +157,19 @@ than widening dates or re-running with `--all`. Report `deleted.records`, not
 `total_rows`, which also counts child value rows. Apple Health is device-synced,
 so records still on the device can return on a later sync.
 
-## Auth
-
-Device-synced; no login. Data availability depends on the on-device Health
-permission + sync. Use `status` to see synced ranges and the
-`backfill_data_source` device action (surfaced in query `coverage.warning`) to
-pull a range.
-
 ## Operating Rules
-
-1. Pick the command by data shape: `query metrics` (all-day rollups),
+1. Always check device connect status, user permission status with `device.describe` and data sync status
+   with `health-cli status --provider healthkit` before querying the data.
+2. Pick the command by data shape: `query metrics` (all-day rollups),
    `query samples` (raw points — only when individual samples matter; prefer
    `metrics` for trends), or `query sessions --category sleep|workout` (discrete
    events).
-2. Always pass `--provider healthkit` and `--start-date`; `--end-date`
+3. Always pass `--provider healthkit` and `--start-date`; `--end-date`
    defaults to today. Use current-date context for relative asks ("today",
    "last week"); use sample time bounds for narrow intraday windows.
-3. **Coverage:** if a `query metrics`/`sessions` returns `coverage.complete:
-   false`, tell the user the data is partial and relay/act on `coverage.warning`
-   (run the `backfill_data_source` action, then re-query).
-4. `query metrics` defaults to `--interval daily`; sleep spans midnight (include
+4. **Coverage:** Even after the user grants permission, data from some time
+   ranges may not be synced yet. If a `query metrics`/`sessions` returns
+  `coverage.complete: false`, relay/act on `coverage.warning` (run the
+   `health.backfill` to sync the data, then re-query). Note if the connected device is offline in `device.describe` results, you will not be able to backfill new data.
+5. `query metrics` defaults to `--interval daily`; sleep spans midnight (include
    both evening start and morning end dates).
-5. On empty results, the range likely has no data; widen it, or check `status` /
-   coverage and backfill.

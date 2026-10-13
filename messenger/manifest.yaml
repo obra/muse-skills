@@ -38,6 +38,7 @@ cli_subcommands:
   - "sync contacts"
   - "sync messages"
   - "sync threads"
+  - "thread-create"
   - "threads"
   - "unlock"
   - "unsend"

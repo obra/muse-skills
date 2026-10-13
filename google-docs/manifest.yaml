@@ -33,11 +33,23 @@ actions:
       documents.create:
         default: allow
         label: Create documents
+        approval_buttons:
+          allow_once: "Create"
+          deny: "Don't create"
+          deny.task: "Don't create"
       documents.batch_update.private:
         default: allow
         label: Edit private documents
+        approval_buttons:
+          allow_once: "Edit"
+          deny: "Don't edit"
+          deny.task: "Don't edit"
       documents.batch_update.shared:
         label: Edit shared documents
+        approval_buttons:
+          allow_once: "Edit"
+          deny: "Don't edit"
+          deny.task: "Don't edit"
 commands:
   status: null
   disconnect: null

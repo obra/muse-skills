@@ -81,7 +81,7 @@ generic cabin or fare-brand label.
 
 ## Failure and fallback
 
-A CAPTCHA, bot wall, broken date picker, incomplete result, or lost browser
+A bot wall the browser could not get past, a broken date picker, incomplete result, or lost browser
 session is a source failure. It is not evidence that no flight exists. Do not
 loop on the same broken interaction. Continue with a live provider search when
 the trip is bounded enough, use another reliable schedule source when planning

@@ -32,7 +32,8 @@ approval; relay the reason. Do not add media to work around a text-only limit.
 whether the account setting is enabled. Account settings change in Accounts
 Center, not through these flags.
 
-Return the successful receipt's `post_url`. Do not publish again to verify it.
+Show the confirmed returned `post_url` as a clickable link by default in
+your confirmation, not just the post ID. Do not publish again to verify it.
 If transport or the receipt fails, the post may exist: inspect readback and
 report the outcome as unconfirmed. Never retry with another audience or a test
 post. An explicit audience rejection means no post was created; refresh the
