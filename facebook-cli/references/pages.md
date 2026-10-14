@@ -39,10 +39,10 @@ All commands output JSON. Append `--help` to the exact command for optional
 flags, supported metrics and limits; do not pass a format flag.
 
 ```text
-facebook-cli pages list [--limit 20] [--after <opaque>]
+facebook-cli pages list [--limit 20] [--after <opaque>]  # --limit max 20 (larger values are capped)
 facebook-cli pages access --page-id <page-id>
 facebook-cli pages account-insights --page-id <page-id> [--time-range LAST_28D] [--metrics views,unique_viewers]
-facebook-cli pages posts list --page-id <page-id> [--time-range LAST_28D] [--fields views,engagements] [--limit 5] [--cursor <opaque>]
+facebook-cli pages posts list --page-id <page-id> [--time-range LAST_28D] [--fields views,engagements] [--limit 5] [--cursor <opaque>]  # --limit max 10 (larger values are capped)
 facebook-cli pages posts get --page-id <page-id> --post-ids <post-id,post-id> [--fields views,engagements]
 facebook-cli pages drafts create --page-id <page-id> --text 'Exact text' [--file <PNG/JPEG/MP4> ...]
 facebook-cli pages drafts show --page-id <page-id> --draft-id <draft-id>

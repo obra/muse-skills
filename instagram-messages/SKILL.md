@@ -143,6 +143,12 @@ instagram-messages-cli send --account-id <user_own_fbid> --recipient-user-fbids 
 instagram-messages-cli send --account-id <user_own_fbid> --thread-fbid 123456789 --text "hello" --reply-to-message-id 'mid.$cAAAGVc20uJOkli7TZGeZOmKFMXiq'
 ```
 
+If a send fails after approval, report the failure and wait for the user's
+direction. The user may have edited the message or removed media on the
+approval card, even if the failed result does not say so; do not automatically
+resubmit your original text or media. A successful send's final-message note
+is the sent copy.
+
 ### Top recipients
 Use the previous response's `page_max_id` as `--page-max-id`. Omit on first request.
 

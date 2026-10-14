@@ -43,6 +43,8 @@ facebook-cli post comments add --post-id <post-id> --text 'Exact comment text'
 facebook-cli post comments add --post-id <post-id> --parent-comment-id <comment-id> --text 'Exact reply text'
 ```
 
+`--reply-to` is an alias for `--parent-comment-id`.
+
 Read the target with `post read` before commenting, even when an ID is given.
 Decode share links first. Before replying, read the comments and use the
 identified parent comment ID. Reuse successful reads from this request.

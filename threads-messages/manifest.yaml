@@ -41,4 +41,8 @@ consent_screen:
       title: "Keep an eye on things"
       text: "Muse may take unexpected actions. Monitor it carefully."
   footer_paragraphs:
-    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://www.facebook.com/privacy/genai/)"
+    - text: "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://www.facebook.com/privacy/genai/)"
+      variants:
+        confidential_vm:
+          text: "Threads is a Meta app, which means the info exchanged is visible to Meta. [Learn more](https://muse.ai/privacy)"
+          placement: callout

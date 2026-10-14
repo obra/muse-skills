@@ -285,7 +285,7 @@ Reuse the selected provider and exact payment method resolved above. If the
 selected method is no longer listed, do not substitute another; ask the user to
 choose a current method or another route.
 
-## Refresh delivery, discounts, and totals
+## Refresh buyer details, delivery, discounts, and totals
 
 If the checkout offers delivery options, select one. With more than one, if the
 user stated a shipping preference (a deadline, budget, or speed) or the options
@@ -307,6 +307,42 @@ returned checkout URL.
 ```sh
 shopify-ucp-cli checkout update --input-file "<update.json>" --format json
 ```
+
+When the user asks to add or change buyer contact or shipping details on an
+existing checkout, run `checkout update` with its saved `checkout_id` and the
+complete desired `buyer` object. Use known buyer details and ask together for
+any missing or ambiguous fields. The CLI input keeps the shipping address
+nested under `buyer`; the trusted provider adapter maps it to the checkout's fulfillment destination
+and buyer context. Do not invent a top-level fulfillment field. Do not send only
+the newly learned fields: buyer updates replace the checkout's buyer state.
+Send buyer changes alone or combine them with delivery and discount changes.
+Keep the same checkout; updating buyer fields does not require a payment method
+or Wallet connection:
+
+```json
+{
+  "checkout_id": "<checkout-id>",
+  "buyer": {
+    "email": "<email>",
+    "phone_number": "<phone-string>",
+    "country_code": "<country-code>",
+    "address": {
+      "first_name": "<first-name>",
+      "last_name": "<last-name>",
+      "street1": "<street1>",
+      "street2": "<street2>",
+      "city": "<city>",
+      "state": "<state>",
+      "postal_code": "<postal-code>",
+      "country": "<country-alpha-2>"
+    }
+  }
+}
+```
+
+Refresh the same checkout with `checkout get` to verify the buyer update and
+read its available delivery methods. Follow the user's requested scope; a buyer
+update request does not authorize completing or charging the checkout.
 
 To apply promo or coupon codes, pass the complete desired set in
 `discount_codes`. Use codes the user supplied, or codes found during a deal

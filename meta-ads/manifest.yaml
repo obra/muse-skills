@@ -7,7 +7,7 @@ auth:
 connector: meta_ads
 category: business
 display_name: Meta Business Manager
-description: Manage your ad accounts, campaigns and insights
+description: Analyze your business performance and get tailored guidance on what to improve
 icon: meta_ads
 cli:
   binary: meta-ads-cli

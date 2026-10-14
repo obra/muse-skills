@@ -41,5 +41,9 @@ consent_screen:
       title: "Keep an eye on things"
       text: "Muse may take unexpected actions. Monitor it carefully."
   footer_paragraphs:
-    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+    - text: "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+      variants:
+        confidential_vm:
+          text: "Instagram is a Meta app, which means the info exchanged is visible to Meta. [Learn more](https://muse.ai/privacy)"
+          placement: callout
     - "Muse will exchange info with Instagram Messages. To learn more, view Meta's [terms](https://www.facebook.com/terms/) and [privacy policy](https://www.facebook.com/privacy/policy/)."

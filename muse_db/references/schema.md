@@ -2,7 +2,7 @@
 
 This generated guide describes the database relations available to the daemon-native `muse.db` tool. Use schema-qualified names in SQL. The tool accepts one bounded, read-only `SELECT` statement; it is for diagnosis and cross-table tracing, not a replacement for purpose-built Feed, Ideas, chat, goals, artifact, or connector tools.
 
-Migration-set fingerprint: `2564e5e2052f91b917d7d56d64f7eba06227515b55190ac3dba21908ea7be529`.
+Migration-set fingerprint: `08e1179d9d718b6a6fddfbade281a00196d6e60ef925b40b4470e16c5f4186c5`.
 
 All Muse application base tables listed below are queryable. PostgreSQL catalogs, migration bookkeeping, backup tables, credentials, Sentinel's separate approval store, and per-artifact `app.db` files are outside this surface. An identifier described as external or opaque has no local owner table to join against. Non-recursive CTE names must start with `hatch_cte_`; recursive CTEs are rejected.
 Here, credentials means OAuth access or refresh tokens, passwords, API keys, and payment-instrument secrets such as card numbers or CVCs; those remain behind authd or their owning vault. Non-secret lifecycle metadata, including Stripe Link spend-request rows, remains queryable when listed below.
@@ -476,6 +476,7 @@ Keys and relationships:
 | `presentation_root_session_id` | `text` | yes |  | Soft local reference → `agent.sessions.session_id`. |
 | `spawn_metadata_json` | `text` | yes |  |  |
 | `originating_location_context_json` | `text` | yes |  |  |
+| `handoff_context_high_water_seq` | `bigint` | yes |  |  |
 
 Keys and relationships:
 
@@ -847,6 +848,7 @@ Keys and relationships:
 | `agent_type` | `text` | yes |  |  |
 | `metadata_json` | `text` | yes |  |  |
 | `spawn_call_id` | `text` | yes |  | Soft local reference → `runtime.tool_calls.tool_call_id`. |
+| `handoff_state_json` | `jsonb` | yes |  |  |
 
 Keys and relationships:
 
@@ -1530,6 +1532,7 @@ Keys and relationships:
 | `icon_key` | `text` | yes |  |  |
 | `source_url_keys` | `text[]` | yes |  |  |
 | `activity_tier` | `text` | yes |  |  |
+| `beat` | `text` | yes |  |  |
 
 Keys and relationships:
 

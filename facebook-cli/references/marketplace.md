@@ -43,7 +43,7 @@ Extract these parameters from natural language:
 - **max_price**: Maximum budget in dollars (if mentioned)
 - **min_price**: Minimum price in dollars (if mentioned)
 - **location**: Where to search — there is **no** `--location` flag; geocode the place name to coordinates and pass `--latitude` and `--longitude` together
-- **radius_in_miles**: How far to search in miles (if mentioned)
+- **radius**: How far to search, only if the user gave a distance. Use the unit they used: `--radius-in-miles` or `--radius-in-km`, decimals allowed. Do not convert between miles and kilometers
 - **limit**: How many results per page (`--limit`; default and max 20 — higher values are capped to 20)
 - **sort_by**: How to order results (best_match, price_ascend, price_descend, creation_time_descend, distance_ascend)
 - **max_listing_age_in_days**: How recent (e.g., "listed this week" -> 7)
@@ -185,7 +185,8 @@ Options:
   --min-price FLOAT                Lower price bound in dollars
   --latitude FLOAT                 Search center latitude
   --longitude FLOAT                Search center longitude
-  --radius-in-miles INTEGER        Search radius in miles
+  --radius-in-miles FLOAT          Search radius in miles
+  --radius-in-km FLOAT             Search radius in kilometers (use instead of --radius-in-miles)
   --max-listing-age-in-days INT    Max listing age in days
   --sort-by [best_match|creation_time_descend|price_ascend|price_descend|distance_ascend]
   --allowed-item-conditions TEXT   Comma-separated conditions (new, refurbished, used, etc.)

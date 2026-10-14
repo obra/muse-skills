@@ -14,7 +14,6 @@ description: Securely connect to institutions to access financial data
 icon: plaid
 multi_account:
   backend: plaid
-  auth_provider: plaid
 gating:
   allowed_countries: [US]
 actions:
@@ -60,5 +59,9 @@ consent_screen:
       title: "Keep an eye on things"
       text: "Muse may take unexpected actions. Monitor it carefully."
   footer_paragraphs:
-    - "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+    - text: "The info used for your tasks is part of your interactions with Muse, which we may use to improve AI at Meta. You can manage this in Settings. [Learn more](https://muse.ai/privacy)"
+      variants:
+        confidential_vm:
+          text: "Plaid works by connecting through Meta, which means the info exchanged is visible to Meta. [Learn more](https://muse.ai/privacy)"
+          placement: callout
     - "Muse will exchange info with Plaid. To learn more, view their [terms](https://plaid.com/legal/) and [privacy policy](https://plaid.com/legal/#end-user-privacy-policy)."

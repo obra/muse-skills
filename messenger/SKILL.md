@@ -334,6 +334,11 @@ path. If the source is outside the workspace, copy it into `~/workspace/`
 first and use that same copy in both the preview and `--attach`. Leading `~`
 resolves to the Muse home directory.
 
+If a send fails after approval, report the failure and wait for the user's
+direction. The user may have edited the message on the approval card, even if
+the failed result does not say so; do not automatically resubmit your original
+text or attachment. A successful send's final-message note is the sent copy.
+
 ### Automatic replies
 
 The user may create a recurring rule that checks their ordinary or Marketplace

@@ -16,25 +16,31 @@ Use the installed `canva` CLI. Start with `canva status`. If it reports
 `connect_url`. If the CLI reports outdated OAuth settings, have the user
 disconnect Canva in Settings and reconnect. Never request tokens in chat.
 
-Run `canva list-tools` for live schemas and use only tools returned by that
-call. Treat omission as authoritative for the current task: never infer tool
-availability from this skill, a prior turn, a cached schema, or a tool expected
-to launch later.
+Run `canva list-tools --names-only` for the tool index, then
+`canva describe-tool --name <tool-name>` for one tool's schema; the bare
+`list-tools` catalogue is large and rarely needed whole. Use only tools
+returned by those calls. Treat omission as authoritative for the current
+task: never infer tool availability from this skill, a prior turn, a cached
+schema, or a tool expected to launch later.
 Follow returned input schemas exactly and include a concise `user_intent`.
 `hatch_permission_overrides` identifies argument-dependent permissions such as
 deleting pages.
 Some tools require Canva Pro, Enterprise, or available AI credits.
 
-Save each raw response before parsing. Check `result.isError`, then read
-`result.structuredContent` when present or parse the JSON text block in
-`result.content`. Both response forms are valid. A local parsing failure does
-not mean a mutation failed: recover its response or inspect saved state before
-continuing. Never repeat a copy, creation, or commit just to obtain its output.
+Save each raw response before parsing. A Canva tool error fails the CLI with
+a non-zero exit code and a generic message on stderr. The provider explanation
+is preserved in the `ok: false` JSON response on stdout; save it even when
+the command exits non-zero. On success read `result.structuredContent` when
+present or parse the JSON text block in `result.content`. Both response forms
+are valid. A local parsing failure does not mean a mutation failed: recover
+its response or inspect saved state before continuing. Never repeat a copy,
+creation, or commit just to obtain its output.
 
 ```text
 canva search-designs [--query <keywords>] [--continuation <token>]
 canva get-design-pages --design-id <id>
-canva list-tools
+canva list-tools [--names-only]
+canva describe-tool --name <tool-name>
 canva call-tool --name <tool-name> --arguments-json '<JSON object>'
 ```
 
