@@ -1,177 +1,71 @@
-# Booking presentation
+# Present booking choices
 
-Make booking responses easy to scan, compare, and act on. The user should
-understand the recommendation, tradeoff, full cost, and next action without
-reading a wall of text.
+- Help the user see the recommendation, the useful tradeoffs, the full cost and the next action in one place. Use this guide for comparisons, final reviews and confirmations.
 
-Use this reference whenever presenting options, an exact-term review, or a
-completed booking.
+## Shape the comparison
 
-## Response shape
+- Lead with one sentence naming the recommended option and the decisive reason. For travel, state the meaningful difference in price and in time or distance.
 
-For native flight widgets, follow the acknowledgement and selection guidance
-in `/opt/hatch/skills/booking/references/flights.md`. Use the following
-hierarchy for other bookings and the flight Markdown fallback:
+- Show a few distinct choices, best first. Add another option only when it changes the decision.
 
-1. **One-sentence recommendation.** Name the best option and the decisive
-   reason. Keep any caveat to one short clause.
-2. **One compact comparison.** For flights, load the `widget` namespace and use `widget.create_list_widget`
-   for the native structured flight list;
-   use the Markdown fallback only when that tool is absent or a valid call
-   explicitly fails. For hotels, use the native map/list presentation in the
-   hotel reference together with the category's compact Markdown table. For
-   other categories, use the category's Markdown table. Show three to five
-   distinct options at most.
-3. **One decision.** For flights, let the user select the complete itinerary
-   through the native flight widget; do not add a duplicate picker or ask for a
-   typed option label. Other booking categories continue to use their
-   category-specific presentation contract.
+- Flights use the native flight list described in [flight comparison](/opt/muse/skills/flight-booking/references/flights.md), with the Markdown table below only as its fallback. Hotels pair a map or visual list with the comparison table. Restaurants and tickets use the comparison table alone.
 
-Do not emit HTML or use `create_options`. Other than the hotel map/list
-presentation, do not use a native picker/list widget for non-flight bookings.
-Do not duplicate prices, schedules, terms, or the comparison as prose. Put
-important decision fields in the primary comparison and give secondary facts
-in a short labeled block only after the user selects an option or asks for more
-detail.
+- Do not add another picker or use `muse.create_options` to repeat a booking selection. For a single exact match, use short labeled lines instead of a one-row table.
 
-When there is only one exact match, skip the comparison table and use short
-labeled Markdown fields.
+- Name the airline, property, venue and actual seller when they affect the price, terms or later support. Keep commands, raw offer IDs and internal details out of the reply.
 
-## Markdown rules
+## Write the comparison table
 
-- Keep the recommendation above the table to one sentence.
-- Use stable option labels such as `A`, `B`, and `C` in every follow-up.
-- Keep each table to six columns or fewer. Combine closely related facts in one
-  cell with semicolons or short phrases.
-- Put the full party or stay total in the table. Do not make the user calculate
-  it from a per-person or nightly teaser price.
-- Keep fields in the same order for every option.
-- Bold only the recommended option label and the most important changed fact.
-- Render absent provider facts as `Not stated`. Do not silently omit a field
-  whose absence could change the decision.
-- Use airport-local, property-local, venue-local, or restaurant-local dates and
-  times. Include the year when ambiguous.
-- Do not include raw provider identifiers, tool names, command output, or
-  implementation details.
+- Use stable labels such as A, B and C. Keep each table to six columns or fewer, with the same facts in the same order for every option.
 
-Verified imagery may still be shown with ordinary Markdown image syntax after
-the comparison table. Use only stable public HTTPS images from the current
-provider, venue, or verified listing. Label each image accurately. Do not use a
-generic property photo as the exact room, a restaurant interior as a named dish,
-or a venue map as the view from a specific seat. Omit imagery when no reliable
-source exists.
+- Show the full-party or full-stay total, never a teaser price the user must multiply. Use local dates and times, adding the year when it avoids ambiguity.
 
-## Flights
+- Put important terms in the table and write `Not stated` when a missing fact could change the decision. Bold only the recommended label. Do not repeat the table's prices, schedules or terms in the surrounding prose, and never render the comparison as HTML.
 
-Use the native structured flight list described in
-`/opt/hatch/skills/booking/references/flights.md` for every live flight
-comparison when `widget.create_list_widget` is available. Do not substitute Markdown based
-on uncertainty, convenience, output size, or schema complexity. Use this table
-only when `widget.create_list_widget` is absent or a valid widget call explicitly returns an
-unsupported or rendering error:
+- Use photos only from the current provider, venue or a verified listing, at stable public HTTPS URLs, and place each with its labeled option. A property photo does not prove the exact room, and a venue map does not show the view from a seat. Omit an image whose source or subject is uncertain.
 
-| Option | Route and local times | Duration | Stops and layovers | Flight and cabin | Full total |
-|---|---|---:|---|---|---:|
-| **A (Recommended)** | SFO 8:10 AM → JFK 4:45 PM | 5h 35m | Nonstop | UA 123 · Economy Flex | $642 round-trip |
-| B (Cheapest) | SFO 7:00 AM → DEN 10:25 AM → JFK 4:10 PM | 6h 10m | 1 stop · DEN 1h 05m | UA 456/789 · Economy | $511 round-trip |
+## Use the right columns
 
-Use one row per complete itinerary; keep outbound and return together in the
-same row using concise labels when it is a round trip. Every row must show:
+### Flights without the native list
 
-- full party price and currency, labeled one-way or round-trip
-- each leg's local departure and arrival airports and times
-- each leg's total elapsed duration
-- nonstop or exact stop count
-- every connection airport and layover duration
-- marketing carrier and flight number, plus operating carrier when different
-- cabin and fare brand when stated
+- Use one row per complete itinerary, keeping outbound and return together. Use the columns Option, Route and local times, Duration, Stops and layovers, Flight and cabin, and Full total.
 
-Do not hide price, duration, stops, or layovers in a follow-up. Calculate each
-layover from adjacent provider timestamps at the same airport. If that cannot be
-done reliably, write `Layover length not stated`.
+- Every row shows the full-party price and currency, labeled one way or round trip. It also shows each leg's local airports and times, elapsed duration, exact stop count, every connection airport with its layover, the marketing carrier and flight number, the operating carrier when different, and the cabin and fare brand when stated.
 
-After the Markdown fallback comparison, add at most one short `Details:` line
-for shared baggage or fare-rule caveats. Do not show the same inventory in a second format.
+- Work out layovers only from adjacent segment times at the same airport. When that is not reliable, write `Layover length not stated`.
 
-## Hotels
+- Put shared bag or fare caveats in one short note under the table and option-specific terms in their rows. Ask the user to reply with an option label.
 
-Use one row per exact property-room-rate combination:
+### Hotels
 
-| Option | Hotel and exact room | Location | Full stay total | Terms and benefits | Why it fits |
-|---|---|---|---:|---|---|
+- Use one row per property, room and rate, with the columns Option, Hotel and exact room, Location, Full stay total, Terms and benefits, and Why it fits.
 
-Include exact room and bed, dates, total including mandatory fees, amount due at
-the property, cancellation deadline, and material loyalty benefits. When
-location matters, show verified travel time to the named place rather than a
-vague neighborhood claim.
+- Include the exact room and bed, dates, mandatory fees, the amount due at the property, the cancellation deadline and material benefits. Show verified travel time to a named place when location matters.
 
-With the first multi-property shortlist, automatically provide the native map
-or list described in the hotel reference. Keep its option labels and order
-identical to the Markdown comparison. If proximity to a particular place
-matters, show verified travel times in the comparison rather than adding a
-second location table.
+- Add the map or visual list from [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) with the first multi-property shortlist, using the same labels and order. After the user picks a property, exact-room photos may help. Label any photo that does not show that room `Property photo`.
 
-Attach each useful verified property image to that property's map marker or
-list row. Never show a separate unlabeled image gallery. After selection, offer
-exact-room images separately and label unmatched images `Property photo`.
+### Restaurants
 
-## Restaurants
+- Use one row per available table, with the columns Option, Restaurant, Time and seating, Cuisine and price, Location, and Deposit or cancellation terms.
 
-Use one row per exact live table:
+- Show the exact time, seating type, price level, address or travel time, and any deposit, prepaid minimum, service charge or cancellation fee. The recommendation sentence names the taste, location, timing or value that makes the first option fit.
 
-| Option | Restaurant | Time and seating | Cuisine and price | Location | Deposit or cancellation terms |
-|---|---|---|---|---|---|
+- One verified food, dining-room or exterior photo can illustrate the recommended restaurant. Name a dish only when the source identifies it, otherwise label the photo accurately, such as `Dining room`.
 
-Show exact available time, seating type, cuisine, price level, address or travel
-time, and any deposit, prepaid minimum, service charge, cancellation fee, or
-no-show exposure. The recommendation sentence should name the one taste,
-location, timing, or value reason that makes the first option best.
+### Event tickets
 
-When reliable imagery exists, show at most one verified food, dining-room, or
-exterior image for the recommended option below the table. Use a dish name only
-when the source identifies it; otherwise label it `Food at <restaurant>` or
-`Dining room`.
+- Use one row per available ticket group, with the columns Option, Event and local time, Exact seats, Primary or resale, Delivered total, and Important terms.
 
-## Event tickets
+- Keep the ticket count, section, row, assigned seats, view restrictions, fees, delivery method and hold expiry. Give every option a verified listing or purchase link so the user can act on it.
 
-Use one row per exact ticket group:
+- Show a verified seat-view image under its exact section label when one exists. Otherwise link a verified venue map without implying a particular view.
 
-| Option | Event and local time | Exact seats | Primary or resale | Delivered total | Important terms |
-|---|---|---|---|---:|---|
+## Show the final review
 
-Preserve ticket count, section, row, exact seats when assigned, view
-restrictions, primary/resale status, fees, delivery method, and hold expiry.
-When a verified seat-view image exists, show it below the table with its exact
-section label; otherwise provide a verified venue-map link without implying a
-specific view. Include a verified actionable listing or purchase link for every
-option offered as the user's next choice. Do not present an extra option without
-the same action path as the rest of the shortlist.
+- After the user chooses, show the exact commitment once instead of repeating the comparison. List the item, the local date and time, the full total with the amounts due now and later, any credits or points applied, the payment method's safe label, and the material cancellation, refund, change or no-show terms.
 
-## Final review and confirmation
+## Report the outcome
 
-Do not show another large comparison after selection. Use a compact two-column
-Markdown table for the commitment boundary:
+- After submission, give the status the provider returned, the safe confirmation reference, the local time and place, the amount paid or committed, and any next deadline.
 
-| Review | Selected terms |
-|---|---|
-| Item | Exact itinerary, property and room, table, or seats |
-| Date and time | Local date and time |
-| Total | Full amount, currency, amount due now, and amount due later |
-| Applied value | Credits, points, certificates, or benefits |
-| Payment | Safe payment label only |
-| Terms | Material cancellation, refund, change, or no-show terms |
-
-The trusted connector or browser approval remains authoritative. Do not create
-a second confirmation question when the tool already asks the user to approve
-the same terms.
-
-After success, return a compact Markdown receipt with:
-
-- `Status:` Confirmed, Held, Waitlisted, or Blocked
-- `Confirmation:` the safe human-readable reference
-- `When and where:` local date, time, and location
-- `Total:` amount paid or committed
-- `Next:` the next deadline or action, only when one exists
-
-Do not display secrets or full payment, passport, traveler-security, or loyalty
-numbers.
+- Keep full payment, passport, traveler-security and membership numbers out of the reply.

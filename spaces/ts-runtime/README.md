@@ -33,9 +33,9 @@ bun build.mjs
 ```
 
 Output lands at `dist/space-sdk.tgz`. Bundle build wires this into the deployed
-bundle so `/opt/hatch/skills/spaces/ts-runtime/dist/space-sdk.tgz` exists at
+bundle so `/opt/muse/assets/spaces/ts-runtime/dist/space-sdk.tgz` exists at
 runtime; each scaffolded space's `package.json` references it via
-`"@hatch/space-sdk": "file:/opt/hatch/skills/spaces/ts-runtime/dist/space-sdk.tgz"`.
+`"@hatch/space-sdk": "file:/opt/muse/assets/spaces/ts-runtime/dist/space-sdk.tgz"`.
 
 ## Cloudflare Worker Export
 

@@ -402,7 +402,7 @@ def main():
     timeout = int(args[1]) if len(args) > 1 else 30
 
     result = recalc(filename, timeout, force=force)
-    print(json.dumps(result, indent=2))
+    print(json.dumps(result, separators=(",", ":")))
     sys.exit(1 if "error" in result else 0)
 
 
