@@ -20,6 +20,7 @@ import "../styles.css";
 import { QueryClient } from "@tanstack/react-query";
 import type { ZodType } from "zod";
 
+import { installSpaceThemeListener } from "./client/host-theme";
 import type { ActionRequest, ActionResponse } from "./index";
 
 export { SafeAreaTopScrim } from "./client/safe-area";
@@ -150,6 +151,7 @@ export function installAuditSettleProbe(
 }
 
 installAuditSettleProbe();
+installSpaceThemeListener();
 
 const SPACE_QUERY_INVALIDATED_MESSAGE_TYPE = "hatch:space:query-invalidated";
 const HATCH_SPACE_ACTION_AUTH_REFRESH_REQUIRED_MESSAGE =

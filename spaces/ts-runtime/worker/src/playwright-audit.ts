@@ -163,12 +163,14 @@ export function confirmTransientUnreachable(
 // rounding without masking a genuinely sideways-scrolling page.
 const MOBILE_OVERFLOW_TOLERANCE_PX = 2;
 
-// System browser candidates — prefer the image-baked Meta Chromium before
-// relying on a runtime download of Playwright's bundled chromium headless
-// shell. The runtime cell's daemon can't always download chromium (HOME /
-// cache permissions, CDN egress under Sentinel), so when an image/system
-// browser is present we use it directly.
+// Local artifact audits, previews, probes, and PDF rendering share this
+// selector. Prefer the bundle's smaller headless shell on its supported
+// platform; older bundles and ARM64 retain the image browser. Neither path
+// requires a runtime browser download through Sentinel.
 const SYSTEM_CHROME_PATHS = [
+  ...(process.platform === "linux" && process.arch === "x64"
+    ? ["/opt/hatch/assets/artifacts/headless-shell/chrome-headless-shell"]
+    : []),
   "/opt/meta-chromium/chrome",
 ];
 

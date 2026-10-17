@@ -2,17 +2,19 @@
 
 - Help the user see the recommendation, the useful tradeoffs, the full cost and the next action in one place. Use this guide for comparisons, final reviews and confirmations.
 
+- Keep one question open at a time, and offer a recommended default when it is a choice.
+
 ## Shape the comparison
 
 - Lead with one sentence naming the recommended option and the decisive reason. For travel, state the meaningful difference in price and in time or distance.
 
-- Show a few distinct choices, best first. Add another option only when it changes the decision.
+- Show three to five distinct choices, best first, or fewer when fewer qualify. Add another option only when it changes the decision.
 
-- Flights use the native flight list described in [flight comparison](/opt/muse/skills/flight-booking/references/flights.md), with the Markdown table below only as its fallback. Hotels pair a map or visual list with the comparison table. Restaurants and tickets use the comparison table alone.
+- Follow [flight comparison](/opt/muse/skills/flight-booking/references/flights.md) and [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) for native results. Use the Markdown table below for their fallback, restaurants and tickets.
 
 - Do not add another picker or use `muse.create_options` to repeat a booking selection. For a single exact match, use short labeled lines instead of a one-row table.
 
-- Name the airline, property, venue and actual seller when they affect the price, terms or later support. Keep commands, raw offer IDs and internal details out of the reply.
+- Name the airline, property, venue and actual seller when they affect the price, terms or later support. Keep commands, raw offer IDs and internal details out of the reply, and summarize a preference you found without naming the emails, transactions or past bookings you read.
 
 ## Write the comparison table
 
@@ -42,7 +44,7 @@
 
 - Include the exact room and bed, dates, mandatory fees, the amount due at the property, the cancellation deadline and material benefits. Show verified travel time to a named place when location matters.
 
-- Add the map or visual list from [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) with the first multi-property shortlist, using the same labels and order. After the user picks a property, exact-room photos may help. Label any photo that does not show that room `Property photo`.
+- After the user picks a property, exact-room photos may help. Label any photo that does not show that room `Property photo`.
 
 ### Restaurants
 

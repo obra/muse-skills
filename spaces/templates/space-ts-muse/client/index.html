@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en" data-hatch-host-theme>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Empty inline icon: stops the browser fetching /favicon.ico, which
+         lives outside the space's routes and fails auth. -->
+    <link rel="icon" href="data:," />
+    <title>__SPACE_TITLE__</title>
+    <!-- Applies Hatch's light/dark and accent before the first paint. Hatch
+         passes them in the URL fragment; this removes them again so the app
+         never sees them. Keep this script first in <head>. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          var hash = new URLSearchParams(location.hash.slice(1));
+          var scheme =
+            hash.get("hatch_theme") ||
+            new URLSearchParams(location.search).get("hatch_theme");
+          var accent = hash.get("hatch_accent");
+          var accents = "blue green red purple pink orange monochrome";
+          if (scheme === "light" || scheme === "dark") {
+            root.setAttribute("data-hatch-color-scheme", scheme);
+          }
+          if (accent && accents.split(" ").indexOf(accent) !== -1) {
+            root.setAttribute("data-hatch-accent", accent);
+          }
+          if (hash.has("hatch_theme") || hash.has("hatch_accent")) {
+            hash.delete("hatch_theme");
+            hash.delete("hatch_accent");
+            var rest = hash.toString();
+            history.replaceState(
+              history.state,
+              "",
+              location.pathname + location.search + (rest ? "#" + rest : ""),
+            );
+          }
+          var current = root.getAttribute("data-hatch-color-scheme");
+          root.classList.toggle(
+            "dark",
+            current
+              ? current === "dark"
+              : matchMedia("(prefers-color-scheme: dark)").matches,
+          );
+        } catch (error) {}
+      })();
+    </script>
+    <script src="./src/main.tsx" type="module"></script>
+  </head>
+  <body>
+    <div
+      data-generated-space-root=""
+      data-generated-space-slug="__SPACE_SLUG__"
+    ></div>
+  </body>
+</html>

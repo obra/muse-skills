@@ -44,6 +44,8 @@ export type LocalViewer = {
   userId: string;
   ownerUserId: string;
   isOwner: boolean;
+  /** Native Muse delegation, distinct from the owner's browser. */
+  delegate?: "agent" | "schedule";
 };
 
 export type CloudflareViewer = {

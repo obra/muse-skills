@@ -23,12 +23,55 @@ ts-runtime/
     └── space-sdk.tgz   # vendored into each TS web artifact via `file:` dep
 ```
 
+## Host appearance and the chat palette
+
+The Muse shell supplies the viewer's light/dark mode and its existing accent
+preference. Artifacts built from the `muse` template (`templates/space-ts-muse`
+and `templates/space-static-muse`, layered over the base scaffold when a create
+names it) follow them; the base scaffolds keep their own `prefers-color-scheme`
+tokens. The static overlay carries an inline copy of the listener below, since
+a static page loads no SDK. Standard
+frames receive `#hatch_theme=..&hatch_accent=..` before first paint; CVM
+bundles receive `data-hatch-color-scheme` and `data-hatch-accent` on `<html>`.
+The template's head script also accepts the older `?hatch_theme=` signal.
+Later changes use the parent-frame message:
+
+```json
+{"type":"hatch:space:theme","version":1,"colorScheme":"dark","accentColor":"blue"}
+```
+
+`colorScheme` accepts `light` or `dark`. The seven accent names are `blue`,
+`green`, `red`, `purple`, `pink`, `orange`, and `monochrome`. The SDK accepts
+messages only from the embedding parent and updates the same attributes and
+conventional `dark` class without reloading. With no host signal, light/dark
+follows the browser and the `muse` template's accent is monochrome.
+
+The `muse` template uses Tailwind-UM (26 families, 11 stops), not the UM Expanded
+chat ramps (25 families, 24 stops). Their stop numbers are not interchangeable.
+The shell accent is not a chat selection ID, a rendered chat bubble color,
+or `avatar.chat_theme_color`. That identity field is a stored selection or
+avatar-derived hex; rendered chat colors come from `GET /api/chat/themes`.
+The chat API's optional `p3-light`/`p3-dark` triples and its independent
+`hatch_um_chat_palette` and `hatch_high_contrast_chat_bubbles` gates do not
+change this frame protocol. No chat family name is sent. Following the chat
+theme as a Space accent requires a separate coordinated client/API change,
+including mappings for Default, Beige, avatar-following, and Blue fallback.
+
+Published Space bundles are not rewritten, and this adds no lazy upgrade.
+The `muse` template opts in with `data-hatch-host-theme` on `<html>`.
+Without that marker, the SDK installs no theme listeners and keeps its
+system-driven fallback styles, even if an edit refreshes the SDK or a CVM
+host stamps appearance attributes. Preserve custom styles on edits. The
+`muse` template exposes semantic foreground/background pairs through
+`globals.css`; custom `@theme` palette overrides remain authoritative over
+the bundled P3 ramp values.
+
 ## Building
 
 Local Bun runtime artifacts:
 
 ```bash
-cd skills/spaces/ts-runtime
+cd hatch-skills/runtime-assets/spaces/ts-runtime
 bun build.mjs
 ```
 
@@ -43,7 +86,7 @@ Cloudflare export is intentionally explicit and is not run by normal
 `web_artifacts.build` yet:
 
 ```bash
-cd skills/spaces/ts-runtime
+cd hatch-skills/runtime-assets/spaces/ts-runtime
 bun cloudflare/build-cloudflare.mjs \
   --space-dir "$JARVIS_HOME/workspace/ts-spaces/<slug>" \
   --out-dir /tmp/<slug>-cloudflare

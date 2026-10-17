@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en" data-hatch-host-theme>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Applies Hatch's light/dark and accent before the first paint. Hatch
+         passes them in the URL fragment; this removes them again so the page
+         never sees them. Keep this script first in <head>. -->
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          var hash = new URLSearchParams(location.hash.slice(1));
+          var scheme =
+            hash.get("hatch_theme") ||
+            new URLSearchParams(location.search).get("hatch_theme");
+          var accent = hash.get("hatch_accent");
+          var accents = "blue green red purple pink orange monochrome";
+          if (scheme === "light" || scheme === "dark") {
+            root.setAttribute("data-hatch-color-scheme", scheme);
+          }
+          if (accent && accents.split(" ").indexOf(accent) !== -1) {
+            root.setAttribute("data-hatch-accent", accent);
+          }
+          if (hash.has("hatch_theme") || hash.has("hatch_accent")) {
+            hash.delete("hatch_theme");
+            hash.delete("hatch_accent");
+            var rest = hash.toString();
+            history.replaceState(
+              history.state,
+              "",
+              location.pathname + location.search + (rest ? "#" + rest : ""),
+            );
+          }
+          var current = root.getAttribute("data-hatch-color-scheme");
+          root.classList.toggle(
+            "dark",
+            current
+              ? current === "dark"
+              : matchMedia("(prefers-color-scheme: dark)").matches,
+          );
+        } catch (error) {}
+      })();
+    </script>
+    <!-- Empty inline icon: stops the browser fetching /favicon.ico, which
+         lives outside the artifact's routes and 404s. -->
+    <link rel="icon" href="data:," />
+    <title>__SPACE_TITLE__</title>
+    <style>
+      /* Muse template. Hatch sets data-hatch-color-scheme and
+         data-hatch-accent on <html>; without them, light/dark follows the
+         browser and the accent is monochrome. Style with the semantic roles
+         below; any other color is a palette variable. To recolor the page,
+         remap the roles here. Do not add a theme picker. */
+      :root {
+        color-scheme: light dark;
+        --radius: 12px;
+        --background: light-dark(var(--color-white), var(--color-neutral-950));
+        --foreground: light-dark(var(--color-neutral-950), var(--color-neutral-50));
+        --card: light-dark(var(--color-white), var(--color-neutral-900));
+        --card-foreground: var(--foreground);
+        --secondary: light-dark(var(--color-neutral-100), var(--color-neutral-800));
+        --secondary-foreground: var(--foreground);
+        --muted: var(--secondary);
+        --muted-foreground: light-dark(var(--color-neutral-600), var(--color-neutral-400));
+        --destructive: light-dark(var(--color-red-700), var(--color-red-400));
+        --destructive-foreground: light-dark(var(--color-white), var(--color-neutral-950));
+        --border: light-dark(var(--color-neutral-200), var(--color-neutral-800));
+        --primary: light-dark(
+          var(--host-accent-light, var(--color-neutral-900)),
+          var(--host-accent-dark, var(--color-neutral-50))
+        );
+        --primary-foreground: light-dark(var(--color-white), var(--color-neutral-950));
+        --ring: var(--primary);
+        --color-white: #ffffff;
+        --color-black: #000000;
+      }
+      :root[data-hatch-color-scheme="light"] { color-scheme: light; }
+      :root[data-hatch-color-scheme="dark"] { color-scheme: dark; }
+      /* Accent families use stop 700 in light mode and 400 in dark mode. */
+      :root[data-hatch-accent="blue"] { --host-accent-light: var(--color-blue-700); --host-accent-dark: var(--color-blue-400); }
+      :root[data-hatch-accent="green"] { --host-accent-light: var(--color-green-700); --host-accent-dark: var(--color-green-400); }
+      :root[data-hatch-accent="red"] { --host-accent-light: var(--color-red-700); --host-accent-dark: var(--color-red-400); }
+      :root[data-hatch-accent="purple"] { --host-accent-light: var(--color-purple-700); --host-accent-dark: var(--color-purple-400); }
+      :root[data-hatch-accent="pink"] { --host-accent-light: var(--color-pink-700); --host-accent-dark: var(--color-pink-400); }
+      :root[data-hatch-accent="orange"] { --host-accent-light: var(--color-orange-700); --host-accent-dark: var(--color-orange-400); }
+      /* Tailwind-UM palette, sRGB: 26 families x 11 stops. */
+      :root {
+        --color-red-50: #fef2f4; --color-red-100: #ffe2e4; --color-red-200: #ffc9cd; --color-red-300: #ffa2ab; --color-red-400: #ff6376; --color-red-500: #fa2851; --color-red-600: #e20036; --color-red-700: #bd0024; --color-red-800: #9f051a; --color-red-900: #82171e; --color-red-950: #46070e;
+        --color-orange-50: #fff7f0; --color-orange-100: #ffecdd; --color-orange-200: #ffd6b4; --color-orange-300: #ffb884; --color-orange-400: #ff8b2a; --color-orange-500: #f97100; --color-orange-600: #e25e00; --color-orange-700: #bb4600; --color-orange-800: #993500; --color-orange-900: #7e2a09; --color-orange-950: #441303;
+        --color-amber-50: #fffbf0; --color-amber-100: #fff2d6; --color-amber-200: #ffe2b5; --color-amber-300: #ffce96; --color-amber-400: #ffb66d; --color-amber-500: #ff9732; --color-amber-600: #de7300; --color-amber-700: #b25400; --color-amber-800: #933f00; --color-amber-900: #7a3306; --color-amber-950: #461901;
+        --color-yellow-50: #fffce8; --color-yellow-100: #fff7d6; --color-yellow-200: #ffedba; --color-yellow-300: #ffdc99; --color-yellow-400: #ffc463; --color-yellow-500: #fdaa00; --color-yellow-600: #d38500; --color-yellow-700: #a65f00; --color-yellow-800: #8b4904; --color-yellow-900: #743d0e; --color-yellow-950: #432004;
+        --color-lime-50: #f3ffea; --color-lime-100: #e5fece; --color-lime-200: #cdfca1; --color-lime-300: #aaf661; --color-lime-400: #8ce800; --color-lime-500: #73cf00; --color-lime-600: #57a600; --color-lime-700: #397f09; --color-lime-800: #316412; --color-lime-900: #2b5519; --color-lime-950: #122f08;
+        --color-green-50: #f3fdf1; --color-green-100: #e2fbe0; --color-green-200: #c7f6c2; --color-green-300: #98ee92; --color-green-400: #54dd5a; --color-green-500: #09c843; --color-green-600: #00a543; --color-green-700: #00813e; --color-green-800: #006631; --color-green-900: #0c542c; --color-green-950: #022e16;
+        --color-emerald-50: #eefdf2; --color-emerald-100: #d4fae0; --color-emerald-200: #aff3c4; --color-emerald-300: #7be8a0; --color-emerald-400: #35d37d; --color-emerald-500: #18bb6b; --color-emerald-600: #009859; --color-emerald-700: #007950; --color-emerald-800: #006043; --color-emerald-900: #044e38; --color-emerald-950: #032c1f;
+        --color-teal-50: #f0fdfb; --color-teal-100: #cafbf3; --color-teal-200: #93f7ea; --color-teal-300: #3eecdd; --color-teal-400: #00d2c8; --color-teal-500: #00b8b5; --color-teal-600: #009494; --color-teal-700: #00767b; --color-teal-800: #005e65; --color-teal-900: #094e55; --color-teal-950: #022e34;
+        --color-cyan-50: #f0fdff; --color-cyan-100: #d1f9ff; --color-cyan-200: #a3f3ff; --color-cyan-300: #73e6ff; --color-cyan-400: #00d0fb; --color-cyan-500: #00b5e2; --color-cyan-600: #0090bf; --color-cyan-700: #13729d; --color-cyan-800: #1f5c80; --color-cyan-900: #1e4c69; --color-cyan-950: #0e3248;
+        --color-sky-50: #eff9fe; --color-sky-100: #ddf3fc; --color-sky-200: #b4e8f9; --color-sky-300: #70d5ff; --color-sky-400: #00bbff; --color-sky-500: #00a5eb; --color-sky-600: #0083cd; --color-sky-700: #1166ac; --color-sky-800: #1f568f; --color-sky-900: #1d4775; --color-sky-950: #112d4c;
+        --color-blue-50: #eef6fe; --color-blue-100: #d8ebfd; --color-blue-200: #b9ddfd; --color-blue-300: #87c7ff; --color-blue-400: #35a6ff; --color-blue-500: #0089e2; --color-blue-600: #006cc8; --color-blue-700: #0056bd; --color-blue-800: #0040b2; --color-blue-900: #103a8e; --color-blue-950: #102655;
+        --color-indigo-50: #ebf3ff; --color-indigo-100: #dce8ff; --color-indigo-200: #c0d4ff; --color-indigo-300: #99b6ff; --color-indigo-400: #668cff; --color-indigo-500: #4766ff; --color-indigo-600: #3b40f7; --color-indigo-700: #3632d8; --color-indigo-800: #2a2eac; --color-indigo-900: #252f86; --color-indigo-950: #141d4d;
+        --color-violet-50: #f3f3ff; --color-violet-100: #eaeaff; --color-violet-200: #d7d7ff; --color-violet-300: #bab7ff; --color-violet-400: #998aff; --color-violet-500: #7d5cff; --color-violet-600: #732fff; --color-violet-700: #6814eb; --color-violet-800: #5814c3; --color-violet-900: #451b9d; --color-violet-950: #2d0e68;
+        --color-purple-50: #f9f5ff; --color-purple-100: #f1e8ff; --color-purple-200: #e6d6ff; --color-purple-300: #d5b4ff; --color-purple-400: #c07dff; --color-purple-500: #ad49ff; --color-purple-600: #9e04f5; --color-purple-700: #8600d1; --color-purple-800: #710dad; --color-purple-900: #5b158a; --color-purple-950: #3f0164;
+        --color-fuchsia-50: #fef4fe; --color-fuchsia-100: #fde7fd; --color-fuchsia-200: #facefb; --color-fuchsia-300: #f9a6fa; --color-fuchsia-400: #f567f6; --color-fuchsia-500: #ea21ef; --color-fuchsia-600: #c500d5; --color-fuchsia-700: #a400b6; --color-fuchsia-800: #880597; --color-fuchsia-900: #711479; --color-fuchsia-950: #4b004f;
+        --color-pink-50: #fdf2f8; --color-pink-100: #fce7f4; --color-pink-200: #fbcee9; --color-pink-300: #fca5d9; --color-pink-400: #f766c1; --color-pink-500: #ee39b1; --color-pink-600: #d9089e; --color-pink-700: #b90389; --color-pink-800: #961174; --color-pink-900: #7d1860; --color-pink-950: #4b0837;
+        --color-rose-50: #fef1f6; --color-rose-100: #fde4ec; --color-rose-200: #fdccdb; --color-rose-300: #ffa1ba; --color-rose-400: #ff658e; --color-rose-500: #fe206e; --color-rose-600: #e30054; --color-rose-700: #bf0044; --color-rose-800: #a20036; --color-rose-900: #8b0834; --color-rose-950: #4d021a;
+        --color-slate-50: #f8fafc; --color-slate-100: #f0f5f9; --color-slate-200: #e0e9ef; --color-slate-300: #c8d6e1; --color-slate-400: #89a3b6; --color-slate-500: #5a768b; --color-slate-600: #3d5769; --color-slate-700: #284354; --color-slate-800: #142b3a; --color-slate-900: #011a28; --color-slate-950: #00080f;
+        --color-gray-50: #f9fafb; --color-gray-100: #f2f4f6; --color-gray-200: #e4e8eb; --color-gray-300: #d1d5dc; --color-gray-400: #97a2ae; --color-gray-500: #667381; --color-gray-600: #465664; --color-gray-700: #344252; --color-gray-800: #192a37; --color-gray-900: #051a24; --color-gray-950: #00090e;
+        --color-zinc-50: #fafafa; --color-zinc-100: #f3f4f5; --color-zinc-200: #e2e5e7; --color-zinc-300: #d1d5d8; --color-zinc-400: #98a1a8; --color-zinc-500: #6a737b; --color-zinc-600: #4a545b; --color-zinc-700: #394046; --color-zinc-800: #25282a; --color-zinc-900: #16191b; --color-zinc-950: #070a0b;
+        --color-neutral-50: #fafafa; --color-neutral-100: #f5f5f5; --color-neutral-200: #e5e5e5; --color-neutral-300: #d4d4d4; --color-neutral-400: #a1a1a1; --color-neutral-500: #737373; --color-neutral-600: #525252; --color-neutral-700: #404040; --color-neutral-800: #262626; --color-neutral-900: #171717; --color-neutral-950: #0a0a0a;
+        --color-stone-50: #fbfaf9; --color-stone-100: #f6f5f4; --color-stone-200: #e7e5e3; --color-stone-300: #d7d3d1; --color-stone-400: #a7a09c; --color-stone-500: #79706c; --color-stone-600: #59524f; --color-stone-700: #463f3d; --color-stone-800: #292523; --color-stone-900: #1c1918; --color-stone-950: #0c0a09;
+        --color-mauve-50: #fafafa; --color-mauve-100: #f2f1f3; --color-mauve-200: #e6e4e7; --color-mauve-300: #d6d0d8; --color-mauve-400: #a79eaa; --color-mauve-500: #78697c; --color-mauve-600: #584c5c; --color-mauve-700: #453948; --color-mauve-800: #2a212c; --color-mauve-900: #1c161f; --color-mauve-950: #0b090c;
+        --color-olive-50: #fbfbf9; --color-olive-100: #f4f4f0; --color-olive-200: #e7e8e3; --color-olive-300: #d7d8d0; --color-olive-400: #a9ac9d; --color-olive-500: #797d68; --color-olive-600: #595c4c; --color-olive-700: #464739; --color-olive-800: #2b2b22; --color-olive-900: #1c1d16; --color-olive-950: #0c0c09;
+        --color-mist-50: #f9fbfb; --color-mist-100: #f1f3f3; --color-mist-200: #e3e7e7; --color-mist-300: #d0d6d7; --color-mist-400: #9ca8ab; --color-mist-500: #67787c; --color-mist-600: #4b585c; --color-mist-700: #3a4448; --color-mist-800: #22292c; --color-mist-900: #161b1d; --color-mist-950: #090b0c;
+        --color-taupe-50: #fcfaf9; --color-taupe-100: #f3f1f0; --color-taupe-200: #e8e4e2; --color-taupe-300: #d8d2d0; --color-taupe-400: #aba09c; --color-taupe-500: #7c6d69; --color-taupe-600: #5b4f4c; --color-taupe-700: #473c3a; --color-taupe-800: #2b2423; --color-taupe-900: #1d1817; --color-taupe-950: #0c0a09;
+      }
+      * { box-sizing: border-box; border-color: var(--border); }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        background: var(--background);
+        color: var(--foreground);
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        padding-bottom: env(safe-area-inset-bottom, 0px);
+      }
+    </style>
+    <!-- Later theme changes arrive from the embedding frame; the attributes
+         above and the `dark` class follow them without a reload. -->
+    <script>
+      (function () {
+        var root = document.documentElement;
+        var schemes = ["light", "dark"];
+        var accents = ["blue", "green", "red", "purple", "pink", "orange", "monochrome"];
+        function syncDark() {
+          var host = root.getAttribute("data-hatch-color-scheme");
+          var dark = schemes.indexOf(host) !== -1
+            ? host === "dark"
+            : matchMedia("(prefers-color-scheme: dark)").matches;
+          root.classList.toggle("dark", dark);
+        }
+        matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncDark);
+        if (window.parent !== window) {
+          window.addEventListener("message", function (event) {
+            if (event.source !== window.parent) return;
+            var data = event.data;
+            if (!data || typeof data !== "object") return;
+            if (data.type !== "hatch:space:theme" || data.version !== 1) return;
+            if (schemes.indexOf(data.colorScheme) === -1) return;
+            if (accents.indexOf(data.accentColor) === -1) return;
+            root.setAttribute("data-hatch-color-scheme", data.colorScheme);
+            root.setAttribute("data-hatch-accent", data.accentColor);
+            syncDark();
+          });
+        }
+        syncDark();
+      })();
+    </script>
+  </head>
+  <body>
+    <!--
+      This is a lite (static) web artifact on the Muse template: one
+      self-contained HTML page. Edit this file directly. Keep styles and
+      scripts inline, and drop binary assets (images, fonts, audio) into
+      ./assets/, then reference them with a normal relative path:
+
+        <img src="assets/photo.png" alt="…" />
+
+      The build copies ./assets/ verbatim into the served bundle and the page
+      loads each file over HTTP. There is no server, database, or build step.
+      Keep both script blocks and the theme style block in the head.
+    -->
+    <main>
+      <h1>__SPACE_TITLE__</h1>
+      <p>Placeholder — replace this page with your build.</p>
+    </main>
+  </body>
+</html>

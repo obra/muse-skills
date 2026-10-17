@@ -106,11 +106,11 @@
       "applicability": "TypeScript web artifacts whose server action code calls ctx.inference.complete in any of the legacy shapes: `complete(prompt)` (text only), `complete(prompt, { jsonSchema: ... })` (raw JSON Schema), or any call where the result is then JSON.parsed or cast.",
       "instructions": [
         "Make sure `z` is imported from `@hatch/space-sdk` in the file (already standard for actions.ts).",
-        "For each `ctx.inference.complete` call that previously used `jsonSchema: { type: 'object', properties: {...}, required: [...] }`, replace the JSON-Schema literal with an equivalent Zod schema built from `z.object({...})`. Map field types: string→z.string(), number→z.number(), boolean→z.boolean(), arrays→z.array(...), enums→z.enum([...]) or z.union([z.literal(...), ...]), optional fields→.optional() or .nullable() as appropriate. Pass it as `schema: z.object({...})`.",
+        "For each `ctx.inference.complete` call that previously used `jsonSchema: { type: 'object', properties: {...}, required: [...] }`, replace the JSON-Schema literal with an equivalent Zod schema built from `z.object({...})`. Map field types: string\u2192z.string(), number\u2192z.number(), boolean\u2192z.boolean(), arrays\u2192z.array(...), enums\u2192z.enum([...]) or z.union([z.literal(...), ...]), optional fields\u2192.optional() or .nullable() as appropriate. Pass it as `schema: z.object({...})`.",
         "For each `ctx.inference.complete(prompt)` call that previously relied on the no-options text overload, pass `{ schema: z.string() }` and use the returned string directly.",
-        "Delete any `JSON.parse(result)` or `JSON.parse(result) as T` that immediately follows the inference call. The return value is already a parsed, typed object — use its fields directly (e.g. `result.bullets.join(' • ')`).",
+        "Delete any `JSON.parse(result)` or `JSON.parse(result) as T` that immediately follows the inference call. The return value is already a parsed, typed object \u2014 use its fields directly (e.g. `result.bullets.join(' \u2022 ')`).",
         "Remove any `as { ... }` cast applied to the inference return; the generic now infers the type from the schema.",
-        "If the action wants to recover from schema mismatches, import `InferenceSchemaError` from `@hatch/space-sdk` and check it with `InferenceSchemaError.is(e)` inside the catch, NOT `e instanceof InferenceSchemaError`. The worker and the user actions.js are separate bundles with separate class identities, so `instanceof` would always return false for cross-bundle errors. Otherwise let the error propagate — silent fallbacks that wrote `null` for failed summaries hid production bugs.",
+        "If the action wants to recover from schema mismatches, import `InferenceSchemaError` from `@hatch/space-sdk` and check it with `InferenceSchemaError.is(e)` inside the catch, NOT `e instanceof InferenceSchemaError`. The worker and the user actions.js are separate bundles with separate class identities, so `instanceof` would always return false for cross-bundle errors. Otherwise let the error propagate \u2014 silent fallbacks that wrote `null` for failed summaries hid production bugs.",
         "If the action stored the (now-unused) raw JSON Schema literal in a separate constant, remove it."
       ],
       "verification": [
@@ -130,7 +130,7 @@
       "applicability": "Any TypeScript web artifact whose package.json does not include tailwindcss-safe-area, whose client/src/theme.css does not @import \"tailwindcss-safe-area\", or whose UI does not yet follow the Safe Areas guidance.",
       "instructions": [
         "Add \"tailwindcss-safe-area\": \"1.3.0\" to devDependencies in package.json (peer-depends on tailwindcss ^4.0.0, which the template already pins).",
-        "In client/src/theme.css, add `@import \"tailwindcss-safe-area\";` on the line immediately after `@import \"tailwindcss\";`. Use @import, not @plugin — the package ships as a v4 CSS plugin.",
+        "In client/src/theme.css, add `@import \"tailwindcss-safe-area\";` on the line immediately after `@import \"tailwindcss\";`. Use @import, not @plugin \u2014 the package ships as a v4 CSS plugin.",
         "Audit the web artifact against the Safe Areas guidance and apply whatever it requires that the web artifact doesn't already do. In particular: every web artifact must have top text protection (one of the two approved approaches); fixed/sticky bottom bars need pb-safe; landscape-edge elements need pl-safe/pr-safe."
       ],
       "verification": [
@@ -201,7 +201,7 @@
       "id": "2026-06-24-sdk-conservative-query-defaults",
       "title": "SDK disciplined QueryClient retry/backoff defaults",
       "runtime": "typescript",
-      "summary": "spaceQueryClient now sets disciplined TanStack Query defaults instead of React Query stock defaults (retry: 3 immediate, staleTime: 0, refetchOnWindowFocus: true). Backpressure (429/503) and transient server/network errors are retried with EXPONENTIAL BACKOFF + FULL JITTER (actionRetryDelay), honoring the server's Retry-After as a floor, bounded to MAX_ACTION_RETRIES; permanent 4xx (400/401/403/404/422) are never retried; staleTime is 30s and refetchOnWindowFocus is off. The amplifier was un-jittered IMMEDIATE retries (stock retry:3) under a saturated worker pool — the cure is jittered backoff, not giving up (giving up just pushes retries to an uncontrolled refetch layer). Non-OK action responses throw a typed SpaceActionError carrying the HTTP status and parsed Retry-After (retryAfterMs).",
+      "summary": "spaceQueryClient now sets disciplined TanStack Query defaults instead of React Query stock defaults (retry: 3 immediate, staleTime: 0, refetchOnWindowFocus: true). Backpressure (429/503) and transient server/network errors are retried with EXPONENTIAL BACKOFF + FULL JITTER (actionRetryDelay), honoring the server's Retry-After as a floor, bounded to MAX_ACTION_RETRIES; permanent 4xx (400/401/403/404/422) are never retried; staleTime is 30s and refetchOnWindowFocus is off. The amplifier was un-jittered IMMEDIATE retries (stock retry:3) under a saturated worker pool \u2014 the cure is jittered backoff, not giving up (giving up just pushes retries to an uncontrolled refetch layer). Non-OK action responses throw a typed SpaceActionError carrying the HTTP status and parsed Retry-After (retryAfterMs).",
       "applicability": "Any TypeScript Space. The change lives entirely in the SDK singleton; no per-Space source edit is required, but a Space must be rebuilt against the updated SDK to adopt it.",
       "instructions": [
         "No source changes are required. Rebuilding the Space against the updated @hatch/space-sdk adopts the disciplined retry/backoff defaults automatically.",
@@ -436,12 +436,12 @@
       "instructions": [
         "Limit this upgrade to adapting identity-field reads to the Viewer union. Preserve existing action authorization guards and which callers they admit or reject; do not add, tighten, or loosen guards as part of this upgrade.",
         "When ctx.viewer is present, narrow on ctx.viewer.source before reading identity fields: local uses userId and ownerUserId; cloudflare uses viewerFbid, ownerFbid, shareId, and token metadata. Never manufacture share or token values for local calls.",
-        "artifact.invoke_action, post_submit_action, managed crons with execution.kind=space_action, and web_artifacts.audit run without ctx.viewer, as do peer and notary-only callers. Missing viewer is not proof of ownership. Never fabricate a viewer, add an owner fallback, or create an unguarded write action to make these calls pass. If adapting identity fields exposes a conflict between required callers and owner-only access, report that authorization conflict in verification_notes rather than changing permissions."
+        "For unshared published artifacts, the main agent and native cron work receive a local owner viewer when the VM owner resolves. Builder, web_artifacts.audit, post_submit_action, and other agent calls remain viewerless. Do not fabricate viewers or weaken authorization guards. Report required calls blocked by a guard in verification_notes."
       ],
       "verification": [
         "Source review confirms that authorization guards are unchanged and source-specific identity fields are read only after narrowing ctx.viewer.source.",
         "The artifact builds and typechecks with the updated viewer union.",
-        "Use available sandbox checks for changed identity-field handling. artifact.invoke_action and web_artifacts.audit have no viewer, so rejection by an existing strict owner-only guard is expected; do not change the guard to pass verification.",
+        "Use available sandbox checks for changed identity-field handling. The edit builder's own artifact.invoke_action calls and web_artifacts.audit have no viewer. Rejection by an existing owner-only guard is expected. Do not change the guard to pass verification.",
         "The edit builder cannot perform authenticated owner or nonowner browser checks. Record those paths as unverified in verification_notes. This capability limit alone does not block completing v23 after source review, build/typecheck, and the available sandbox checks; do not claim an owner save or reopen was verified."
       ]
     },
@@ -459,7 +459,7 @@
         "Rebuild using web_artifacts.build to regenerate the managed Cloudflare worker and client SDK. Do not deploy an old worker bundle."
       ],
       "verification": [
-        "A signed-in guest can use intended collaborative actions and cannot read or change another viewer’s private data.",
+        "A signed-in guest can use intended collaborative actions and cannot read or change another viewer\u2019s private data.",
         "Save, reload, validation failure, and an unavailable backend have honest, recoverable UI states."
       ]
     },

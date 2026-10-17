@@ -42,10 +42,17 @@ html,
 }
 
 @media (prefers-color-scheme: dark) {
-  .hatch-space-root[data-hatch-space-root] {
+  :root:not([data-hatch-host-theme][data-hatch-color-scheme="light"])
+    .hatch-space-root[data-hatch-space-root] {
     background: var(--bg, #0c111b);
     color: var(--text, #e5eef9);
   }
+}
+
+:root[data-hatch-host-theme][data-hatch-color-scheme="dark"]
+  .hatch-space-root[data-hatch-space-root] {
+  background: var(--bg, #0c111b);
+  color: var(--text, #e5eef9);
 }
 
 [data-generated-space-root]::-webkit-scrollbar {
