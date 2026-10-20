@@ -14,7 +14,7 @@
 
 - Start one `browser.browse` task with `task_id: "new"` for the selected option and keep its `task_id` through review, changes, submission and verification. Continue it with `browser.browse` and that `task_id`. Carts, holds and sign-in belong to that session, so never start a competing checkout or start over after approval.
 
-- Give the task the exact seller URL and every known non-sensitive choice. Ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
+- Give the task the exact seller URL and every known non-sensitive choice. When the booking is paid at checkout, ask it to book; its checkout shows the user the payment approval before anything is paid. Otherwise, ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
 
 - Keep passport, traveler-security, membership and payment numbers out of the task text. The website, wallet or user enters them in the secure field.
 
