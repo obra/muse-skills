@@ -332,9 +332,9 @@ interface CliArgs {
   // the audit's daemon origin (the VM's nginx); cross-origin
   // requests the Space may issue (CDNs, fonts, third-party APIs)
   // never see the token. nginx auth_request → authd
-  // `/v1/auth/check` verifies the endorsement and injects
-  // `X-Hatch-Verified-Notary-Spaces: 1` so the daemon admits as
-  // `HttpAuthProof::NotarySpace`.
+  // `/v1/auth/check` verifies the endorsement and grants the alias's
+  // `spaces.web`; ingress forwards it in `X-Hatch-Granted-Scopes` so the
+  // daemon admits as `HttpAuthProof::NotarySpace`.
   notaryToken: string | null;
   // Independent per-audit UUID minted by static/sandbox registration. The
   // route handler attaches it as `X-Hatch-Audit-Session: <uuid>` alongside the

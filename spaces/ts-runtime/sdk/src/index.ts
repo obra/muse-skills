@@ -156,11 +156,12 @@ export type AgentTaskResult = AgentSendResult;
 
 export interface AgentClient {
   /**
-   * Start a background Space task: spawn a detached Muse agent that runs the
-   * full agent loop (web search, web fetch, multi-step tool use) to do
-   * open-ended work an action cannot do inline. Reach for this whenever a
-   * Space needs general web research / search / browsing at runtime — those
-   * tools are not on `ctx`, so a spawned task is the only way to use them.
+   * Start a background Space task: a detached Muse agent that runs the full
+   * agent loop an action cannot run inline. It reads the user's goals,
+   * tracked items, memory and chats, and browses the web (search, fetch,
+   * multi-step tool use) that `ctx` does not offer. Reach for it to refresh
+   * the user's own facts that change after the build, or for research beyond
+   * one search.
    *
    * Returns as soon as the task is *accepted*, NOT when it finishes: the
    * result is `{ ok: true, taskId, ... }` (a handle), never the task's

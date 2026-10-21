@@ -7,7 +7,7 @@ builders: web
 
 ## Decide which kind owns the request
 
-- A `web_fullstack` page fetches on the server with the full toolset below. A `web_static` page has no server and no SDK, so `ctx.*` does not exist there and its data is fixed when it is built.
+- A `web_fullstack` page fetches on the server with the full toolset below. A `web_static` page has no server and no SDK, so `ctx.*` does not exist there and its data is fixed at build.
 
 - Content that must be current whenever the user opens it, such as live prices, scores, schedules or news, needs `web_fullstack`.
 
@@ -27,9 +27,9 @@ builders: web
 
 - The result's `instrument` carries the price, currency, change, `change_percent`, intraday high and low, 52-week range, `market_status` and `as_of`.
 
-- Request `interval: "1m" | "30m" | "1d" | "1w" | "1mo"` to also get OHLCV `history` points, oldest first, for charts. Choose the interval from the user's requested time range: `1m` for a current-day or current-session chart and `30m` for a coarser multi-day intraday chart.
+- Request `interval: "1m" | "30m" | "1d" | "1w" | "1mo"` to also get OHLCV `history` points, oldest first, for charts. Choose the interval from the requested time range: `1m` for a current-day or current-session chart, `30m` for a coarser multi-day intraday chart.
 
-- These are independent upstream series. On a trading day, `1m` may already carry current-day bars while the `30m` series still ends at the prior trading day. Never treat `30m` as an aggregation of `1m`, and never switch intervals automatically.
+- These are independent upstream series: on a trading day `1m` may carry current-day bars while `30m` still ends at the prior trading day. Never treat `30m` as an aggregation of `1m`, and never switch intervals automatically.
 
 ### Scores with ctx.tool.sports_data
 
@@ -41,11 +41,17 @@ builders: web
 
 - `ctx.tool.weather(query, options?)` returns the resolved location, current conditions, a daily forecast, an optional hourly forecast and alerts.
 
-- When the user asks for a specific hourly horizon, set `hourly_hours` to that count, at most 48. Both web-artifact runtimes apply it to the upstream hourly series.
+- When the user asks for a specific hourly horizon, set `hourly_hours` to that count, at most 48. Both runtimes apply it to the upstream hourly series.
+
+### The user's facts with ctx.agent.spawnTask
+
+- `ctx.agent.spawnTask(message, { expectsAction })` starts a detached agent that reads the user's goals, tracked items, memory and chats, and browses the web, for the user's facts that change after the build, or multi-step gathering.
+
+- It returns a handle, never the answer; the agent calls the action named in `expectsAction`; start it from a scheduled or manual refresh, not page load.
 
 ### Everything else with ctx.tool.web_search
 
-- `ctx.tool.web_search(query)` covers everything else. Snippets are usually enough, so pipe them through `ctx.inference.complete(prompt, { schema })` to distill typed rows instead of opening pages.
+- `ctx.tool.web_search(query)` covers everything else. Snippets usually suffice, so pipe them through `ctx.inference.complete(prompt, { schema })` to distill typed rows instead of opening pages.
 
 - Do not spawn an agent task just to search.
 
@@ -57,19 +63,13 @@ builders: web
 
 - Prove in the build's test phase that the endpoint returns useful data for this query, region and date. Types and documentation do not prove it.
 
-### Multi-step research with ctx.agent.spawnTask
-
-- `ctx.agent.spawnTask(message, { expectsAction })` starts a detached research agent with browsing and full tool use, for gathering that genuinely needs several steps.
-
-- It returns a task handle immediately, never the answer, and the spawned agent delivers results by calling the action you name. Never block a page load on it.
-
 ### Handle missing fields
 
-- Every observation field on the managed channels is nullable by design, because the upstream may omit a price, score or forecast piece. Degrade the display without throwing, and never substitute invented values.
+- Every observation field on the managed channels is nullable by design, since the upstream may omit a price, score or forecast. Degrade the display without throwing, and never substitute invented values.
 
 ## Keep data fresh in a web_fullstack artifact
 
-- Fetch on open by default. The page calls a read action on load, and the action serves the latest cached row from `ctx.db` and refreshes from the source when the cache is stale.
+- Fetch on open by default. The page calls a read action on load, and the action serves the latest cached row from `ctx.db` and refreshes from the source when stale.
 
 - Pick a staleness budget that matches the domain, such as minutes for quotes while the market is open, an hour for weather and a day for schedules. Always render the data's `as_of` time.
 
@@ -102,7 +102,7 @@ builders: web
 - What a static page carries honestly is a real snapshot:
   - Source the data during the build by running `/opt/hatch/bin/web-search "<query>" --out <file>` and reading the file back. Stdout carries only a trimmed summary, and large payloads truncate in the shell.
   - It is the same search engine the fullstack `ctx.tool.web_search` uses. Include the needed timeframe in the query and check source dates.
-  - Use `--verticals finance|sports|weather` for domain hints, with one ticker per finance query. Each call searches one query, so use separate calls for other questions.
+  - Use `--verticals finance|sports|weather` for domain hints, one ticker per finance query. Each call searches one query, so use separate calls for other questions.
   - Distill the JSON into the typed constant the page renders, keeping the source names.
   - Bake the fetch time in as `as_of` and render it with the sources named. The page presents a dated snapshot, and that is its contract.
 
