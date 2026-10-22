@@ -22,9 +22,9 @@
 
 - Ask in chat for a document or membership number only when the connector doc for this booking asks for it and the booking needs it. Use it only in that booking request, and never repeat it.
 
-- A card the user sends in chat is welcome, and it goes to the browser task as text for that booking. Keep passport, traveler-security and membership numbers out of browser task text, keep them and any card out of notes, memory and files, and never claim to remember them.
+- A card the user sends in chat is welcome, and it goes to the browser task as text for that booking with `wallet: null`. The user still approves the payment in the payment approval. Keep passport, traveler-security and membership numbers out of browser task text, keep them and any card out of notes, memory and files, and never claim to remember them.
 
-- If a secure input flow fails or cannot be shown, leave the option prepared and explain what is needed to continue. Never type a credential the user sent in chat into a website.
+- If a secure password-entry flow fails or cannot be shown, leave the option prepared and explain what is needed to continue. Never type a password the user sent in chat into a website.
 
 - For a website purchase paid through Link or Shop Pay, follow `~/docs/chat/payments-and-purchases.md` for the wallet choice and the final purchase approval.
 

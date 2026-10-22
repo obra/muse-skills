@@ -189,7 +189,7 @@ export function parseProbeArgv(argv: string[]): {
  *  narrow layout they never loaded. */
 const KNOWN_FLAGS: Record<string, string[]> = {
   observe: ["socket", "find"],
-  act: ["socket", "node", "snapshot", "click", "double_click", "fill", "select", "hover", "press", "scroll"],
+  act: ["socket", "node", "name", "snapshot", "action", "text", "key", "dy", "click", "double_click", "fill", "select", "hover", "press", "scroll"],
   viewport: ["socket", "preset", "_positional"],
   key: ["socket", "key", "_positional"],
   reload: ["socket"],
@@ -224,22 +224,34 @@ export function requestFromArgv(
     return `unknown op ${JSON.stringify(op)}; expected one of ${[...OPS].join(", ")}`;
   }
   if (op === "act") {
+    // A single act takes the batch step's spelling too (`--name "<label>"
+    // --action click --text …`): in sampled production runs the CLI's most
+    // common failure was a builder writing the batch form on the command line.
     const nodeRaw = flags.get("node");
     const node = nodeRaw === undefined ? Number.NaN : Number(nodeRaw);
-    if (!Number.isInteger(node) || node < 1) {
-      return "act requires --node <n>, the number from the latest observe";
+    const name = (flags.get("name") ?? "").trim();
+    const addressed = Number.isInteger(node) && node >= 1;
+    if (!addressed && name.length === 0) {
+      return "act requires --node <n>, the number from the latest observe, or --name \"<visible label>\"";
     }
-    const action = [...ACTIONS].find((a) => flags.has(a));
+    const named = flags.get("action")?.trim();
+    const action = named !== undefined
+      ? [...ACTIONS].find((a) => a === named)
+      : [...ACTIONS].find((a) => flags.has(a));
     if (action === undefined) {
-      return `act requires one of --${[...ACTIONS].join(" --")}`;
+      return `act requires one of --${[...ACTIONS].join(" --")}, or --action <one of them>`;
     }
-    const req: ProbeRequest = { op, node, action };
+    const req: ProbeRequest = addressed ? { op, node, action } : { op, name, action };
     const snapshot = flags.get("snapshot");
     if (snapshot !== undefined) req.snapshot_id = snapshot;
-    if (action === "fill") req.text = flags.get("fill") ?? "";
-    if (action === "select") req.text = flags.get("select") ?? "";
-    if (action === "press") req.key = flags.get("press") ?? "Enter";
-    if (action === "scroll") req.dy = Number(flags.get("scroll") ?? "400") || 400;
+    const value = (flag: string) => {
+      const own = flags.get(flag);
+      return own !== undefined && own !== "true" ? own : undefined;
+    };
+    if (action === "fill") req.text = value("fill") ?? flags.get("text") ?? "";
+    if (action === "select") req.text = value("select") ?? flags.get("text") ?? "";
+    if (action === "press") req.key = value("press") ?? flags.get("key") ?? "Enter";
+    if (action === "scroll") req.dy = Number(value("scroll") ?? flags.get("dy") ?? "400") || 400;
     return req;
   }
   if (op === "viewport") {
@@ -810,8 +822,16 @@ async function handle(
   switch (req.op) {
     case "observe":
       return doObserve(state, auditDir, req.find);
-    case "act":
+    case "act": {
+      if (req.name !== undefined && req.node === undefined) {
+        const resolved = await resolveByName(state, req.name);
+        if ("error" in resolved) {
+          return { ok: false, code: "no_such_name", error: resolved.error };
+        }
+        req = { ...req, node: resolved.node };
+      }
       return doAct(state, req, auditDir);
+    }
     case "viewport":
       await applyViewport(state, req.preset ?? "desktop");
       return { ...(await doObserve(state, auditDir)), viewport_changed: state.viewport };
@@ -1451,6 +1471,7 @@ const USAGE = `usage: bun probe-ui.js <op> [flags]
   act --node <n> --select "<opt>"   choose an option in a <select>
   act --node <n> --hover           hover it (reveals hover-only controls)
   act --node <n> --double_click    double-click it
+  act --name "<label>" --action click   the batch step's spelling, one step
   key <Key>                        send a key to the page, not a node (Escape, Tab)
   reload                           re-navigate to pick up a rebuild, then observe
   viewport desktop|mobile          switch viewport (spends the node list)
@@ -1470,8 +1491,8 @@ const USAGE = `usage: bun probe-ui.js <op> [flags]
   --socket <path>   override the socket (default: the newest live session under
                     ~/workspace/ts-spaces/*/.harness/probe-ui/sock)
 
-The harness owns settling — never write a wait or a timeout. Address elements
-only by the numbers observe just gave you; if the page moved, observe again.
+The harness owns settling — never write a wait or a timeout. Node numbers come
+from the latest observe; if the page moved, observe again.
 `;
 
 async function readStdin(): Promise<string> {

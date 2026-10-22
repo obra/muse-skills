@@ -778,6 +778,9 @@ interface AuditReport {
   // page's semantic structure straight from the one-shot audit — control names,
   // roles, headings — without driving the resident probe. Best-effort, never gating.
   aria_snapshot: string | null;
+  // The desktop pass's document text file (`document-text.txt`), or null when
+  // the extraction failed; the content review reads it instead of the source.
+  document_text: DocumentTextRecord | null;
   // The per-audit routing key (UUID) this capture ran under, or null on a
   // host/dev run with no `--audit-session`. The completion gate requires this to
   // match the probe summary's `session_id` so it can never pair this envelope's
@@ -1171,6 +1174,148 @@ export function capAriaSnapshot(snapshot: string | null): string | null {
   return `${snapshot.slice(0, MAX_ARIA_SNAPSHOT_CHARS)}\n… (aria snapshot truncated at ${MAX_ARIA_SNAPSHOT_CHARS} chars)`;
 }
 
+// The document as a reader reads it, written beside the screenshots on the
+// desktop pass for the content review: headings, paragraphs, list items,
+// table rows, image alt text, link targets, and control labels in DOM order.
+// Content the page hides (closed tabs, collapsed panels, dialogs) is kept
+// under a `[hidden]` marker, so a reviewer can confirm an edit there without
+// mistaking it for visible text. Script, style, and media internals are left
+// out. Complete whatever the source size; truncated only past the cap.
+const DOCUMENT_TEXT_FILENAME = "document-text.txt";
+const MAX_DOCUMENT_TEXT_CHARS = 120_000;
+
+export interface DocumentTextRecord {
+  path: string;
+  chars: number;
+  truncated: boolean;
+}
+
+async function extractDocumentText(
+  page: Page,
+): Promise<{ text: string; truncated: boolean }> {
+  return page.evaluate((maxChars: number) => {
+    const SKIP = new Set([
+      "SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE", "SVG", "CANVAS", "VIDEO",
+      "AUDIO", "IFRAME", "OBJECT", "EMBED", "HEAD", "LINK", "META",
+    ]);
+    const INLINE_DISPLAY = new Set(["inline", "inline-block", "inline-flex", "inline-grid", "contents"]);
+    const lines: string[] = [];
+    let total = 0;
+    let truncated = false;
+    let inline: string[] = [];
+    let prefix = "";
+    let hiddenRun = false;
+    const emit = (line: string, hidden: boolean) => {
+      const text = line.replace(/[\s\u00a0]+/g, " ").trim();
+      if (!text) return;
+      const full = (hidden ? "[hidden] " : "") + text;
+      if (total + full.length + 1 > maxChars) {
+        truncated = true;
+        return;
+      }
+      lines.push(full);
+      total += full.length + 1;
+    };
+    const flush = () => {
+      if (inline.length) emit(prefix + inline.join(""), hiddenRun);
+      inline = [];
+      prefix = "";
+    };
+    const isHidden = (el: Element) => {
+      if ((el as HTMLElement).hidden || el.getAttribute("aria-hidden") === "true") return true;
+      const style = getComputedStyle(el);
+      return style.display === "none" || style.visibility === "hidden";
+    };
+    const compact = (text: string | null) => (text || "").replace(/[\s\u00a0]+/g, " ").trim();
+    const walk = (node: Node, hidden: boolean) => {
+      if (truncated) return;
+      if (node.nodeType === Node.TEXT_NODE) {
+        inline.push(node.nodeValue || "");
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const el = node as HTMLElement;
+      const tag = el.tagName;
+      if (SKIP.has(tag)) return;
+      const hiddenHere = hidden || isHidden(el);
+      if (tag === "IMG") {
+        inline.push(` [image: ${compact(el.getAttribute("alt")) || "no alt text"}] `);
+        return;
+      }
+      if (tag === "BR") {
+        inline.push(" ");
+        return;
+      }
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+        flush();
+        const input = el as HTMLInputElement;
+        const label = compact(
+          input.getAttribute("aria-label") || input.getAttribute("placeholder") || input.getAttribute("name"),
+        );
+        let value = "";
+        if (tag === "SELECT") {
+          value = Array.from((el as HTMLSelectElement).options)
+            .map((option) => (option.selected ? `${compact(option.text)}*` : compact(option.text)))
+            .join(" | ");
+        } else if (input.type !== "password") {
+          value = compact(input.value);
+        }
+        const kind = tag === "INPUT" ? `input ${input.type}` : tag.toLowerCase();
+        emit(`[${kind}: ${label}${value ? ` = ${value}` : ""}]`, hiddenHere);
+        return;
+      }
+      if (tag === "HR") {
+        flush();
+        emit("---", hiddenHere);
+        return;
+      }
+      if (tag === "TR") {
+        flush();
+        const cells = Array.from(el.children).map((cell) => compact(cell.textContent));
+        emit(cells.join(" | "), hiddenHere);
+        return;
+      }
+      if (tag === "A") {
+        for (const child of Array.from(el.childNodes)) walk(child, hiddenHere);
+        const href = el.getAttribute("href") || "";
+        if (href && !href.startsWith("#") && !href.toLowerCase().startsWith("javascript:")) {
+          inline.push(` (→ ${href})`);
+        }
+        return;
+      }
+      if (tag === "BUTTON") {
+        inline.push(" [button: ");
+        for (const child of Array.from(el.childNodes)) walk(child, hiddenHere);
+        inline.push("] ");
+        return;
+      }
+      const heading = /^H([1-6])$/.exec(tag);
+      const display = getComputedStyle(el).display;
+      const block = heading !== null || tag === "LI" || !INLINE_DISPLAY.has(display);
+      if (!block) {
+        for (const child of Array.from(el.childNodes)) walk(child, hiddenHere);
+        return;
+      }
+      flush();
+      hiddenRun = hiddenHere;
+      if (heading) prefix = `${"#".repeat(Number(heading[1]))} `;
+      else if (tag === "LI") prefix = "- ";
+      const blockPrefix = prefix;
+      for (const child of Array.from(el.childNodes)) {
+        // A nested block flushes the run; restore this block's own prefix for
+        // the inline text that follows it.
+        walk(child, hiddenHere);
+        if (!inline.length) prefix = blockPrefix;
+      }
+      flush();
+      hiddenRun = hidden;
+    };
+    walk(document.body, false);
+    flush();
+    return { text: lines.join("\n"), truncated };
+  }, MAX_DOCUMENT_TEXT_CHARS);
+}
+
 /**
  * Desktop and mobile load the same page, so each broken asset is recorded once
  * per pass. Collapse to unique url+status, preserving first-seen order. Pure, so
@@ -1493,6 +1638,7 @@ function emptyReport(args: CliArgs): AuditReport {
     blocked_affordances: [],
     interactive_nodes: 0,
     aria_snapshot: null,
+    document_text: null,
     audit_session_id: args.auditSessionId,
     readiness: { desktop: null, mobile: null },
     color_scheme: null,
@@ -2546,6 +2692,8 @@ async function captureViewport(
   fullpage_screenshot_path: string | null;
   /** Desktop accessibility tree (capped), or null on mobile / on failure. */
   aria_snapshot: string | null;
+  /** Desktop document text file record, or null on mobile / on failure. */
+  document_text: DocumentTextRecord | null;
   /** Sandbox-incompatible affordances found on the desktop pass; [] on mobile. */
   blocked_affordances: BlockedAffordance[];
   readiness: ViewportReadiness;
@@ -2722,6 +2870,7 @@ async function captureViewport(
     // extremely tall. Best-effort — neither ever fails the audit.
     let fullpage_screenshot_path: string | null = null;
     let aria_snapshot: string | null = null;
+    let document_text: DocumentTextRecord | null = null;
     let blocked_affordances: BlockedAffordance[] = [];
     if (!isMobile) {
       const fullPagePath = join(outputDir, FULLPAGE_SCREENSHOT_FILENAME);
@@ -2732,6 +2881,18 @@ async function captureViewport(
         // the fold screenshot is already captured; a full-page failure is non-fatal
       }
       aria_snapshot = capAriaSnapshot(await ariaSnapshot(page));
+      try {
+        const extracted = await extractDocumentText(page);
+        const textPath = join(outputDir, DOCUMENT_TEXT_FILENAME);
+        await writeFile(textPath, extracted.text, "utf8");
+        document_text = {
+          path: textPath,
+          chars: extracted.text.length,
+          truncated: extracted.truncated,
+        };
+      } catch {
+        // the captures stand; the review falls back to the source
+      }
       blocked_affordances = await detectBlockedAffordances(page);
     }
 
@@ -2751,6 +2912,7 @@ async function captureViewport(
       interactive_nodes,
       fullpage_screenshot_path,
       aria_snapshot,
+      document_text,
       blocked_affordances,
       readiness,
       color_scheme,
@@ -2895,6 +3057,7 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
         report.unreachable_controls.desktop = desktop.unreachable_controls;
         report.clipped.desktop = desktop.clipped;
         report.aria_snapshot = desktop.aria_snapshot;
+        report.document_text = desktop.document_text;
         report.blocked_affordances = desktop.blocked_affordances;
         report.interactive_nodes = Math.max(
           report.interactive_nodes,
@@ -3504,6 +3667,7 @@ async function main(): Promise<number> {
       broken_assets: [],
       blocked_affordances: [],
       aria_snapshot: null,
+      document_text: null,
       interactive_nodes: 0,
       audit_session_id: args.auditSessionId,
       readiness: { desktop: null, mobile: null },

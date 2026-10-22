@@ -14,9 +14,9 @@
 
 - Start one `browser.browse` task with `task_id: "new"` for the selected option and keep its `task_id` through review, changes, submission and verification. Continue it with `browser.browse` and that `task_id`. Carts, holds and sign-in belong to that session, so never start a competing checkout or start over after approval.
 
-- Give the task the exact seller URL and every known non-sensitive choice. When the booking is paid at checkout, ask it to book; its checkout shows the user the payment approval before anything is paid. Otherwise, ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
+- Give the task the exact seller URL and every known non-sensitive choice. When the booking takes payment or requires a card guarantee, ask it to book; its checkout shows the user the payment approval before committing the booking. Otherwise, ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
 
-- Keep passport, traveler-security, membership and payment numbers out of the task text. The website, wallet or user enters them in the secure field.
+- Keep passport, traveler-security and membership numbers out of the task text. The website or user enters them in the secure field. A payment card the user supplies for this booking may go to the browser task as text with `wallet: null`, following `~/docs/chat/payments-and-purchases.md`. The user still approves the payment in the payment approval; keep card details out of notes, memory and files.
 
 ## Handle website snags
 
