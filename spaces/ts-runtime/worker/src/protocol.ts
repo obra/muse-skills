@@ -20,6 +20,8 @@ export interface InvokeCommand {
   // lineage. Absent when the action has no resolved root.
   root_request_id?: string;
   proxy_env?: Record<string, string>;
+  // This invocation's deadline when it is not HATCH_SPACE_ACTION_TIMEOUT_MS.
+  timeout_ms?: number;
 }
 
 export interface CancelCommand {

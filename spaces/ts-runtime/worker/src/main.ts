@@ -13,7 +13,8 @@
 //   HATCH_API_SOCKET            preferred daemon connect path (Unix socket)
 //   HATCH_API_URL               TCP fallback if no socket
 //   HATCH_SPACE_INFERENCE_SOCKET daemon-owned length-prefixed JSON RPC socket
-//   HATCH_SPACE_ACTION_TIMEOUT_MS enclosing daemon action deadline
+//   HATCH_SPACE_ACTION_TIMEOUT_MS enclosing daemon action deadline, unless an
+//                               invoke command carries its own timeout_ms
 //   HATCH_SPACE_INFERENCE_DEFAULT_TIMEOUT_MS inference budget inside that deadline
 //   HATCH_SPACE_WEB_SEARCH_SOCKET daemon-owned length-prefixed JSON RPC socket for ctx.tool
 //   HATCH_SPACE_PRIVILEGED_SOCKET daemon-owned length-prefixed JSON RPC socket for ctx.executePrivileged
@@ -285,6 +286,7 @@ function buildCtx(args: {
   viewer?: LocalViewer;
   requestId: string;
   rootRequestId?: string;
+  timeoutMs?: number;
   action: string;
   privileged?: readonly PrivilegedContract[];
   transport: InvokeCommand["transport"];
@@ -302,6 +304,7 @@ function buildCtx(args: {
     args.invocationId,
     args.action,
     args.rootRequestId,
+    args.timeoutMs,
   );
   const blobs = createBlobClient({
     spaceDir: args.spaceDir,
@@ -406,6 +409,7 @@ async function runInvocation(args: {
     viewer: command.viewer,
     requestId: command.request_id,
     rootRequestId: command.root_request_id,
+    timeoutMs: command.timeout_ms,
     action: command.action,
     privileged: definition.privileged,
     transport: command.transport,

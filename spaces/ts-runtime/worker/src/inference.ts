@@ -76,9 +76,9 @@ function optionalPositiveIntegerEnv(name: string): number | undefined {
   return value;
 }
 
-function inferenceDeadlineContextFromEnv():
-  | InferenceDeadlineContext
-  | undefined {
+function inferenceDeadlineContextFromEnv(
+  invocationTimeoutMs?: number,
+): InferenceDeadlineContext | undefined {
   const actionTimeoutMs = optionalPositiveIntegerEnv(ACTION_TIMEOUT_MS_ENV);
   const defaultServerTimeoutMs = optionalPositiveIntegerEnv(
     DEFAULT_INFERENCE_TIMEOUT_MS_ENV,
@@ -98,10 +98,14 @@ function inferenceDeadlineContextFromEnv():
       `${DEFAULT_INFERENCE_TIMEOUT_MS_ENV} must be positive and less than ${ACTION_TIMEOUT_MS_ENV}`,
     );
   }
+  // An invocation with its own deadline keeps the worker's transport
+  // headroom, and its default budget moves with the deadline.
+  const transportHeadroomMs = actionTimeoutMs - defaultServerTimeoutMs;
+  const timeoutMs = invocationTimeoutMs ?? actionTimeoutMs;
   return {
-    actionDeadlineMs: performance.now() + actionTimeoutMs,
-    defaultServerTimeoutMs,
-    transportHeadroomMs: actionTimeoutMs - defaultServerTimeoutMs,
+    actionDeadlineMs: performance.now() + timeoutMs,
+    defaultServerTimeoutMs: timeoutMs - transportHeadroomMs,
+    transportHeadroomMs,
   };
 }
 
@@ -144,19 +148,10 @@ function timeoutPlan(
       ? deadline.defaultServerTimeoutMs
       : requestedTimeoutSecs * 1000;
 
-  if (
-    requestedTimeoutSecs === undefined &&
-    requestedTimeoutMs <= maxServerTimeoutMs
-  ) {
-    return {
-      socketTimeoutMs:
-        requestedTimeoutMs + deadline.transportHeadroomMs,
-    };
-  }
-
-  const effectiveTimeoutSecs = Math.min(
-    requestedTimeoutSecs ?? MAX_TIMEOUT_SECS,
-    Math.floor(maxServerTimeoutMs / 1000),
+  // Always state the budget: the daemon's own default belongs to interactive
+  // workers, while this worker's deadline may be a scheduled occurrence's.
+  const effectiveTimeoutSecs = Math.floor(
+    Math.min(requestedTimeoutMs, maxServerTimeoutMs) / 1000,
   );
   if (effectiveTimeoutSecs <= 0) {
     throw new Error(
@@ -301,8 +296,9 @@ export function createInferenceClient(
   actionInvocationId?: string,
   actionName?: string,
   rootRequestId?: string,
+  actionTimeoutMs?: number,
 ): InferenceClient {
-  const deadline = inferenceDeadlineContextFromEnv();
+  const deadline = inferenceDeadlineContextFromEnv(actionTimeoutMs);
   const ctx: InferenceContext = {
     ...(actionInvocationId !== undefined ? { actionInvocationId } : {}),
     ...(actionName !== undefined ? { actionName } : {}),

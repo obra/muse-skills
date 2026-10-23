@@ -122,6 +122,31 @@ const MAX_BATCH_STEPS = 12;
 // coordinate guessing.
 const ACTIONS = new Set(["click", "fill", "press", "scroll", "select", "hover", "double_click"]);
 
+type Device = "desktop" | "mobile";
+type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+
+/**
+ * Context options per device. A phone-first session's mobile is a touch
+ * phone, as in the audit's mobile capture: it taps, cannot hover, and honours
+ * the page's `<meta name="viewport">`. Its frames stay at 1x so each
+ * screenshot the builder reads stays small. A live context cannot change
+ * these, so a phone-first device switch opens a new context (switchDevice).
+ */
+function deviceContextOptions(device: Device): {
+  viewport: { width: number; height: number };
+  isMobile?: boolean;
+  hasTouch?: boolean;
+} {
+  return device === "mobile"
+    ? { viewport: { ...MOBILE_VIEWPORT }, isMobile: true, hasTouch: true }
+    : { viewport: { ...DESKTOP_VIEWPORT } };
+}
+
+/** Sent with each phone-first device switch, which reloads the page. */
+const DEVICE_SWITCH_NOTE =
+  "the page reloaded as the other device: cookies and localStorage carried over, but state " +
+  "held only in memory, such as an open tab or dialog, starts over";
+
 export interface ProbeRequest {
   op: string;
   /** For `batch`: the ops to run in order. */
@@ -291,9 +316,19 @@ interface SessionState {
   daemonOrigin: string;
   /** Unique per audit; mixed into snapshot ids so they cannot collide. */
   auditSessionId: string;
-  viewport: "desktop" | "mobile";
+  viewport: Device;
   /** Every viewport this session actually loaded, for the session record. */
   viewportsSeen: Set<string>;
+  /** The build's pinned `hatch_artifact_audit_phone_first` decision
+   *  (`--phone-first`): the session starts as a touch phone and switches
+   *  device by reopening the page. Otherwise it starts on desktop and
+   *  `viewport` resizes the live page. */
+  phoneFirst: boolean;
+  /** Opens the artifact's context and page as `device` (see switchDevice). */
+  openDevice: (
+    device: Device,
+    storageState?: StorageState,
+  ) => Promise<{ context: BrowserContext; page: Page }>;
   /** Rotated on every observe and every act; `act` refuses a stale one so the
    *  model can never operate on a node list that no longer describes the page. */
   snapshotId: string | null;
@@ -721,6 +756,16 @@ async function doAct(
       error: `snapshot ${req.snapshot_id} is stale (current ${state.snapshotId}); observe again`,
     };
   }
+  const touch = state.phoneFirst && state.viewport === "mobile";
+  if (touch && req.action === "hover") {
+    return {
+      ok: false,
+      code: "no_hover_on_touch",
+      error:
+        "the mobile viewport is a touch phone, which cannot hover, so a control only a hover " +
+        "reveals is out of a phone user's reach; run `viewport desktop` to check hover behavior",
+    };
+  }
   const locator = state.page.locator(`[${OBSERVE_ATTR}="${req.node}"]`);
   const count = await locator.count().catch(() => 0);
   if (count !== 1) {
@@ -739,7 +784,8 @@ async function doAct(
   let acted = false;
   let actionError: string | null = null;
   try {
-    if (req.action === "click") await locator.click({ timeout: OP_TIMEOUT_MS });
+    if (req.action === "click" && touch) await locator.tap({ timeout: OP_TIMEOUT_MS });
+    else if (req.action === "click") await locator.click({ timeout: OP_TIMEOUT_MS });
     else if (req.action === "double_click") await locator.dblclick({ timeout: OP_TIMEOUT_MS });
     else if (req.action === "hover") await locator.hover({ timeout: OP_TIMEOUT_MS });
     else if (req.action === "select") {
@@ -814,6 +860,47 @@ async function applyViewport(state: SessionState, preset: string): Promise<void>
   state.snapshotId = null;
 }
 
+/**
+ * Make a phone-first session `device`. This reopens the artifact in a new
+ * context that carries the old one's cookies and localStorage, and replaces
+ * the page only after the new one has loaded, so a failed load leaves the
+ * session as it was.
+ * It reloads the page's address when only its query or fragment differs from
+ * the start address (the audit transport loads no deeper document path), and
+ * the start address otherwise, and returns which one it loaded. State the page
+ * held only in memory, such as an open tab or dialog, starts over.
+ */
+async function switchDevice(
+  state: SessionState,
+  device: Device,
+): Promise<"same address" | "start page" | null> {
+  if (device === state.viewport) return null;
+  const entry = new URL(state.url);
+  const current = new URL(state.page.url());
+  const sameAddress = current.origin === entry.origin && current.pathname === entry.pathname;
+  const target = sameAddress ? current.href : state.url;
+  const next = await state.openDevice(device, await state.context.storageState());
+  let navStatus: number | null;
+  try {
+    navStatus = await navigateAndSettle(next.page, target);
+  } catch (err) {
+    await next.context.close().catch(() => {});
+    throw err;
+  }
+  const replaced = state.context;
+  state.context = next.context;
+  state.page = next.page;
+  state.navStatus = navStatus;
+  state.viewport = device;
+  state.viewportsSeen.add(device);
+  // The node list and the last frame described the replaced page.
+  state.snapshotId = null;
+  state.lastShotHash = null;
+  state.lastSurfacedShot = null;
+  await replaced.close().catch(() => {});
+  return sameAddress ? "same address" : "start page";
+}
+
 async function handle(
   state: SessionState,
   auditDir: string | null,
@@ -832,9 +919,32 @@ async function handle(
       }
       return doAct(state, req, auditDir);
     }
-    case "viewport":
-      await applyViewport(state, req.preset ?? "desktop");
-      return { ...(await doObserve(state, auditDir)), viewport_changed: state.viewport };
+    case "viewport": {
+      if (!state.phoneFirst) {
+        await applyViewport(state, req.preset ?? "desktop");
+        return { ...(await doObserve(state, auditDir)), viewport_changed: state.viewport };
+      }
+      // A batch step can arrive without a preset (builders send widths); a
+      // phone-first session must not read that as a switch off the phone.
+      if (req.preset !== "desktop" && req.preset !== "mobile") {
+        return {
+          ok: false,
+          code: "bad_viewport",
+          error:
+            `viewport takes a preset, not a size; this session is on ${state.viewport}. ` +
+            `As a batch step, a phone (${MOBILE_VIEWPORT.width}x${MOBILE_VIEWPORT.height}) is ` +
+            '{"op":"viewport","preset":"mobile"} and desktop ' +
+            `(${DESKTOP_VIEWPORT.width}x${DESKTOP_VIEWPORT.height}) is ` +
+            '{"op":"viewport","preset":"desktop"}',
+        };
+      }
+      const reopened = await switchDevice(state, req.preset);
+      return {
+        ...(await doObserve(state, auditDir)),
+        viewport_changed: state.viewport,
+        ...(reopened === null ? {} : { reopened, device_switch: DEVICE_SWITCH_NOTE }),
+      };
+    }
     case "flag":
       state.findings.push({
         severity: req.severity ?? "major",
@@ -1022,6 +1132,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
     || (spaceDir ? join(spaceDir, PROBE_DIR, SOCKET_BASENAME) : "");
   const auditSessionId = (flags.get("audit-session") ?? flags.get("session") ?? "").trim() || null;
   const auditDir = (flags.get("audit-dir") ?? "").trim() || null;
+  const phoneFirst = flags.get("phone-first") === "true";
   const proxyServer = (flags.get("proxy-server") ?? "").trim() || null;
   const proxyAuthUsername = (flags.get("proxy-auth-username") ?? "").trim() || null;
   if (!slug || !routeSlug || !url || !socketPath) {
@@ -1114,50 +1225,64 @@ async function serve(flags: Map<string, string>): Promise<number> {
   const browser = await pw.chromium.launch(
     buildLaunchOptions(executablePath, effectiveProxy, null, proxyAuthUsername),
   );
-  const context = await browser.newContext({
-    viewport: { ...DESKTOP_VIEWPORT },
-    deviceScaleFactor: 1,
-    serviceWorkers: "block",
-    // See the one-shot audit: this hop is a VM-loopback dial to the pinned
-    // self-FQDN whose leaf is signed by a private CA the cell does not trust,
-    // and the notary endorsement (not TLS) is the real authorization.
-    ignoreHTTPSErrors: true,
-  });
-  await context.addInitScript(freezeTimeScript(frozenEpochMs(flags)));
-  const page = await context.newPage();
-
   const consoleErrors: string[] = [];
   const failedImages: FailedImageRequest[] = [];
   const blockedRequests: string[] = [];
   // Persisted to probe-network.json (see writeProbeNetworkRecord): the
   // interaction phase's sends are the ones the one-shot capture cannot see.
   const externalRequests = newExternalRequestLog();
-  const daemonOrigin = await attachAuditNetworkPolicy(
-    page,
-    url,
-    slug,
-    routeSlug,
-    notaryToken,
-    auditSessionId,
-    blockedRequests,
-    externalRequests,
-    (flags.get("sandbox-api-socket") ?? "").trim() || null,
-  );
   // The probe runs under the same egress lockdown as the audit render when the
   // ledger started, so its diagnostics classify refused externals the same way
   // the audit does instead of scoring a working CDN image as broken.
   const egressLockdown = transportLedger !== null;
   const externalFetchFailures = { count: 0, samples: [] as string[] };
-  installPageDiagnostics(
-    page,
-    consoleErrors,
-    failedImages,
-    daemonOrigin,
-    [],
-    [],
-    externalFetchFailures,
-    egressLockdown,
-  );
+  const frozenEpoch = frozenEpochMs(flags);
+  const sandboxApiSocket = (flags.get("sandbox-api-socket") ?? "").trim() || null;
+  // Every device's context gets the same clock, network policy, and
+  // diagnostics sinks.
+  const openDevice = async (
+    device: Device,
+    storageState?: StorageState,
+  ): Promise<{ context: BrowserContext; page: Page; daemonOrigin: string }> => {
+    const context = await browser.newContext({
+      ...deviceContextOptions(device),
+      deviceScaleFactor: 1,
+      serviceWorkers: "block",
+      // See the one-shot audit: this hop is a VM-loopback dial to the pinned
+      // self-FQDN whose leaf is signed by a private CA the cell does not trust,
+      // and the notary endorsement (not TLS) is the real authorization.
+      ignoreHTTPSErrors: true,
+      ...(storageState === undefined ? {} : { storageState }),
+    });
+    await context.addInitScript(freezeTimeScript(frozenEpoch));
+    const page = await context.newPage();
+    const daemonOrigin = await attachAuditNetworkPolicy(
+      page,
+      url,
+      slug,
+      routeSlug,
+      notaryToken,
+      auditSessionId,
+      blockedRequests,
+      externalRequests,
+      sandboxApiSocket,
+    );
+    installPageDiagnostics(
+      page,
+      consoleErrors,
+      failedImages,
+      daemonOrigin,
+      [],
+      [],
+      externalFetchFailures,
+      egressLockdown,
+    );
+    return { context, page, daemonOrigin };
+  };
+  // Artifacts open on phones more than anywhere else, so a phone-first
+  // session starts as one; `viewport desktop` switches.
+  const startDevice: Device = phoneFirst ? "mobile" : "desktop";
+  const { context, page, daemonOrigin } = await openDevice(startDevice);
 
   // Frames land in the audit dir when the runner gave us one; otherwise the
   // session dir is the only durable place this record can go.
@@ -1178,8 +1303,10 @@ async function serve(flags: Map<string, string>): Promise<number> {
     slug,
     daemonOrigin,
     auditSessionId: auditSessionId ?? socketPath,
-    viewport: "desktop",
-    viewportsSeen: new Set(["desktop"]),
+    viewport: startDevice,
+    viewportsSeen: new Set([startDevice]),
+    phoneFirst,
+    openDevice,
     snapshotId: null,
     consoleErrors,
     failedImages,
@@ -1206,6 +1333,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
         url,
         audit_session_id: auditSessionId,
         pid: process.pid,
+        ...(phoneFirst ? { phone_first: true } : {}),
       },
       null,
       2,
@@ -1249,7 +1377,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
     process.stderr.write(`[probe-ui] shutting down: ${reason}\n`);
     await writeSessionSummary(probeDir, state, auditSessionId).catch(() => {});
     await recordNetwork();
-    await context.close().catch(() => {});
+    await state.context.close().catch(() => {});
     await browser.close().catch(() => {});
     if (transportLedger !== null) await transportLedger.close().catch(() => {});
     if (relayClose !== null) await relayClose().catch(() => {});
@@ -1495,6 +1623,43 @@ The harness owns settling — never write a wait or a timeout. Node numbers come
 from the latest observe; if the page moved, observe again.
 `;
 
+/** USAGE for a phone-first session (session.json `phone_first`). */
+const PHONE_FIRST_USAGE = USAGE.replace(
+  "  act --node <n> --click           click the node numbered by the last observe\n",
+  "  act --node <n> --click           click the node numbered by the last observe\n" +
+    "                                   (a tap on mobile)\n",
+)
+  .replace(
+    "  act --node <n> --hover           hover it (reveals hover-only controls)\n",
+    "  act --node <n> --hover           hover it (desktop only: a phone cannot hover)\n",
+  )
+  .replace(
+    "  viewport desktop|mobile          switch viewport (spends the node list)\n",
+    "  viewport desktop|mobile          the session starts as a touch phone (mobile);\n" +
+      "                                   switching reloads the page as the other device,\n" +
+      "                                   keeping cookies, localStorage, and the URL's\n" +
+      "                                   query and fragment, so a tab or dialog held only\n" +
+      "                                   in memory starts over; reopened says whether the\n" +
+      "                                   same address or the start page loaded (a screen\n" +
+      "                                   on its own path reopens at the start page);\n" +
+      "                                   spends the node list\n",
+  );
+
+/** The help for the session this call would reach. */
+async function usageFor(flags: Map<string, string>): Promise<string> {
+  const socket = (flags.get("socket") ?? "").trim() || (await discoverSocket());
+  if (socket === null) return USAGE;
+  let raw: string;
+  try {
+    raw = await readFile(join(dirname(socket), SESSION_BASENAME), "utf8");
+  } catch (err) {
+    // No session at that path: nothing to describe but the CLI itself.
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return USAGE;
+    throw err;
+  }
+  return JSON.parse(raw).phone_first === true ? PHONE_FIRST_USAGE : USAGE;
+}
+
 async function readStdin(): Promise<string> {
   let buf = "";
   process.stdin.setEncoding("utf8");
@@ -1534,12 +1699,12 @@ async function main(argv: string[]): Promise<number> {
     return runClient(socket, { op: "batch", steps });
   }
   if (op === null || op === "help" || flags.has("help")) {
-    process.stdout.write(USAGE);
+    process.stdout.write(await usageFor(flags));
     return op === null ? 2 : 0;
   }
   const req = requestFromArgv(op, flags);
   if (typeof req === "string") {
-    process.stderr.write(`probe-ui: ${req}\n\n${USAGE}`);
+    process.stderr.write(`probe-ui: ${req}\n\n${await usageFor(flags)}`);
     return 2;
   }
   const socketPath = (flags.get("socket") ?? "").trim() || (await discoverSocket());

@@ -8,7 +8,7 @@
 
 - Lead with one sentence naming the recommended option and the decisive reason. For travel, state the meaningful difference in price and in time or distance.
 
-- Show three to five distinct choices, best first, or fewer when fewer qualify. Add another option only when it changes the decision.
+- For text comparisons with no requested count, show three to five distinct choices, best first, or fewer when fewer qualify. Honor an explicit count. Native result previews follow the connector's preview and See all contract instead of this text default.
 
 - Follow [flight comparison](/opt/muse/skills/flight-booking/references/flights.md) and [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) for native results. Use the Markdown table below for their fallback, restaurants and tickets.
 
