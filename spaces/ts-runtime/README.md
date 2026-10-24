@@ -19,8 +19,12 @@ ts-runtime/
 │   └── src/
 │       ├── index.ts    # server-side surface (defineAction, Ctx, ActionsModule, …)
 │       └── client.ts   # browser-side surface (createActionClient)
+├── base-ui/            # @hatch/base-ui, Base UI's public parts, bundled
+├── muse-ui/            # @hatch/muse-ui, the Muse template's components
 └── dist/               # gitignored; populated by build.mjs
-    └── space-sdk.tgz   # vendored into each TS web artifact via `file:` dep
+    ├── space-sdk.tgz   # vendored into each TS web artifact via `file:` dep
+    ├── base-ui.tgz     # added to Muse artifacts only, same way
+    └── muse-ui.tgz     # likewise; imports @hatch/base-ui
 ```
 
 ## Host appearance and the chat palette
@@ -198,3 +202,17 @@ Run the local Cloudflare exporter tests with:
 ```bash
 bun test --timeout 30000 cloudflare/build-cloudflare.test.mjs cloudflare/shared-state.test.ts
 ```
+
+## Muse icons
+
+`spaces/icons/icons.json.gz` holds every Muse icon and `spaces/icons/aliases.json`
+the familiar names that resolve to them. `build.mjs` bundles `dist/icons.js`, which
+the artifact build runs for templates that own icons: `resolve` writes a Space's
+`client/.generated/icons.ts` from its `@space/icons` imports, and `fill` replaces
+`data-icon` placeholders in a staged static page. The SDK tarball carries only
+the renderer. See `scripts/assets/xmds-icons/README.md`.
+
+## Muse components
+
+`base-ui/` and `muse-ui/` are the Muse template's packages; see
+`muse-ui/README.md`.

@@ -14,6 +14,14 @@
 //   ts-runtime/dist/migrate.js      — bun runner the CLI shells out to in
 //                                     create-space + build-space to apply
 //                                     drizzle migrations against app.db
+//   ts-runtime/dist/icons.js        — icon resolver the artifact build runs
+//                                     over spaces/icons/{icons.json.gz,aliases.json}
+//   ts-runtime/dist/base-ui.tgz     — @hatch/base-ui, Base UI's public parts
+//                                     bundled with React external
+//   ts-runtime/dist/muse-ui.tgz     — @hatch/muse-ui, the Muse template's
+//                                     components on @hatch/base-ui; the
+//                                     scaffold adds both to Muse Spaces as
+//                                     `file:` deps
 
 import { spawnSync } from "node:child_process";
 import {
@@ -22,19 +30,27 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   unlinkSync,
+  writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SDK_DIR = join(ROOT, "sdk");
+const BASE_UI_DIR = join(ROOT, "base-ui");
+const MUSE_UI_DIR = join(ROOT, "muse-ui");
 const WORKER_DIR = join(ROOT, "worker");
 const CVM_DIR = join(ROOT, "cvm");
 const DIST = join(ROOT, "dist");
 const TARBALL_NAME = "space-sdk.tgz";
+const BASE_UI_TARBALL_NAME = "base-ui.tgz";
+const MUSE_UI_TARBALL_NAME = "muse-ui.tgz";
 const WORKER_NAME = "worker.js";
 const MIGRATE_NAME = "migrate.js";
 const PRUNE_IMPORTS_NAME = "prune-imports.js";
@@ -47,6 +63,8 @@ const PROBE_CTX_NAME = "probe-ctx.js";
 const PROBE_UI_NAME = "probe-ui.js";
 const BUILD_CVM_CLIENT_NAME = "build-cvm-client.js";
 const CVM_PRELUDE_NAME = "cvm-prelude.js";
+const ICONS_CLI_NAME = "icons.js";
+// The one checked-in copy of the icon geometry; SDK modules are generated from it.
 
 function resolveBun() {
   for (const candidate of [
@@ -75,11 +93,13 @@ function run(cmd, args, options = {}) {
 
 function clean() {
   rmSync(DIST, { recursive: true, force: true });
-  rmSync(join(SDK_DIR, "dist"), { recursive: true, force: true });
-  // Drop any leftover tarballs from prior packs.
-  for (const entry of readdirSync(SDK_DIR)) {
-    if (entry.endsWith(".tgz")) {
-      unlinkSync(join(SDK_DIR, entry));
+  for (const dir of [SDK_DIR, BASE_UI_DIR, MUSE_UI_DIR]) {
+    rmSync(join(dir, "dist"), { recursive: true, force: true });
+    // Drop any leftover tarballs from prior packs.
+    for (const entry of readdirSync(dir)) {
+      if (entry.endsWith(".tgz")) {
+        unlinkSync(join(dir, entry));
+      }
     }
   }
   mkdirSync(DIST, { recursive: true });
@@ -104,6 +124,11 @@ function compileSdk(bun) {
   // SDK must be compiled before the worker is bundled — the worker imports
   // from `@hatch/space-sdk` which (via workspace) points at `sdk/dist/`.
   run(bun, ["x", "tsc", "-p", "tsconfig.json"], { cwd: SDK_DIR });
+}
+
+
+function bundleIconsCli(bun) {
+  run(bun, ["build", "./icons/cli.ts", "--target=bun", "--outfile", join(DIST, ICONS_CLI_NAME)], { cwd: ROOT });
 }
 
 async function bundleSdkPdf() {
@@ -209,28 +234,206 @@ async function bundleSdkPdf() {
 }
 
 function packSdk(bun) {
+  packWorkspace(bun, SDK_DIR, TARBALL_NAME);
+}
+
+function packWorkspace(bun, dir, tarballName) {
   // `bun pm pack` produces a tarball in cwd named after the package + version
-  // (e.g. hatch-space-sdk-0.1.0.tgz). Rename to the canonical `space-sdk.tgz`
-  // consumed by template `package.json` `file:` deps.
+  // (e.g. hatch-space-sdk-0.1.0.tgz). Rename to the canonical name consumed by
+  // template `package.json` `file:` deps.
   const result = spawnSync(bun, ["pm", "pack"], {
-    cwd: SDK_DIR,
+    cwd: dir,
     stdio: ["inherit", "pipe", "inherit"],
     encoding: "utf8",
   });
   if (result.status !== 0) {
     throw new Error(`bun pm pack failed (status ${result.status})`);
   }
-  const produced = readdirSync(SDK_DIR).filter((name) => name.endsWith(".tgz"));
+  const produced = readdirSync(dir).filter((name) => name.endsWith(".tgz"));
   if (produced.length === 0) {
     throw new Error("bun pm pack produced no .tgz");
   }
   if (produced.length > 1) {
     throw new Error(`bun pm pack produced multiple tarballs: ${produced.join(", ")}`);
   }
-  const src = join(SDK_DIR, produced[0]);
-  const dest = join(DIST, TARBALL_NAME);
+  const src = join(dir, produced[0]);
+  const dest = join(DIST, tarballName);
   copyFileSync(src, dest);
   unlinkSync(src);
+}
+
+// Base UI's public entry points: every subpath it exports except
+// `./internals/*`, which it marks internal and whose date adapters need
+// date-fns or luxon. Read from the pinned package so the surface follows the pin.
+function baseUiSubpaths(pkgDir) {
+  const manifest = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+  return Object.keys(manifest.exports)
+    .filter(
+      (key) =>
+        key === "." ||
+        (key.startsWith("./") && key !== "./package.json" && !key.startsWith("./internals/")),
+    )
+    .map((key) => (key === "." ? "index" : key.slice(2)));
+}
+
+// The package directory a bare specifier names, found the way Node does: up
+// the node_modules chain from the importing file.
+function packageDirFrom(fromFile, name) {
+  let dir = dirname(fromFile);
+  for (;;) {
+    const candidate = join(dir, "node_modules", name);
+    if (existsSync(join(candidate, "package.json"))) return realpathSync(candidate);
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+function declarationFor(target) {
+  if (typeof target === "string") {
+    if (target.endsWith(".d.ts")) return target;
+    if (target.endsWith(".d.mts")) return target.replace(/\.d\.mts$/, ".d.ts");
+    return null;
+  }
+  if (target == null || typeof target !== "object") return null;
+  for (const condition of ["require", "types", "import", "default"]) {
+    const found = declarationFor(target[condition]);
+    if (found != null) return found;
+  }
+  return null;
+}
+
+// The declaration file a bare `name[/sub]` specifier resolves to.
+function resolveBareDeclaration(fromFile, specifier) {
+  const parts = specifier.split("/");
+  const name = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
+  const sub = specifier.slice(name.length);
+  const pkgDir = packageDirFrom(fromFile, name);
+  if (pkgDir == null) return null;
+  const manifest = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+  let rel = manifest.exports == null ? null : declarationFor(manifest.exports["." + sub]);
+  if (rel == null && sub === "") rel = manifest.types ?? manifest.typings ?? "index.d.ts";
+  if (rel == null) return null;
+  const file = join(pkgDir, rel);
+  return existsSync(file) ? { name, pkgDir, file } : null;
+}
+
+function resolveRelativeDeclaration(fromFile, specifier) {
+  const base = join(dirname(fromFile), specifier.replace(/\.(m?js)$/, ""));
+  for (const candidate of [base + ".d.ts", join(base, "index.d.ts")]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+const DECLARATION_SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(["'])([^"']+)\2/g;
+// Bare specifiers a Space provides itself, left as they are.
+const SPACE_PROVIDED_TYPES = /^(react|react-dom)(\/|$)/;
+
+// Copies the declarations reachable from Base UI's public entry points into
+// dist/types/<package>/..., rewriting bare imports of its dependencies to
+// relative paths, so a Space typechecks against Base UI's own types without
+// installing Base UI or its dependencies.
+function copyBaseUiDeclarations(baseUiPkgDir, subpaths, typesRoot) {
+  const outPath = new Map();
+  const queue = [];
+  const enqueue = (file, name, pkgDir) => {
+    if (outPath.has(file)) return outPath.get(file);
+    const out = join(typesRoot, name, relative(pkgDir, file));
+    outPath.set(file, out);
+    queue.push({ file, name, pkgDir, out });
+    return out;
+  };
+  const entries = new Map();
+  for (const sub of subpaths) {
+    const specifier = sub === "index" ? "@base-ui/react" : `@base-ui/react/${sub}`;
+    const resolved = resolveBareDeclaration(join(baseUiPkgDir, "package.json"), specifier);
+    if (resolved == null) throw new Error(`no declarations for ${specifier}`);
+    entries.set(sub, enqueue(resolved.file, resolved.name, resolved.pkgDir));
+  }
+  while (queue.length > 0) {
+    const { file, name, pkgDir, out } = queue.shift();
+    const text = readFileSync(file, "utf8").replace(
+      DECLARATION_SPECIFIER,
+      (match, lead, quote, specifier, offset, source) => {
+        // Examples inside doc comments name modules that do not exist.
+        const line = source.slice(source.lastIndexOf("\n", offset) + 1, offset).trimStart();
+        if (line.startsWith("*") || line.startsWith("//") || line.startsWith("/*")) return match;
+        if (specifier.startsWith(".")) {
+          const target = resolveRelativeDeclaration(file, specifier);
+          if (target == null) throw new Error(`${file}: cannot resolve ${specifier}`);
+          enqueue(target, name, pkgDir);
+          return match;
+        }
+        if (SPACE_PROVIDED_TYPES.test(specifier)) return match;
+        const target = resolveBareDeclaration(file, specifier);
+        if (target == null) throw new Error(`${file}: cannot resolve ${specifier}`);
+        const targetOut = enqueue(target.file, target.name, target.pkgDir);
+        let rel = relative(dirname(out), targetOut).replace(/\.d\.ts$/, ".js");
+        if (!rel.startsWith(".")) rel = "./" + rel;
+        return `${lead}${quote}${rel}${quote}`;
+      },
+    );
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, text);
+  }
+  return entries;
+}
+
+async function buildBaseUi(bun) {
+  // One entry per public subpath, built together with code splitting, so a
+  // Space that imports several subpaths (and @hatch/muse-ui, which imports
+  // this package) shares one copy of every Base UI module. React stays
+  // external and resolves from the Space, so hooks see a single React.
+  const baseUiPkgDir = packageDirFrom(join(BASE_UI_DIR, "package.json"), "@base-ui/react");
+  if (baseUiPkgDir == null) throw new Error("@base-ui/react is not installed for base-ui/");
+  const subpaths = baseUiSubpaths(baseUiPkgDir);
+  const distDir = join(BASE_UI_DIR, "dist");
+  const entryDir = join(distDir, ".entries");
+  mkdirSync(entryDir, { recursive: true });
+  for (const sub of subpaths) {
+    const from = sub === "index" ? "@base-ui/react" : `@base-ui/react/${sub}`;
+    writeFileSync(join(entryDir, `${sub}.ts`), `export * from "${from}";\n`);
+  }
+  const result = await Bun.build({
+    entrypoints: subpaths.map((sub) => join(entryDir, `${sub}.ts`)),
+    root: entryDir,
+    outdir: distDir,
+    target: "browser",
+    format: "esm",
+    splitting: true,
+    external: ["react", "react-dom", "react/*", "react-dom/*"],
+    naming: { entry: "[name].js", chunk: "chunks/[name]-[hash].js" },
+  });
+  rmSync(entryDir, { recursive: true, force: true });
+  if (!result.success) {
+    for (const log of result.logs) {
+      console.error(log);
+    }
+    throw new Error("base-ui bundle failed; see logged diagnostics");
+  }
+  for (const output of result.outputs) {
+    const code = await Bun.file(output.path).text();
+    const leaked = code.match(
+      /from\s*["'](@base-ui|@floating-ui|use-sync-external-store|reselect|@babel)[^"']*["']/,
+    );
+    if (leaked != null) {
+      throw new Error(`base-ui ${relative(distDir, output.path)} still imports ${leaked[0]}`);
+    }
+  }
+  const entries = copyBaseUiDeclarations(baseUiPkgDir, subpaths, join(distDir, "types"));
+  for (const [sub, declaration] of entries) {
+    const rel = "./" + relative(distDir, declaration).replace(/\.d\.ts$/, ".js");
+    writeFileSync(join(distDir, `${sub}.d.ts`), `export * from "${rel}";\n`);
+  }
+  packWorkspace(bun, BASE_UI_DIR, BASE_UI_TARBALL_NAME);
+}
+
+function buildMuseUi(bun) {
+  // Compiled per file so the class names Tailwind reads stay in dist/*.js.
+  // Base UI comes from @hatch/base-ui, which a Muse Space installs beside it.
+  run(bun, ["x", "tsc", "-p", "tsconfig.json"], { cwd: MUSE_UI_DIR });
+  packWorkspace(bun, MUSE_UI_DIR, MUSE_UI_TARBALL_NAME);
 }
 
 function bundleWorker(bun) {
@@ -532,6 +735,8 @@ async function main() {
   compileSdk(bun);
   await bundleSdkPdf();
   packSdk(bun);
+  await buildBaseUi(bun);
+  buildMuseUi(bun);
   bundleWorker(bun);
   bundleMigrate(bun);
   bundlePruneImports(bun);
@@ -544,10 +749,13 @@ async function main() {
   bundlePlaywrightAudit(bun);
   compileCvmPrelude(bun);
   bundleCvmBuilder(bun);
+  bundleIconsCli(bun);
   stageNativeLibsql();
   stagePlaywrightModule();
   for (const name of [
     TARBALL_NAME,
+    BASE_UI_TARBALL_NAME,
+    MUSE_UI_TARBALL_NAME,
     WORKER_NAME,
     MIGRATE_NAME,
     VALIDATE_CLIENT_NAME,
@@ -559,6 +767,7 @@ async function main() {
     PLAYWRIGHT_AUDIT_NAME,
     CVM_PRELUDE_NAME,
     BUILD_CVM_CLIENT_NAME,
+    ICONS_CLI_NAME,
   ]) {
     if (!existsSync(join(DIST, name))) {
       throw new Error(`build failed: ${name} missing from ${DIST}`);
@@ -566,6 +775,8 @@ async function main() {
   }
   process.stdout.write(
     `built ${join("ts-runtime/dist", TARBALL_NAME)} + ` +
+      `${join("ts-runtime/dist", BASE_UI_TARBALL_NAME)} + ` +
+      `${join("ts-runtime/dist", MUSE_UI_TARBALL_NAME)} + ` +
       `${join("ts-runtime/dist", WORKER_NAME)} + ` +
       `${join("ts-runtime/dist", MIGRATE_NAME)} + ` +
       `${join("ts-runtime/dist", VALIDATE_CLIENT_NAME)} + ` +
@@ -576,7 +787,8 @@ async function main() {
       `${join("ts-runtime/dist", PROBE_UI_NAME)} + ` +
       `${join("ts-runtime/dist", PLAYWRIGHT_AUDIT_NAME)} + ` +
       `${join("ts-runtime/dist", CVM_PRELUDE_NAME)} + ` +
-      `${join("ts-runtime/dist", BUILD_CVM_CLIENT_NAME)}\n`,
+      `${join("ts-runtime/dist", BUILD_CVM_CLIENT_NAME)} + ` +
+      `${join("ts-runtime/dist", ICONS_CLI_NAME)}\n`,
   );
 }
 

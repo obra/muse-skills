@@ -123,6 +123,87 @@
         padding-bottom: env(safe-area-inset-bottom, 0px);
       }
     </style>
+    <style id="muse-typography">
+      /* Muse web type ramp, matching space-ts-muse/client/src/typography.css.
+         Font assets and the theme palette are independent of this scale. */
+      :root {
+        --text-caption-2: 11px;
+        --text-caption-2--line-height: 13px;
+        --text-caption-1: 12px;
+        --text-caption-1--line-height: 16px;
+        --text-footnote: 13px;
+        --text-footnote--line-height: 18px;
+        --text-subheadline: 14px;
+        --text-subheadline--line-height: 20px;
+        --text-subheadline-large: 15px;
+        --text-subheadline-large--line-height: 20px;
+        --text-body: 16px;
+        --text-body--line-height: 22px;
+        --text-body-status: 17px;
+        --text-body-status--line-height: 22px;
+        --text-response: 16px;
+        --text-response--line-height: 26px;
+        --text-title-3: 18px;
+        --text-title-3--line-height: 26px;
+        --text-title-2-medium: 22px;
+        --text-title-2-medium--line-height: 28px;
+        --text-title-2-medium--font-weight: 500;
+        --text-title-2: 24px;
+        --text-title-2--line-height: 29px;
+        --text-title-1: 30px;
+        --text-title-1--line-height: 34px;
+        --text-lg-title-3: 34px;
+        --text-lg-title-3--line-height: 40px;
+        --text-lg-title-2: 40px;
+        --text-lg-title-2--line-height: 46px;
+        --text-lg-title-1: 48px;
+        --text-lg-title-1--line-height: 52px;
+        --text-xs: var(--text-caption-1);
+        --text-xs--line-height: var(--text-caption-1--line-height);
+        --text-sm: var(--text-subheadline);
+        --text-sm--line-height: var(--text-subheadline--line-height);
+        --text-base: var(--text-body);
+        --text-base--line-height: var(--text-body--line-height);
+        --text-lg: var(--text-title-3);
+        --text-lg--line-height: var(--text-title-3--line-height);
+        --text-xl: 20px;
+        --text-xl--line-height: 28px;
+        --text-2xl: var(--text-title-2);
+        --text-2xl--line-height: var(--text-title-2--line-height);
+        --text-3xl: var(--text-title-1);
+        --text-3xl--line-height: var(--text-title-1--line-height);
+        --text-4xl: var(--text-lg-title-3);
+        --text-4xl--line-height: var(--text-lg-title-3--line-height);
+        --text-5xl: var(--text-lg-title-1);
+        --text-5xl--line-height: var(--text-lg-title-1--line-height);
+      }
+      @layer base {
+        body { font-size: var(--text-body); line-height: var(--text-body--line-height); }
+        h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+        button, input, select, textarea { font: inherit; }
+      }
+      @layer utilities {
+        .text-caption-2 { font-size: var(--text-caption-2); line-height: var(--text-caption-2--line-height); }
+        .text-caption-1, .text-xs { font-size: var(--text-caption-1); line-height: var(--text-caption-1--line-height); }
+        .text-footnote { font-size: var(--text-footnote); line-height: var(--text-footnote--line-height); }
+        .text-subheadline, .text-sm { font-size: var(--text-subheadline); line-height: var(--text-subheadline--line-height); }
+        .text-subheadline-large { font-size: var(--text-subheadline-large); line-height: var(--text-subheadline-large--line-height); }
+        .text-body, .text-base { font-size: var(--text-body); line-height: var(--text-body--line-height); }
+        .text-body-status { font-size: var(--text-body-status); line-height: var(--text-body-status--line-height); }
+        .text-response { font-size: var(--text-response); line-height: var(--text-response--line-height); }
+        .text-title-3, .text-lg { font-size: var(--text-title-3); line-height: var(--text-title-3--line-height); }
+        .text-xl { font-size: var(--text-xl); line-height: var(--text-xl--line-height); }
+        .text-title-2-medium { font-size: var(--text-title-2-medium); line-height: var(--text-title-2-medium--line-height); font-weight: var(--text-title-2-medium--font-weight); }
+        .text-title-2, .text-2xl { font-size: var(--text-title-2); line-height: var(--text-title-2--line-height); }
+        .text-title-1, .text-3xl { font-size: var(--text-title-1); line-height: var(--text-title-1--line-height); }
+        .text-lg-title-3, .text-4xl { font-size: var(--text-lg-title-3); line-height: var(--text-lg-title-3--line-height); }
+        .text-lg-title-2 { font-size: var(--text-lg-title-2); line-height: var(--text-lg-title-2--line-height); }
+        .text-lg-title-1, .text-5xl { font-size: var(--text-lg-title-1); line-height: var(--text-lg-title-1--line-height); }
+        .font-normal { font-weight: 400; }
+        .font-medium { font-weight: 500; }
+        .font-semibold { font-weight: 600; }
+      }
+    </style>
     <!-- Later theme changes arrive from the embedding frame; the attributes
          above and the `dark` class follow them without a reload. -->
     <script>
@@ -169,8 +250,7 @@
       Keep both script blocks and the theme style block in the head.
     -->
     <main>
-      <h1>__SPACE_TITLE__</h1>
-      <p>Placeholder — replace this page with your build.</p>
+      <p>Setting up…</p>
     </main>
   </body>
 </html>

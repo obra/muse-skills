@@ -1,0 +1,62 @@
+/* Muse web type ramp: par-msl/hatch app/globals.css at 24ee17307646.
+   Sizes and line heights only; weight stays an explicit font-* choice.
+   The title-2-medium recipe is distinct (22/28 versus regular 24/29). */
+@theme {
+  --text-caption-2: 11px;
+  --text-caption-2--line-height: 13px;
+  --text-caption-1: 12px;
+  --text-caption-1--line-height: 16px;
+  --text-footnote: 13px;
+  --text-footnote--line-height: 18px;
+  --text-subheadline: 14px;
+  --text-subheadline--line-height: 20px;
+  --text-subheadline-large: 15px;
+  --text-subheadline-large--line-height: 20px;
+  --text-body: 16px;
+  --text-body--line-height: 22px;
+  --text-body-status: 17px;
+  --text-body-status--line-height: 22px;
+  --text-response: 16px;
+  --text-response--line-height: 26px;
+  --text-title-3: 18px;
+  --text-title-3--line-height: 26px;
+  --text-title-2-medium: 22px;
+  --text-title-2-medium--line-height: 28px;
+  --text-title-2-medium--font-weight: 500;
+  --text-title-2: 24px;
+  --text-title-2--line-height: 29px;
+  --text-title-1: 30px;
+  --text-title-1--line-height: 34px;
+  --text-lg-title-3: 34px;
+  --text-lg-title-3--line-height: 40px;
+  --text-lg-title-2: 40px;
+  --text-lg-title-2--line-height: 46px;
+  --text-lg-title-1: 48px;
+  --text-lg-title-1--line-height: 52px;
+
+  /* Keep Tailwind's familiar names, backed by the Muse ramp. The 20/28 xl
+     rung and display sizes above 5xl retain Tailwind's defaults. */
+  --text-xs: var(--text-caption-1);
+  --text-xs--line-height: var(--text-caption-1--line-height);
+  --text-sm: var(--text-subheadline);
+  --text-sm--line-height: var(--text-subheadline--line-height);
+  --text-base: var(--text-body);
+  --text-base--line-height: var(--text-body--line-height);
+  --text-lg: var(--text-title-3);
+  --text-lg--line-height: var(--text-title-3--line-height);
+  --text-2xl: var(--text-title-2);
+  --text-2xl--line-height: var(--text-title-2--line-height);
+  --text-3xl: var(--text-title-1);
+  --text-3xl--line-height: var(--text-title-1--line-height);
+  --text-4xl: var(--text-lg-title-3);
+  --text-4xl--line-height: var(--text-lg-title-3--line-height);
+  --text-5xl: var(--text-lg-title-1);
+  --text-5xl--line-height: var(--text-lg-title-1--line-height);
+}
+
+@layer base {
+  body {
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+}

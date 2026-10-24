@@ -61,6 +61,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "@hatch/space-sdk/client";
 import { api } from "./api";
+import { SettingsIcon } from "@space/icons";
 
 export function App() {
   // Tiny placeholder query so the react-query wiring is exercised on first
@@ -77,17 +78,12 @@ export function App() {
       <SafeAreaTopScrim backgroundColor="var(--background)" />
 
       <main className="px-4 pb-6">
+        {/* Hatch's header already shows the artifact's name: no title
+            heading here, and no filler copy. */}
         <div className="py-12 text-center">
-          <p className="text-sm uppercase tracking-wide text-muted-foreground">
-            Setting up
-          </p>
-          <h1 className="mt-2 text-xl font-medium text-foreground">
-            __SPACE_TITLE__
-          </h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            {scaffold.isPending
-              ? "Loading…"
-              : "Your artifact is being set up. Check back in a moment."}
+          <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <SettingsIcon size={16} decorative />
+            {scaffold.isPending ? "Loading…" : "Setting up…"}
           </p>
         </div>
       </main>
