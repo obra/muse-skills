@@ -15,7 +15,7 @@ builders: web
 
 - Anything needing an API key, an account, server-side caching or a scheduled refresh needs `web_fullstack`.
 
-- If you are building the static kind and the data genuinely needs a server, do not approximate it in the browser. Finish with `web_artifacts.exit_build` (`status: "failure"`) and explain that it needs a server-backed build, so the main agent can rebuild it that way.
+- If you are building the static kind and the data genuinely needs a server, do not approximate it in the browser. Report `status: "failure"` as your Completion section describes, with the cause that the request needs a server-backed build, so your parent agent can rebuild it that way.
 
 ## Use the ctx channels in a web_fullstack artifact
 

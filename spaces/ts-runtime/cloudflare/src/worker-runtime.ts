@@ -2,6 +2,12 @@ import { drizzle } from "drizzle-orm/d1";
 import { ActionRequestError, readActionRequest } from "./action-request";
 import { admitSharedAction, sharedStateAvailable, SharedStateUnavailable, type SharedDatabase } from "./shared-state";
 import {
+  READ_ONLY_ACTIONS_PATH,
+  READ_ONLY_DENIAL_MESSAGE,
+  readOnlyBlobs,
+  readOnlyDatabase,
+} from "./read-only-access";
+import {
   createPrivilegedExecutor,
   inferenceOptionsToPayload,
   isAction,
@@ -136,6 +142,20 @@ class SpaceActionForbiddenError extends Error {
 
 function isSpaceActionForbiddenError(error: unknown): error is SpaceActionForbiddenError {
   return error instanceof SpaceActionForbiddenError;
+}
+
+/**
+ * The forbidden error behind `error`. Drizzle wraps a driver error as the
+ * `cause` of a `DrizzleQueryError` whose message carries the SQL and its
+ * parameters, so respond with the forbidden error's own message.
+ */
+function spaceActionForbiddenCause(error: unknown): SpaceActionForbiddenError | null {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current instanceof Error; depth += 1) {
+    if (current instanceof SpaceActionForbiddenError) return current;
+    current = current.cause;
+  }
+  return null;
 }
 
 // --- HMAC blob token signing (Web Crypto) ---
@@ -321,6 +341,7 @@ function createCtx(
   action: CloudflareActionDefinition,
   actionName: string,
   actionCallId: string | undefined,
+  readOnly: boolean,
 ): Ctx {
   let db: SpaceDb | null = null;
   const viewer = viewerFromHeaders(request.headers);
@@ -329,6 +350,12 @@ function createCtx(
     action.privileged,
     createPrivilegedTransport(env, viewer, invocationId, actionName),
   );
+  // Agent, inference, tool and privileged calls already require the owner, so a
+  // view-only recipient's data access is the DB and blobs, guarded here.
+  const denyWrite = (): never => {
+    throw new SpaceActionForbiddenError(READ_ONLY_DENIAL_MESSAGE);
+  };
+  const blobs = createBlobClient(env);
   return {
     slug,
     invocationId,
@@ -338,10 +365,12 @@ function createCtx(
     inference: createInferenceClient(env, viewer, invocationId, actionName),
     tool: createToolClient(env, viewer, invocationId, actionName),
     db: () => {
-      db ??= drizzle(env.DB as never) as unknown as SpaceDb;
+      db ??= drizzle(
+        (readOnly ? readOnlyDatabase(env.DB as never, denyWrite) : env.DB) as never,
+      ) as unknown as SpaceDb;
       return db;
     },
-    blobs: createBlobClient(env),
+    blobs: readOnly ? readOnlyBlobs(blobs, denyWrite) : blobs,
     executePrivileged: privilegedExecutor.executePrivileged,
     invalidateQueries(): void {
       // Cloudflare Spaces serve actions remotely; viewer clients refetch on
@@ -1293,7 +1322,8 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
         }
       }
 
-      if (url.pathname !== "/actions") return jsonResponse({ error: "Not found" }, 404);
+      const readOnly = url.pathname === READ_ONLY_ACTIONS_PATH;
+      if (url.pathname !== "/actions" && !readOnly) return jsonResponse({ error: "Not found" }, 404);
       if (request.method !== "POST") {
         return jsonResponse({ error: "Method not allowed" }, 405);
       }
@@ -1346,6 +1376,7 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
           action,
           body.action,
           normalizeActionCallId(body.actionCallId),
+          readOnly,
         ),
         parsedArgs.data,
       );
@@ -1375,8 +1406,9 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
           401,
         );
       }
-      if (isSpaceActionForbiddenError(error)) {
-        return jsonResponse({ error: error.message }, 403);
+      const forbidden = spaceActionForbiddenCause(error);
+      if (forbidden) {
+        return jsonResponse({ error: forbidden.message }, 403);
       }
       return finish
         ? jsonResponse({ error: "The app could not confirm the result. Reload to check your changes before trying again.", code: "action_outcome_unknown" }, 409)

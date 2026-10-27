@@ -195,6 +195,169 @@ export const Actions = {
   assert.equal(callback.body.payload.actionName, "searchNews");
 });
 
+test("view-only recipients run actions read-only on the read-only action path", async () => {
+  const spaceDir = await makeSpace({
+    actionsSource: `
+import { eq, sql } from "drizzle-orm";
+import { defineAction, z, type ActionsModule } from "@hatch/space-sdk";
+import { entries } from "./schema";
+
+export const Actions = {
+  listEntries: defineAction({
+    request: z.object({}),
+    response: z.object({ titles: z.array(z.string()) }),
+    async handler(ctx) {
+      const rows = await ctx.db().select().from(entries);
+      return { titles: rows.map(row => row.title) };
+    },
+  }),
+  findEntry: defineAction({
+    request: z.object({ title: z.string() }),
+    response: z.object({ found: z.boolean() }),
+    async handler(ctx, args) {
+      const rows = await ctx.db().select().from(entries).where(eq(entries.title, args.title));
+      return { found: rows.length > 0 };
+    },
+  }),
+  addEntry: defineAction({
+    request: z.object({ title: z.string() }),
+    response: z.object({ ok: z.boolean() }),
+    async handler(ctx, args) {
+      await ctx.db().insert(entries).values({ id: args.title, title: args.title });
+      return { ok: true };
+    },
+  }),
+  listEntriesAfterSchemaCheck: defineAction({
+    request: z.object({}),
+    response: z.object({ columns: z.array(z.string()), titles: z.array(z.string()) }),
+    async handler(ctx) {
+      // A builder seed helper's load-time check: read the schema, then the rows.
+      const columns = await ctx.db().all<{ name: string }>(sql\`PRAGMA table_info(entries)\`);
+      const rows = await ctx.db().select().from(entries);
+      return { columns: columns.map(column => column.name), titles: rows.map(row => row.title) };
+    },
+  }),
+  runSql: defineAction({
+    request: z.object({ statement: z.string() }),
+    response: z.object({ ok: z.boolean() }),
+    async handler(ctx, args) {
+      await ctx.db().run(sql.raw(args.statement));
+      return { ok: true };
+    },
+  }),
+  saveBlob: defineAction({
+    request: z.object({}),
+    response: z.object({ ok: z.boolean() }),
+    async handler(ctx) {
+      await ctx.blobs.put("note.txt", "hello");
+      return { ok: true };
+    },
+  }),
+} satisfies ActionsModule;
+`,
+  });
+  const { workerPath } = await buildCloudflareArtifacts({
+    spaceDir,
+    outDir: path.join(spaceDir, "cloudflare-dist"),
+  });
+  const workerModule = await import(
+    `${pathToFileURL(workerPath).href}?read-only-test=${Date.now()}`
+  );
+
+  const sqlite = new Database(":memory:");
+  sqlite.exec(`CREATE TABLE __hatch_shared_state (id INTEGER PRIMARY KEY, version INTEGER, accepting INTEGER);
+    INSERT INTO __hatch_shared_state VALUES (1, 1, 1);
+    CREATE TABLE __hatch_shared_invocations (id TEXT PRIMARY KEY, kind TEXT, started_at_ms INTEGER);
+    CREATE TABLE entries (id text primary key, title text not null);
+    INSERT INTO entries VALUES ('milk', 'milk');`);
+  // Like D1, a statement needs exactly as many bindings as it has parameters.
+  const statement = (sql, values) => {
+    const prepared = sqlite.prepare(sql);
+    if (prepared.paramsCount !== values.length) throw new Error("Wrong number of parameter bindings for SQL query.");
+    return prepared;
+  };
+  const db = { prepare(sql) {
+    let values = [];
+    return {
+      bind(...args) { values = args; return this; },
+      async run() { return statement(sql, values).run(...values); },
+      async first() { return statement(sql, values).get(...values); },
+      async all() { return { success: true, results: statement(sql, values).all(...values), meta: {} }; },
+      async raw() { return statement(sql, values).values(...values); },
+    };
+  } };
+  const env = {
+    SPACE_SLUG: "daily-journal",
+    SPACE_SHORTCODE: "daily-journal-space-1",
+    DB: db,
+    ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
+    BUCKET: {},
+  };
+  // The dispatcher's viewer headers for a recipient who is not the owner.
+  const call = (pathname, action, args) => workerModule.default.fetch(
+    new Request(`https://space.example${pathname}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-cloudflare-spaces-viewer-authenticated": "1",
+        "x-cloudflare-spaces-share-id": "share-1",
+        "x-cloudflare-spaces-space-slug": "daily-journal",
+        "x-cloudflare-spaces-space-id": "space-1",
+        "x-cloudflare-spaces-viewer-fbid": "viewer-2",
+        "x-cloudflare-spaces-owner-fbid": "viewer-1",
+        "x-cloudflare-spaces-is-owner": "false",
+        "x-cloudflare-spaces-token-exp": String(Date.now() + 60_000),
+        "x-cloudflare-spaces-token-jti": "token-2",
+      },
+      body: JSON.stringify({ action, args }),
+    }),
+    env,
+    { waitUntil() {} },
+  );
+  const titles = () => sqlite.prepare("SELECT title FROM entries ORDER BY title").values().flat();
+
+  try {
+    const readOnlyPath = "/__hatch/read-only-actions";
+    const listed = await call(readOnlyPath, "listEntries", {});
+    assert.equal(listed.status, 200, await listed.clone().text());
+    assert.deepEqual((await listed.json()).data, { titles: ["milk"] });
+    const found = await call(readOnlyPath, "findEntry", { title: "milk" });
+    assert.equal(found.status, 200, await found.clone().text());
+    assert.deepEqual((await found.json()).data, { found: true });
+
+    // Schema lookups are reads: seed helpers run them before loading rows.
+    const checked = await call(readOnlyPath, "listEntriesAfterSchemaCheck", {});
+    assert.equal(checked.status, 200, await checked.clone().text());
+    assert.deepEqual((await checked.json()).data, { columns: ["id", "title"], titles: ["milk"] });
+    for (const statement of ["PRAGMA main.index_list('entries')", "pragma table_list;"]) {
+      const read = await call(readOnlyPath, "runSql", { statement });
+      assert.equal(read.status, 200, `${statement}: ${await read.text()}`);
+    }
+
+    for (const [action, args] of [
+      ["addEntry", { title: "eggs" }],
+      ["runSql", { statement: "WITH doomed AS (SELECT 1) DELETE FROM entries" }],
+      // SQLite reads the CTE name as one identifier and runs the DELETE.
+      ["runSql", { statement: "WITH \u00e9SELECT AS (SELECT 1) DELETE FROM entries" }],
+      ["runSql", { statement: "/* SELECT */ UPDATE entries SET title = 'select'" }],
+      ["runSql", { statement: "PRAGMA user_version = 1" }],
+      ["saveBlob", {}],
+    ]) {
+      const denied = await call(readOnlyPath, action, args);
+      assert.equal(denied.status, 403, `${action} ${JSON.stringify(args)}: ${await denied.text()}`);
+    }
+    assert.deepEqual(titles(), ["milk"]);
+    assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 0);
+
+    // A use grant arrives on /actions, where the same write succeeds.
+    const added = await call("/actions", "addEntry", { title: "eggs" });
+    assert.equal(added.status, 200, await added.clone().text());
+    assert.deepEqual(titles(), ["eggs", "milk"]);
+  } finally {
+    sqlite.close();
+  }
+});
+
 test("preserves root PNG and WebP icons in Cloudflare assets and favicon links", async () => {
   for (const extension of ["png", "webp"]) {
     const iconBytes = Buffer.from(`original ${extension} icon`);

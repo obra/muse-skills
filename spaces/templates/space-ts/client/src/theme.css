@@ -3,7 +3,7 @@
    other rule is a build error, and it is reported against a line number in the
    expanded Tailwind output, far past the end of this file, so the message
    cannot point you at the mistake. */
-/* @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap'); */
+/* @import url('https://fonts.googleapis.com/css2?family=Your+Font:wght@400..700&display=swap'); */
 @import "tailwindcss";
 @import "tailwindcss-safe-area";
 

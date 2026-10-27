@@ -158,10 +158,11 @@ export interface AgentClient {
   /**
    * Start a background Space task: a detached Muse agent that runs the full
    * agent loop an action cannot run inline. It reads the user's goals,
-   * tracked items, memory and chats, and browses the web (search, fetch,
-   * multi-step tool use) that `ctx` does not offer. Reach for it to refresh
-   * the user's own facts that change after the build, or for research beyond
-   * one search.
+   * tracked items, memory and chats, and can open and read full pages,
+   * browse across several steps, or use agent-only tools. Reach for it to
+   * refresh the user's own facts that change after the build, or for
+   * research beyond one search. A plain search does not need a task: call
+   * `ctx.tool.web_search` or a search vertical on `ctx.tool` directly.
    *
    * Returns as soon as the task is *accepted*, NOT when it finishes: the
    * result is `{ ok: true, taskId, ... }` (a handle), never the task's
@@ -275,7 +276,8 @@ export interface InferenceClient {
    * Use for classification, extraction, summarization, formatting, or structured
    * generation from data already in hand, including optional JPEG/PNG image
    * attachments. Does not browse the web, call tools, run an agent loop, or
-   * perform research — use `ctx.agent.spawnTask(...)` for that.
+   * perform research — use `ctx.tool` to search and `ctx.agent.spawnTask(...)`
+   * to browse or research.
    *
    * The Zod `schema` is required. It is converted to JSON Schema and enforced by
    * the managed runtime as the output contract, and the response is validated

@@ -10,7 +10,7 @@
 
 - For a deck, run `assemble_deck.mjs`, then `render_audit.mjs` with the flags the [deck workflow](/opt/muse/skills/documents/presentation/references/workflow.md) names.
 
-- For a Word document, convert it to PDF with headless LibreOffice (`soffice --headless --convert-to pdf`), then rasterize the pages with `pdftoppm -jpeg -r 100`.
+- For a Word document, convert it to PDF with headless LibreOffice (`soffice --headless --convert-to pdf --outdir project_dir/.src/validate/`), then rasterize the pages into `project_dir/.src/validate/` with `pdftoppm -jpeg -r 100`.
 
 - For a workbook, recalculate formula workbooks with `/opt/muse/assets/artifacts/scripts/recalc_xlsx.py` and read the errors it reports, then run `/opt/muse/assets/artifacts/scripts/validate_xlsx.py`. Spot-check representative formulas against values you expect, since a clean recalculation only proves they evaluate.
 

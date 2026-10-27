@@ -21,7 +21,7 @@ description: What the words say in a document artifact. Scope check, outline bef
 ```text
 Section: Why the pilot stalled
 Claim:   adoption flattened because onboarding took three weeks, not price.
-Source:  data_payload rows 4-11 (weekly signups), user's message on pricing.
+Source:  pasted table rows 4-11 (weekly signups), user's message on pricing.
 ```
 
 - The outline is the document's argument, so give every section a claim. Cut a section you cannot find a claim for, and merge two sections that make the same one. You write the body in pieces, and without the outline those pieces drift apart.
@@ -64,7 +64,7 @@ Source:  data_payload rows 4-11 (weekly signups), user's message on pricing.
 
 - Cite only what the reader can look up: a page, a publication or a document. Never cite a tool, an endpoint, a query you ran or a harness field. Hyperlink the source where the format allows a link.
 
-- Grounding itself follows the content-integrity rules in your system prompt.
+- Grounding itself follows the Content Integrity rules in your build instructions.
 
 - Never let these reach the page:
   - how the document was assembled, which instructions you followed, what an earlier draft contained, what you excluded, or how confident you are in your own checks

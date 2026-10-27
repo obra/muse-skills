@@ -87,7 +87,7 @@ export function evaluateTextFloor(pages) {
       message:
         `text below the ${MIN_TEXT_PT}pt readability floor on page(s) ${pageList} ` +
         `(${shown.join("; ")}${omitted > 0 ? `; ${omitted} more` : ""}); ` +
-        "fix by cutting content or adding a page, never by shrinking further",
+        "fix by letting content flow onto another page (or, when the brief fixes the page count, by dropping the weakest items), never by shrinking further",
     });
   }
 

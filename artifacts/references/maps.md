@@ -20,7 +20,7 @@ builders: web, file
 
 - A live page uses a vector map or no map, so a static image is never its fallback. Missing coordinates never justify a different renderer or invented location data.
 
-- Static maps take `[lat, lng]`, while GeoJSON and interactive map coordinates use `[lng, lat]`. Keep latitude and longitude named and convert at the boundary.
+- Static maps take `[lat, lng]` and GeoJSON `[lng, lat]`; the interactive control takes `{lat, lng}`. Keep latitude and longitude named and convert at the boundary.
 
 - For geographic data, choose a map when location carries the meaning, such as adjacency, distance or clustering. Use a chart for comparisons and rankings, and include both when that helps. [Data maps](#data-maps) lists the supported encodings.
 
@@ -47,7 +47,7 @@ builders: web, file
 
 - These place-resolution rules do not replace the source data of geographic datasets and overlays.
 
-- Save the details payload under the task's `project_dir`, as `.src/research/places.json` for a file artifact or `client/src/research/places.json` for a web artifact. Reuse it on later edits or fetch the details again.
+- Save the details payload under the task's `project_dir`, as `.src/research/places.json` for a file artifact or `client/src/research/places.json` for a fullstack web artifact. A static web artifact has no `project_dir`, so save no payload file and inline its fields into `index.html`. Reuse it on later edits or fetch the details again.
 
 - The payload is build-time input, so never import it into the page. Inline only the fields you use and store images locally.
 
@@ -71,7 +71,7 @@ builders: web, file
 
 - Use the [static URL script](maps-recipes.md#static-map-url), which supplies the required caller and attribution parameters.
 
-- Fetch the image at build time and store it, in `.src/media/` for a file artifact and in `client/src/assets/` or `ctx.blobs` where a web artifact needs storage. Never ship the static endpoint as an image `src`.
+- Fetch the image at build time and store it, in `project_dir/.src/media/` for a file artifact, in `assets/` for a static web artifact, or in `client/src/assets/` or `ctx.blobs` for a fullstack web artifact. Never ship the static endpoint as an image `src`.
 
 - Center on the points' bounding box and choose a zoom that contains them, since the static service has no fit-bounds operation.
 
@@ -134,7 +134,7 @@ builders: web, file
 
 - Scale proportional symbols with `r = k * sqrt(value)` and show two or three reference sizes in the legend. Graduated symbols may group values into classes. A dot-density legend says whether one dot is one item or a quantity.
 
-- For a choropleth, use the [choropleth helper](maps-recipes.md#choropleth), which fetches the published geometry, joins the data onto its features and mounts the result. Join countries on `iso_2` or `iso_3` and US states on `postal_code` or `iso_3166`.
+- For a choropleth, use the [choropleth helper](maps-recipes.md#choropleth), which fetches the published geometry, joins the data onto its features and mounts the result. Join countries on `iso_2` or `iso_3` and US states on `postal_cod` or `iso_3166`.
 
 - Keep missing values as `null`, leave those regions unpainted and explain them in the legend.
 

@@ -53,10 +53,9 @@
 // A visible label works too, as long as it is bound to the field:
 // `<label htmlFor="weight">` next to `<input id="weight">`.
 //
-// The fixed gradient-mask layer below is Safe Areas approach B (top text
-// protection). If your real UI has a fixed header at the top, replace
-// the mask with approach A. See the Safe Areas section of the system
-// prompt for both approaches.
+// `SafeAreaTopScrim` below keeps scrolled content readable under the top
+// safe-area inset. Keep it, or replace it with a fixed or sticky header that
+// uses `pt-safe`; do not use both.
 
 import { useQuery } from "@tanstack/react-query";
 import { SafeAreaTopScrim } from "@hatch/space-sdk/client";

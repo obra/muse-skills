@@ -73,6 +73,11 @@ run(bun, [
   '--bundle',
   '--format=iife',
   '--global-name=HatchMaps',
+  // --global-name alone declares a top-level `var`, which is a global only
+  // when the file runs as a classic script. A TypeScript Space's client build
+  // folds the script into its module bundle, where that var is module-local
+  // and map_helpers.mjs finds no globalThis.HatchMaps.
+  '--footer:js=globalThis.HatchMaps=HatchMaps;',
   '--platform=browser',
   '--target=es2020',
   // Automatic runtime, not esbuild's classic default: the classic transform

@@ -10,9 +10,9 @@ description: Use the bundled map helpers for URL generation, interactive maps, a
 
 - Use the existing `/opt/hatch/bin/local-search` and `/opt/hatch/bin/places` CLIs, with the flags [Resolve places](maps.md#resolve-places) requires.
 
-- Set the task's absolute `project_dir`, writing a leading `~/` as `$JARVIS_HOME/`. Save details to `.src/research/places.json` for a file artifact or `client/src/research/places.json` for a web artifact.
+- Save details where [Resolve places](maps.md#resolve-places) says, writing a leading `~/` as `$JARVIS_HOME/`.
 
-- Redirect stdout to that file and wait for the command to complete before reading it. An explicit `yield_ms: 60000` helps, and collect the background result if the command outlives it.
+- Redirect stdout to a file and wait for the command to complete before reading it. An explicit `yield_ms: 60000` helps, and collect the background result if the command outlives it.
 
 ## Location data
 
@@ -85,7 +85,7 @@ const map = MapHelpers.mountMap(el, { places, baseStyle: 'light' }, showPlaceLis
 
 - The published geometry:
   - Countries use `https://external.xx.fbcdn.net/maps/static/boundaries/v1/countries.json` and join on `iso_2` or `iso_3`.
-  - US states use `https://external.xx.fbcdn.net/maps/static/boundaries/v1/us_states.json` and join on `postal_code` or `iso_3166`.
+  - US states use `https://external.xx.fbcdn.net/maps/static/boundaries/v1/us_states.json` and join on `postal_cod` or `iso_3166`.
 
 ## Navigation links
 

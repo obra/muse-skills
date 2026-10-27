@@ -163,7 +163,7 @@ async function loadActions(spaceDir: string): Promise<Map<string, ActionDefiniti
   const compiled = join(spaceDir, "server", "dist", "actions.js");
   if (!existsSync(compiled)) {
     throw new Error(
-      `artifact actions module not found at ${compiled}. Call the web_artifact_build tool to compile the bundle first.`,
+      `artifact actions module not found at ${compiled}. Call the web_artifacts.build tool to compile the bundle first.`,
     );
   }
   const mod = (await import(compiled)) as Record<string, unknown>;

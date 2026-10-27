@@ -10,12 +10,12 @@
 //
 // Workflow when adding a column:
 //   1. Add the column here.
-//   2. Call the `web_artifact_new_migration` tool with `name: "add <thing>"`.
+//   2. Call the `web_artifacts.new_migration` tool with `name: "add <thing>"`.
 //   3. Edit the resulting drizzle/<NNNN>_*.sql with the ALTER TABLE that
 //      lands app.db at the new shape. Multiple statements in one file?
 //      Separate them with the literal drizzle marker on its own line.
 //      The new file is empty; you write the SQL straight in.
-//   4. Call the `web_artifact_build` tool to apply the migration and rebuild.
+//   4. Call the `web_artifacts.build` tool to apply the migration and rebuild.
 //
 // See https://orm.drizzle.team/docs/sql-schema-declaration for column types.
 

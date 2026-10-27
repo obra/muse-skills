@@ -402,7 +402,7 @@ export const TOOL_WEB_SEARCH_RESULT_SCHEMA = z.object({
           'Raw freshness marker from the feed, e.g. "Just now", "3 hours ago", "525 days ago". Unstructured and unreliable in BOTH directions — display only, never parse it into a real date.',
         ),
         favicon_url: nullableString.describe(
-          "Source-domain favicon — an external Google s2 URL the artifact does NOT own. For a small icon next to the source name only, rendered decoratively with an onError fallback. Never content imagery and never a hotlinked page image: for real pictures use ctx.tool.generate_media or fetch-and-self-host the page's og:image. Usually present.",
+          "Source-domain favicon — an external Google s2 URL the artifact does NOT own. For a small icon next to the source name only, rendered decoratively with an onError fallback. Never content imagery and never a hotlinked page image. Usually present.",
         ),
         rank: z.number().describe("Upstream result rank (0-based) — stable ordering + debugging."),
         is_index_page: z
@@ -517,9 +517,11 @@ export interface SpaceToolClient {
   /**
    * Generate an image server-side and store it in this Space's `ctx.blobs`,
    * returning a durable own-origin URL + blob key. No network egress from the
-   * action and no expiring URL — prefer this for hero/per-item imagery, and as
-   * the fallback when a web photo can't be sourced. Persist `blobKey` in your
-   * DB and render `url`.
+   * action and no expiring URL. Use it for decoration and illustration. A
+   * real place, product, person, or item gets a fetched photo or no image,
+   * except the user's own one-off or customized thing with no accurate photo:
+   * generate that from the specifics the artifact states and name its real
+   * components in the prompt. Persist `blobKey` in your DB and render `url`.
    */
   generate_media(prompt: string, options?: GenerateMediaOptions): Promise<GeneratedMedia>;
 }

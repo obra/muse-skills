@@ -1428,7 +1428,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
                 code: "nav_failed",
                 error:
                   `the probe's startup navigation failed (${navFailedReason}); ` +
-                  "run `reload` to retry it, or re-run web_artifact_audit",
+                  "run `reload` to retry it, or re-run web_artifacts.audit",
               };
             } else {
               response = await withOpTimeout(handle(state, auditDir, req));
@@ -1513,7 +1513,7 @@ async function runClient(socketPath: string, req: ProbeRequest): Promise<number>
     const fail = (msg: string): void => {
       process.stderr.write(
         `probe-ui: ${msg}\n` +
-          "  The session is opened by web_artifact_audit; run it first (or again).\n",
+          "  The session is opened by web_artifacts.audit; run it first (or again).\n",
       );
       resolve(1);
     };
@@ -1693,7 +1693,7 @@ async function main(argv: string[]): Promise<number> {
     }
     const socket = (flags.get("socket") ?? "").trim() || (await discoverSocket());
     if (socket === null) {
-      process.stderr.write("probe-ui: no probe session found; web_artifact_audit opens one\n");
+      process.stderr.write("probe-ui: no probe session found; web_artifacts.audit opens one\n");
       return 1;
     }
     return runClient(socket, { op: "batch", steps });
@@ -1710,7 +1710,7 @@ async function main(argv: string[]): Promise<number> {
   const socketPath = (flags.get("socket") ?? "").trim() || (await discoverSocket());
   if (socketPath === null) {
     process.stderr.write(
-      "probe-ui: no probe session found. `web_artifact_audit` opens one and returns its\n" +
+      "probe-ui: no probe session found. `web_artifacts.audit` opens one and returns its\n" +
         "  socket path in the response's `probe` object; run the audit first, or pass\n" +
         "  --socket <path> explicitly.\n",
     );

@@ -3,8 +3,11 @@
 // Each action has a zod Request/Response schema and a handler. The handler
 // receives a typed `ctx` (see `@hatch/space-sdk`) with:
 //   ctx.db<typeof schema>()  — drizzle-orm DB instance, typed by your schema
-//   ctx.agent.send           — Muse agent handoff for research, web search,
-//                             tool use, or multi-step investigation
+//   ctx.tool                 — direct calls: web search, search verticals,
+//                             generate_media (see `SpaceToolClient`)
+//   ctx.agent.spawnTask      — background agent task for reading full pages,
+//                             multi-step browsing, or agent-only tools;
+//                             results arrive through `expectsAction`
 //   ctx.inference            — direct model-only inference for bounded
 //                             transformations: extraction, classification,
 //                             summarization, formatting, JSON generation
