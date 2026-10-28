@@ -74,6 +74,75 @@ export const entries = sqliteTable("entries", {
 });
 `;
 
+test("only the checked-put build switches uploads; HATCH alone and the manifest contract stay unchanged", async () => {
+  const spaceDir = await makeSpace({ actionsSource: `
+import { defineAction, z } from "@hatch/space-sdk";
+export const Actions = { upload: defineAction({ request: z.object({}), response: z.null(),
+  async handler(ctx) {
+    await ctx.blobs.put(" note.txt ", "original bytes", { public: true, contentType: "Text/Plain ; Charset=UTF-8" });
+    return null;
+  },
+}) };
+` });
+  await fs.writeFile(path.join(spaceDir, "space.json"), '{"anonymousAccess":true}');
+  const outDir = path.join(spaceDir, "cloudflare-dist");
+  const { workerPath, manifestPath } = await buildCloudflareArtifacts({ spaceDir, outDir });
+  const offBytes = await fs.readFile(workerPath);
+  const offManifestBytes = await fs.readFile(manifestPath);
+  const offManifest = JSON.parse(offManifestBytes);
+  const offWorker = (await import(pathToFileURL(workerPath).href)).default;
+  let checks = 0;
+  const mutations = [];
+  const env = {
+    DB: { prepare() { return { bind() { return this; }, async first() { return {}; }, async run() {} }; } },
+    BUCKET: {
+      async put(key, data, options) { mutations.push(["put", key, data, options]); },
+      async delete(key) { mutations.push(["delete", key]); },
+    },
+    SPACE_SHORTCODE: "daily-journal-123", ASSETS: { async fetch() { return new Response(); } },
+  };
+  const request = () => new Request("https://daily-journal-123.example/actions", {
+    method: "POST", body: '{"action":"upload","args":{}}',
+    headers: { "content-type": "application/json", "x-cloudflare-spaces-viewer-authenticated": "1",
+      "x-cloudflare-spaces-share-id": "share", "x-cloudflare-spaces-space-slug": "daily-journal", "x-cloudflare-spaces-space-id": "123",
+      "x-cloudflare-spaces-viewer-fbid": "owner", "x-cloudflare-spaces-owner-fbid": "owner", "x-cloudflare-spaces-is-owner": "true",
+      "x-cloudflare-spaces-token-exp": "2000000000", "x-cloudflare-spaces-token-jti": "test" },
+  });
+  const execution = { props: { HATCH: { async checkUpload(input) {
+    checks++;
+    assert.deepEqual(input, { bytes: new TextEncoder().encode("original bytes"), contentType: "text/plain", key: "blobs/public/note.txt" });
+    return { verdict: "allow", checkId: "checked", receipt: "not-for-storage" };
+  } } }, waitUntil() {} };
+  assert.equal((await offWorker.fetch(request(), env, execution)).status, 200);
+  assert.equal(checks, 0);
+  assert.deepEqual(mutations, [
+    ["delete", "blobs/private/note.txt"],
+    ["put", "blobs/public/note.txt", "original bytes", { httpMetadata: { contentType: "Text/Plain ; Charset=UTF-8" } }],
+  ]);
+  await buildCloudflareArtifacts({ spaceDir, outDir, checkedPut: true });
+  const onManifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+  assert.equal(onManifest.runtime, "hatch-ts-cloudflare-v1");
+  assert.deepEqual({ ...onManifest, workerJs: "" }, { ...offManifest, workerJs: "" });
+  const onPath = path.join(outDir, "checked-worker.js");
+  await fs.copyFile(workerPath, onPath);
+  const onWorker = (await import(pathToFileURL(onPath).href)).default;
+  mutations.length = 0;
+  assert.equal((await onWorker.fetch(request(), env, execution)).status, 200);
+  assert.equal(checks, 1);
+  assert.deepEqual(mutations, [
+    ["delete", "blobs/private/note.txt"],
+    ["put", "blobs/public/note.txt", new TextEncoder().encode("original bytes"), { httpMetadata: { contentType: "Text/Plain ; Charset=UTF-8" }, customMetadata: { check_id: "checked" } }],
+  ]);
+  mutations.length = 0;
+  const unavailable = await onWorker.fetch(request(), env, { waitUntil() {} });
+  assert.equal(unavailable.status, 409);
+  assert.equal((await unavailable.json()).code, "action_outcome_unknown");
+  assert.deepEqual(mutations, []);
+  await buildCloudflareArtifacts({ spaceDir, outDir, checkedPut: false });
+  assert.deepEqual(await fs.readFile(workerPath), offBytes);
+  assert.deepEqual(await fs.readFile(manifestPath), offManifestBytes);
+}, 30_000);
+
 test("built Cloudflare worker forwards invocation and action authority on tool callbacks", async () => {
   const spaceDir = await makeSpace({
     actionsSource: `
@@ -195,7 +264,7 @@ export const Actions = {
   assert.equal(callback.body.payload.actionName, "searchNews");
 });
 
-test("view-only recipients run actions read-only on the read-only action path", async () => {
+test.each([false, true])("view-only recipients run actions read-only (checkedPut=%s)", async (checkedPut) => {
   const spaceDir = await makeSpace({
     actionsSource: `
 import { eq, sql } from "drizzle-orm";
@@ -259,6 +328,7 @@ export const Actions = {
   const { workerPath } = await buildCloudflareArtifacts({
     spaceDir,
     outDir: path.join(spaceDir, "cloudflare-dist"),
+    checkedPut,
   });
   const workerModule = await import(
     `${pathToFileURL(workerPath).href}?read-only-test=${Date.now()}`
@@ -286,12 +356,17 @@ export const Actions = {
       async raw() { return statement(sql, values).values(...values); },
     };
   } };
+  const checks = [];
+  const mutations = [];
   const env = {
     SPACE_SLUG: "daily-journal",
     SPACE_SHORTCODE: "daily-journal-space-1",
     DB: db,
     ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
-    BUCKET: {},
+    BUCKET: {
+      async put(...args) { mutations.push(["put", ...args]); },
+      async delete(...args) { mutations.push(["delete", ...args]); },
+    },
   };
   // The dispatcher's viewer headers for a recipient who is not the owner.
   const call = (pathname, action, args) => workerModule.default.fetch(
@@ -312,7 +387,10 @@ export const Actions = {
       body: JSON.stringify({ action, args }),
     }),
     env,
-    { waitUntil() {} },
+    { waitUntil() {}, props: { HATCH: { async checkUpload(request) {
+      checks.push(request);
+      return { verdict: "allow", checkId: "checked", receipt: null };
+    } } } },
   );
   const titles = () => sqlite.prepare("SELECT title FROM entries ORDER BY title").values().flat();
 
@@ -348,11 +426,19 @@ export const Actions = {
     }
     assert.deepEqual(titles(), ["milk"]);
     assert.equal(sqlite.prepare("PRAGMA user_version").get().user_version, 0);
+    assert.deepEqual(checks, []);
+    assert.deepEqual(mutations, []);
 
     // A use grant arrives on /actions, where the same write succeeds.
     const added = await call("/actions", "addEntry", { title: "eggs" });
     assert.equal(added.status, 200, await added.clone().text());
     assert.deepEqual(titles(), ["eggs", "milk"]);
+    const saved = await call("/actions", "saveBlob", {});
+    assert.equal(saved.status, 200, await saved.clone().text());
+    assert.equal(checks.length, checkedPut ? 1 : 0);
+    assert.deepEqual(mutations.map(([method, key]) => [method, key]).sort(), [
+      ["delete", "blobs/public/note.txt"], ["put", "blobs/private/note.txt"],
+    ]);
   } finally {
     sqlite.close();
   }
@@ -421,6 +507,62 @@ export const Actions = {
       }),
     /Cannot find module 'node:fs'/,
   );
+});
+
+test("builds privileged actions from the generated contract without the VM handlers", async () => {
+  const spaceDir = await makeSpace({
+    actionsSource: `
+import { defineAction, z, type ActionsModule } from "@hatch/space-sdk";
+import { privileged } from "@space/privileged";
+
+export const Actions = {
+  countNotes: defineAction({
+    request: z.object({}),
+    response: z.object({ count: z.number() }),
+    privileged: [privileged.readNotes],
+    async handler(ctx) {
+      const { notes } = await ctx.executePrivileged(privileged.readNotes, {});
+      return { count: notes.length };
+    },
+  }),
+} satisfies ActionsModule;
+`,
+  });
+  const contract = `{
+  readNotes: {
+    request: z.object({}),
+    response: z.object({ notes: z.array(z.string()) }),
+  },
+}`;
+  await fs.writeFile(
+    path.join(spaceDir, "server", "src", "privileged.ts"),
+    `
+import { readFileSync } from "node:fs";
+import { definePrivilegedContracts, definePrivilegedHandlers, z } from "@hatch/space-sdk";
+
+export const privileged = definePrivilegedContracts(${contract});
+
+export const privilegedHandlers = definePrivilegedHandlers(privileged, {
+  readNotes() {
+    return { notes: readFileSync(\`\${process.env.HOME}/vm-only-notes.txt\`, "utf8").split("\\n") };
+  },
+});
+`,
+  );
+  await fs.mkdir(path.join(spaceDir, "server", ".generated"));
+  await fs.writeFile(
+    path.join(spaceDir, "server", ".generated", "privileged.contract.ts"),
+    `import { definePrivilegedContracts, z } from "@hatch/space-sdk";
+
+export const privileged = definePrivilegedContracts(${contract});
+`,
+  );
+
+  const { workerPath } = await buildCloudflareArtifacts({
+    spaceDir,
+    outDir: path.join(spaceDir, "cloudflare-dist"),
+  });
+  assert.doesNotMatch(await fs.readFile(workerPath, "utf8"), /vm-only-notes/);
 });
 
 test("rejects unbranded hand-authored action objects during typecheck", async () => {

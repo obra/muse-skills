@@ -52,6 +52,10 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
+    if (argument === "--checked-put") {
+      parsed.checkedPut = true;
+      continue;
+    }
     throw new Error(`Unknown argument: ${argument}`);
   }
 
@@ -62,6 +66,13 @@ function parseArgs(argv) {
     throw new Error("Missing --out-dir");
   }
   return parsed;
+}
+
+// The Space build extracts this portable contract from server/src/privileged.ts
+// for actions to import as `@space/privileged`. The handlers in that file run
+// only on the VM.
+function privilegedContractPath(spaceDir) {
+  return path.join(spaceDir, "server", ".generated", "privileged.contract.ts");
 }
 
 function toImportSpecifier(fromDir, targetPath) {
@@ -262,12 +273,14 @@ async function collectMigrations(spaceDir) {
   );
 }
 
-async function writeEntrypoint(entryDir, spaceDir) {
+async function writeEntrypoint(entryDir, spaceDir, checkedPut) {
   await fs.mkdir(entryDir, { recursive: true });
   const entryPath = path.join(entryDir, "entry.ts");
   const packageJson = await readJsonIfExists(path.join(spaceDir, "package.json"));
   const slug = packageJson.hatch?.slug ?? path.basename(spaceDir);
-  const runtimeImport = toImportSpecifier(entryDir, workerRuntimePath);
+  const runtimeImport = toImportSpecifier(entryDir, checkedPut === true
+    ? path.join(__dirname, "src", "checked-put.ts")
+    : workerRuntimePath);
   const actionsPath = path.join(spaceDir, "server", "src", "actions.ts");
   const actionsImport = toImportSpecifier(entryDir, actionsPath);
   await fs.writeFile(
@@ -299,11 +312,15 @@ async function writeTypecheckConfig(entryDir, entryPath, spaceDir, aliases) {
         zod: [relativeZod],
         "drizzle-orm": [relativeDrizzle],
         "drizzle-orm/*": [`${relativeDrizzle}/*`],
+        "@space/privileged": [toImportSpecifier(entryDir, privilegedContractPath(spaceDir))],
       },
     },
     include: [
       toImportSpecifier(entryDir, entryPath),
-      toImportSpecifier(entryDir, path.join(spaceDir, "server", "src", "**", "*.ts")),
+      // Space modules are not roots, so only what the Worker imports is checked
+      // against the Worker libs. VM-only modules such as the privileged handlers
+      // stay out unless an action imports them.
+      toImportSpecifier(entryDir, path.join(spaceDir, "server", "src", "**", "*.d.ts")),
       toImportSpecifier(entryDir, path.join(__dirname, "src", "**", "*.ts")),
     ],
   };
@@ -364,6 +381,9 @@ async function bundleWorker({ entryPath, outDir, spaceDir }) {
           build.onResolve({ filter: /^drizzle-orm(\/.*)?$/ }, (args) => ({
             path: resolveModule(args.path, spaceDir),
           }));
+          build.onResolve({ filter: /^@space\/privileged$/ }, () => ({
+            path: privilegedContractPath(spaceDir),
+          }));
         },
       },
     ],
@@ -406,7 +426,7 @@ async function writeDeployManifest({ spaceDir, outDir, workerPath }) {
   return manifestPath;
 }
 
-export async function buildCloudflareArtifacts({ spaceDir, outDir }) {
+export async function buildCloudflareArtifacts({ spaceDir, outDir, checkedPut = false }) {
   const resolvedSpaceDir = path.resolve(spaceDir);
   const resolvedOutDir = path.resolve(outDir);
   const actionsPath = path.join(resolvedSpaceDir, "server", "src", "actions.ts");
@@ -418,7 +438,7 @@ export async function buildCloudflareArtifacts({ spaceDir, outDir }) {
   await fs.mkdir(resolvedOutDir, { recursive: true });
   const aliases = dependencyAliases(resolvedSpaceDir);
   const entryDir = path.join(resolvedOutDir, ".entry");
-  const entryPath = await writeEntrypoint(entryDir, resolvedSpaceDir);
+  const entryPath = await writeEntrypoint(entryDir, resolvedSpaceDir, checkedPut);
   const configPath = await writeTypecheckConfig(
     entryDir,
     entryPath,

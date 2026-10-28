@@ -13,3 +13,33 @@ When expert review is available, an entry also carries `aesthetics_mean` and
 `adherence_mean`. These are ranking-only quality signals: the picker uses them
 to settle otherwise close, non-contradictory matches. Missing scores are
 neutral and do not make an entry unavailable.
+
+## Andrew audit — October 27, 2026
+
+`voice_quality_audit_20261027.json` records the 23 audited low-quality voices
+and the requested aesthetics score of 0.55. The 15 retained entries carry
+that score and an `aesthetics_mean_note` of `Andrew audit` in the catalog. The other 8 remain excluded from the catalog;
+the audit file records evidence and does not register or expose them.
+
+Live Round 12 prompt replacements invalidate previous audio ratings.
+Their catalog scores are cleared, except for the explicit Andrew audit
+override. The sheet and audit notes retain the prior prompt evidence.
+
+## VD3 additions — October 27, 2026
+
+The 228 `avocado_v2:vd3_*` entries are 1p voice design replacements published
+as new voices; their parent entries and persisted selections keep their
+existing identifiers. Names, descriptions, and scores come from the
+[VD3 sheet](https://docs.google.com/spreadsheets/d/1aONGT0FSwTXmDQHpd2i7VUT77NECjJddqmZhTjNVobU/edit#gid=1732701027).
+
+Their quality scores are estimates, not human ratings of the new clips:
+aesthetics is `min(max(parent score, 1.0) + 0.11, 2.0)` and adherence is
+`min(parent score + 0.11, 2.0)`. Missing parent scores default to 1.0 and
+1.67 respectively. The catalog preserves the sheet's current score precision.
+The original voices' Andrew audit overrides remain at 0.55.
+
+Conditioning generation used `tts:tts_rl_vd_trackb_b5g-c3q5cp6m@650` via
+`playai.mapper.custom_diffusion_decoder`. Normalized WAVs, VQ prompts, speaker
+embeddings, exact generation descriptions, and source checksums are recorded
+in `kepler_vq_v2/vd3_round12_manifest_20261027.json`; generation details are in
+`kepler_vq_v2/README_VD3_20261027.md` in the `speech_training_v2` bucket.

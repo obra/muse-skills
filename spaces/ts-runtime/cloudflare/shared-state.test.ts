@@ -1,6 +1,7 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 import { Database } from "bun:sqlite";
 import { createWorker } from "./src/worker-runtime";
+import { READ_ONLY_ACTIONS_PATH } from "./src/read-only-access";
 import { defineAction, SpaceActionAuthRefreshRequiredError, z } from "./src/sdk";
 import { admitSharedAction, sharedStateAvailable } from "./src/shared-state";
 import { createActionClient, shouldRetryAction } from "../sdk/src/client";
@@ -244,4 +245,131 @@ test("the client retries only an explicit pre-invocation failure, never a lost r
   } });
   try { await disconnected.save!({}); throw new Error("expected connection failure"); }
   catch (error) { expect(shouldRetryAction(0, error)).toBe(false); }
+});
+
+const invocationRows = (sqlite: Database) =>
+  sqlite.query("SELECT id FROM __hatch_shared_invocations").all() as { id: string }[];
+
+// Fails `DELETE FROM __hatch_shared_invocations` the first `failures` times.
+function failReleases(db: ReturnType<typeof fixture>["db"], failures: number) {
+  let attempts = 0;
+  const prepare = db.prepare;
+  db.prepare = sql => {
+    const statement = prepare(sql);
+    if (sql.startsWith("DELETE FROM __hatch_shared_invocations")) {
+      const run = statement.run;
+      statement.run = async () => {
+        if (++attempts <= failures) throw new Error("D1_ERROR: Network connection lost.");
+        return run();
+      };
+    }
+    return statement;
+  };
+  return () => attempts;
+}
+
+test("a view-only handler retains admission through its direct network effects", async () => {
+  const f = fixture();
+  const called = Promise.withResolvers<void>();
+  const finishEffect = Promise.withResolvers<void>();
+  const effect = spyOn(globalThis, "fetch").mockImplementation(async () => {
+    called.resolve();
+    await finishEffect.promise;
+    return new Response(null, { status: 204 });
+  });
+  try {
+    const worker = createWorker({ notify: defineAction({ request: z.object({}), response: z.boolean(),
+      async handler() {
+        await fetch("https://example.test/synthetic-effect", { method: "POST" });
+        return true;
+      } }) }, "demo");
+    const read = () => worker.fetch(new Request(new URL(READ_ONLY_ACTIONS_PATH, "https://demo-123.example"),
+      request({ action: "notify", args: {} }, { "x-cloudflare-spaces-viewer-fbid": "viewer", "x-cloudflare-spaces-is-owner": "false" })),
+    f.env, f.execution);
+    const response = read();
+    await called.promise;
+    expect(invocationRows(f.sqlite).length).toBe(1);
+    f.sqlite.run("UPDATE __hatch_shared_state SET accepting = 0");
+    const refused = await read();
+    expect(refused.status).toBe(503);
+    expect(await refused.json()).toMatchObject({ code: "shared_state_busy", retrySafe: true });
+    expect(effect).toHaveBeenCalledTimes(1);
+    expect(invocationRows(f.sqlite).length).toBe(1);
+    finishEffect.resolve();
+    const result = await response;
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ data: true });
+    expect(invocationRows(f.sqlite)).toEqual([]);
+  } finally {
+    finishEffect.resolve();
+    await Promise.all(f.pending);
+    effect.mockRestore();
+  }
+});
+
+test("a use action whose release fails once still answers with its result and leaves no row", async () => {
+  const f = fixture();
+  const attempts = failReleases(f.db, 1);
+  const worker = createWorker({ save: defineAction({ request: z.object({}), response: z.number(),
+    async handler() { f.sqlite.run("INSERT INTO entries VALUES ('saved')"); return 1; } }) }, "demo");
+  const saved = await worker.fetch(request({ action: "save", args: {} }), f.env, f.execution);
+  expect(saved.status).toBe(200);
+  expect(await saved.json()).toEqual({ data: 1, version: 1 });
+  expect(attempts()).toBe(2);
+  expect(invocationRows(f.sqlite)).toEqual([]);
+  expect(f.sqlite.query("SELECT count(*) AS n FROM entries").get()).toEqual({ n: 1 });
+});
+
+test("a release that keeps failing preserves the result and retains its admission row", async () => {
+  const f = fixture();
+  const attempts = failReleases(f.db, Infinity);
+  const logged = spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const worker = createWorker({ save: defineAction({ request: z.object({}), response: z.number(),
+      async handler() { f.sqlite.run("INSERT INTO entries VALUES ('saved')"); return 1; } }) }, "demo");
+    const saved = await worker.fetch(request({ action: "save", args: {} }), f.env, f.execution);
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toEqual({ data: 1, version: 1 });
+    await Promise.all(f.pending);
+    expect(attempts()).toBe(3);
+    expect(logged).toHaveBeenCalledTimes(1);
+    // Failed cleanup must not authorize a drain to assume this work is gone.
+    const [retained] = invocationRows(f.sqlite);
+    expect(invocationRows(f.sqlite).length).toBe(1);
+    expect(logged.mock.calls[0]?.[1]).toEqual({ id: retained!.id, phase: "after_handler" });
+  } finally {
+    logged.mockRestore();
+  }
+});
+
+test("a lost admission reply whose cleanup fails is still a retry-safe refusal", async () => {
+  const f = fixture();
+  failReleases(f.db, Infinity);
+  const prepare = f.db.prepare;
+  f.db.prepare = statement => {
+    const prepared = prepare(statement);
+    if (statement.startsWith("INSERT INTO __hatch_shared_invocations")) {
+      const first = prepared.first;
+      prepared.first = async <T>() => { await first<T>(); throw new Error("Lost admission reply"); };
+    }
+    return prepared;
+  };
+  const logged = spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(admitSharedAction(f.db)).rejects.toThrow("Lost admission reply");
+    let calls = 0;
+    const worker = createWorker({ save: defineAction({ request: z.object({}), response: z.number(),
+      handler: async () => ++calls }) }, "demo");
+    const refused = await worker.fetch(request({ action: "save", args: {} }), f.env, f.execution);
+    expect(refused.status).toBe(503);
+    expect(await refused.json()).toMatchObject({ code: "shared_state_unavailable", retrySafe: true });
+    expect(calls).toBe(0);
+    // Neither failed cleanup reached a handler, but neither row was released.
+    const retained = invocationRows(f.sqlite).map(row => row.id).sort();
+    expect(retained.length).toBe(2);
+    expect(logged.mock.calls.map(call => call[1]).sort((a, b) => String(a.id).localeCompare(String(b.id))))
+      .toEqual(retained.map(id => ({ id, phase: "lost_admission" })));
+  } finally {
+    logged.mockRestore();
+  }
 });

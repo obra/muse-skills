@@ -520,7 +520,7 @@ export interface SpaceToolClient {
    * action and no expiring URL. Use it for decoration and illustration. A
    * real place, product, person, or item gets a fetched photo or no image,
    * except the user's own one-off or customized thing with no accurate photo:
-   * generate that from the specifics the artifact states and name its real
+   * illustrate that from the specifics the artifact states and name its real
    * components in the prompt. Persist `blobKey` in your DB and render `url`.
    */
   generate_media(prompt: string, options?: GenerateMediaOptions): Promise<GeneratedMedia>;

@@ -1005,7 +1005,7 @@ function createAgentClient(
 
 // --- Blob key/path helpers ---
 
-function normalizeBlobKey(key: string): string {
+export function normalizeBlobKey(key: string): string {
   const normalized = key.trim();
   if (normalized.length === 0) {
     throw new Error("Blob key must not be empty");
@@ -1082,7 +1082,7 @@ function decodeBlobKeyToken(encodedKey: string): string {
 
 type BlobVisibility = "public" | "private";
 
-function r2Key(visibility: BlobVisibility, key: string): string {
+export function r2Key(visibility: BlobVisibility, key: string): string {
   return `blobs/${visibility}/${key}`;
 }
 
@@ -1367,6 +1367,8 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
         );
       }
 
+      // The read-only wrappers do not cover direct fetches from handlers.
+      // Every handler must remain counted until all its awaited effects settle.
       finish = await admitSharedAction(env.DB);
       const data = await action.handler(
         createCtx(
