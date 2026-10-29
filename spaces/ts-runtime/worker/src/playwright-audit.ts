@@ -98,7 +98,7 @@ import { fulfillLocalAuditRequest } from "./local-audit-transport";
 // which is a real infrastructure failure.
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { accessSync, constants as fsConstants, existsSync } from "node:fs";
+import fs, { accessSync, constants as fsConstants, existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1877,6 +1877,27 @@ export function buildLaunchOptions(
   }
   if (executablePath !== null) {
     launchOptions.executablePath = executablePath;
+  }
+  if (executablePath === "/opt/meta-chromium/chrome") {
+    // Trust only the measured immutable image policy, bound read-only at this
+    // same path inside the cell, never a policy in the artifact's writable tree.
+    const policyPath =
+      "/var/lib/hatch-browser/rootfs-base/usr/share/hatch/chromium/webgl-allowed-domains.txt";
+    let policy: Buffer | null = null;
+    try {
+      policy = fs.readFileSync(policyPath);
+    } catch (err) {
+      // Images with legacy Chromium do not carry this policy. Other failures
+      // must abort launch rather than silently dropping the required policy.
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
+    if (policy !== null) {
+      launchOptions.args = [
+        ...(launchOptions.args ?? []),
+        `--hatch-webgl-allowed-domains-file=${policyPath}`,
+        `--hatch-webgl-allowed-domains-sha256=${createHash("sha256").update(policy).digest("hex")}`,
+      ];
+    }
   }
   if (proxyServer !== null) {
     // Routes Chromium through Sentinel's HTTP/HTTPS forward proxy so

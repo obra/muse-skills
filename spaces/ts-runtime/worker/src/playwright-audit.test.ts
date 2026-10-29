@@ -1,12 +1,16 @@
+import fs from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Route } from "playwright";
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { connect as netConnect, createServer as netCreateServer } from "node:net";
 
 import {
   attachAuditNetworkPolicy,
+  buildLaunchOptions,
+  CHROME_HARDENING_ARGS,
+  CHROME_PHONE_HOME_BYPASS_HOSTS,
   capAriaSnapshot,
   confirmTransientUnreachable,
   dedupeBrokenAssets,
@@ -21,6 +25,73 @@ import {
 const DAEMON_ORIGIN = "http://[fd8b:4f84:7d32:99::2]:18792";
 const SLUG = "focus-board";
 const ROUTE_SLUG = "hatch-audit-6b7c1978-4b1f-4b6f-952d-0cc2d2795cf2";
+
+describe("buildLaunchOptions image policy boundary", () => {
+  const chrome = "/opt/meta-chromium/chrome";
+  const policyPath =
+    "/var/lib/hatch-browser/rootfs-base/usr/share/hatch/chromium/webgl-allowed-domains.txt";
+  const proxy = "http://[::1]:3128";
+  const policyFlags = (args: string[] = []) =>
+    args.filter((arg) => arg.startsWith("--hatch-webgl-"));
+
+  test("only selected image Chrome receives the immutable policy and exact-byte digest", () => {
+    // CRLF and trailing blank lines must survive the digest, not be normalized
+    // or trimmed. The proxy and shared hardening still apply to the HBI path.
+    const policy = Buffer.from("# measured policy\r\nexample.com\r\n\r\n");
+    const read = spyOn(fs, "readFileSync").mockReturnValue(policy);
+    try {
+      const options = buildLaunchOptions(chrome, proxy, null, null);
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(read).toHaveBeenCalledWith(policyPath);
+      expect(options.executablePath).toBe(chrome);
+      expect(policyFlags(options.args)).toEqual([
+        `--hatch-webgl-allowed-domains-file=${policyPath}`,
+        "--hatch-webgl-allowed-domains-sha256=eb8a85b613504187a022da91733c92d3472c04ec6c0ab34e1ea1234e51a85186",
+      ]);
+      for (const arg of CHROME_HARDENING_ARGS) expect(options.args).toContain(arg);
+      expect(options.proxy).toEqual({
+        server: proxy,
+        bypass: CHROME_PHONE_HOME_BYPASS_HOSTS.join(","),
+      });
+      for (const executable of [
+        "/root/.cache/ms-playwright/chromium_headless_shell-1200/chrome-linux/headless_shell",
+        null,
+        "/tmp/other-chromium/chrome",
+      ]) {
+        const unrelated = buildLaunchOptions(executable, proxy, null, null);
+        expect(policyFlags(unrelated.args)).toEqual([]);
+      }
+      // Even with a policy present, unrelated browsers must never read it.
+      expect(read).toHaveBeenCalledTimes(1);
+    } finally {
+      read.mockRestore();
+    }
+  });
+
+  test("legacy policy absence is compatible, but other read failures abort launch", () => {
+    const missing = Object.assign(new Error("policy absent"), { code: "ENOENT" });
+    const read = spyOn(fs, "readFileSync").mockImplementation(() => {
+      throw missing;
+    });
+    try {
+      const legacy = buildLaunchOptions(chrome, proxy, null, null);
+      const managed = buildLaunchOptions(null, proxy, null, null);
+      expect(legacy.executablePath).toBe(chrome);
+      expect(legacy.args).toEqual(managed.args);
+      expect(legacy.proxy).toEqual(managed.proxy);
+      expect(read).toHaveBeenCalledTimes(1);
+      for (const code of ["EACCES", "EIO"]) {
+        const failure = Object.assign(new Error(`policy read failed: ${code}`), { code });
+        read.mockImplementation(() => {
+          throw failure;
+        });
+        expect(() => buildLaunchOptions(chrome, proxy, null, null)).toThrow(failure);
+      }
+    } finally {
+      read.mockRestore();
+    }
+  });
+});
 
 describe("startProxyAuthRelay", () => {
   test("injects Proxy-Authorization on every forwarded CONNECT", async () => {

@@ -21,6 +21,8 @@ builders: web
 
 - Work down this list inside a server action and take the first channel that fits.
 
+- Once an artifact is shared, its page cannot reach `ctx.inference`, `ctx.agent` or `ctx.tool`; scheduled actions still can. So a shared artifact's page reads saved data, and a schedule or the user's agent refreshes it.
+
 ### Quotes with ctx.tool.finance_ticker
 
 - `ctx.tool.finance_ticker(symbol, options?)` returns quotes and price history. Pass one ticker symbol per call, since "META GOOG" is rejected, and fetch a watchlist with `Promise.all`.

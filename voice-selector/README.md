@@ -43,3 +43,15 @@ Conditioning generation used `tts:tts_rl_vd_trackb_b5g-c3q5cp6m@650` via
 embeddings, exact generation descriptions, and source checksums are recorded
 in `kepler_vq_v2/vd3_round12_manifest_20261027.json`; generation details are in
 `kepler_vq_v2/README_VD3_20261027.md` in the `speech_training_v2` bucket.
+
+## Persona onboarding (2026-10-28)
+
+The 12 selected Persona voices use normalized `audio.wav`, `voice.json`, and
+`voice.pt` packages under `kepler_vq_v2`. Their names and descriptions come
+from the Persona tab and are synchronized to the Master List. Solemn Lantern
+and Lilting Ripple remain excluded.
+
+Andrew assigned all 12 catalog scores to aesthetics 1.0 and adherence 2.0;
+these values are editorial defaults, not new human annotations. Source audio,
+source metadata, generation model where supplied, encoding settings, and
+checksums are preserved in the [selection manifest](manifold://speech_training_v2/tree/users/rosenberg/persona_new_three_20261028/persona_onboarding_selection_20261028.json).

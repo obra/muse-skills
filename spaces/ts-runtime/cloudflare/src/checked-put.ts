@@ -40,7 +40,7 @@ export function createWorker(actionsExport: Record<string, unknown>, slug: strin
           },
         } satisfies ActionDefinition];
       }));
-      return createOriginalWorker(actions, slug).fetch(request, env, execution);
+      return createOriginalWorker(actions, slug, createCheckedPut(env.BUCKET, hatch)).fetch(request, env, execution);
     },
   };
 }

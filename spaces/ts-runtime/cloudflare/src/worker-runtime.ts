@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/d1";
 import { ActionRequestError, readActionRequest } from "./action-request";
 import { admitSharedAction, sharedStateAvailable, SharedStateUnavailable, type SharedDatabase } from "./shared-state";
+import { runSharedDataOperation, SHARED_DATA_PROTOCOL } from "./shared-data";
 import {
   READ_ONLY_ACTIONS_PATH,
   READ_ONLY_DENIAL_MESSAGE,
@@ -1285,7 +1286,13 @@ async function handleBlobDownload(request: Request, env: CloudflareEnv): Promise
 
 // --- Worker entrypoint ---
 
-export function createWorker(actionsExport: unknown, slug: string): WorkerModule {
+// `checkedPut` replaces file writes on integrity-checked builds, for the
+// owner VM's shared-data writes as it does inside actions.
+export function createWorker(
+  actionsExport: unknown,
+  slug: string,
+  checkedPut?: BlobClient["put"],
+): WorkerModule {
   const actions = buildActionMap(actionsExport);
 
   async function handleRequest(request: Request, env: CloudflareEnv): Promise<Response> {
@@ -1329,6 +1336,30 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
       }
 
       const body = await readActionRequest(request);
+      if ("kind" in body && body.kind === "shared_data") {
+        // The owner's VM runs this app's actions locally and keeps the data
+        // here; nobody else may reach the database directly.
+        if (readOnly || viewer?.isOwner !== true) {
+          return jsonResponse({ error: "Only the app's owner can use its data directly" }, 403);
+        }
+        finish = await admitSharedAction(env.DB);
+        const blobs = createBlobClient(env);
+        if (checkedPut !== undefined) blobs.put = checkedPut;
+        try {
+          const data = await runSharedDataOperation(env.DB as never, blobs, body.operation);
+          return jsonResponse({ data, version: 1, protocol: SHARED_DATA_PROTOCOL });
+        } catch (error) {
+          // The file checker is down and nothing was written: a platform
+          // outage the VM may retry, not an unknown outcome or an app error.
+          if (error instanceof Error && error.message === "upload_integrity:unavailable") {
+            return jsonResponse(
+              { error: "File checks are temporarily unavailable.", code: "upload_check_unavailable", retrySafe: true },
+              503,
+            );
+          }
+          throw error;
+        }
+      }
       if ("kind" in body) {
         if (actions.size > 0 && !await sharedStateAvailable(env.DB)) throw new SharedStateUnavailable();
         const names = [...new Set([...actions.keys()].map(normalizeActionName))].sort();
