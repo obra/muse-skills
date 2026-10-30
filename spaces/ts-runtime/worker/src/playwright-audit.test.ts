@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Route } from "playwright";
@@ -14,6 +14,7 @@ import {
   capAriaSnapshot,
   confirmTransientUnreachable,
   dedupeBrokenAssets,
+  findSystemChrome,
   formatConsoleWarning,
   isAuditRequestAllowed,
   isHighPriorityWarning,
@@ -49,6 +50,12 @@ describe("buildLaunchOptions image policy boundary", () => {
         "--hatch-webgl-allowed-domains-sha256=eb8a85b613504187a022da91733c92d3472c04ec6c0ab34e1ea1234e51a85186",
       ]);
       for (const arg of CHROME_HARDENING_ARGS) expect(options.args).toContain(arg);
+      const disabled = options.args?.filter((arg) => arg.startsWith("--disable-features=")) ?? [];
+      expect(disabled).toHaveLength(1);
+      const features = new Set(disabled[0]!.split("=")[1]!.split(","));
+      for (const feature of ["HatchFortress", "Translate", "MediaRouter", "OptimizationHints", "AutofillServerCommunication"]) {
+        expect(features.has(feature)).toBe(true);
+      }
       expect(options.proxy).toEqual({
         server: proxy,
         bypass: CHROME_PHONE_HOME_BYPASS_HOSTS.join(","),
@@ -58,11 +65,20 @@ describe("buildLaunchOptions image policy boundary", () => {
         null,
         "/tmp/other-chromium/chrome",
       ]) {
-        const unrelated = buildLaunchOptions(executable, proxy, null, null);
-        expect(policyFlags(unrelated.args)).toEqual([]);
+        if (process.platform === "linux") {
+          expect(() => buildLaunchOptions(executable, proxy, null, null)).toThrow(
+            "Linux artifact rendering requires /opt/meta-chromium/chrome",
+          );
+        } else {
+          const unrelated = buildLaunchOptions(executable, proxy, null, null);
+          expect(policyFlags(unrelated.args)).toEqual([]);
+        }
       }
       // Even with a policy present, unrelated browsers must never read it.
       expect(read).toHaveBeenCalledTimes(1);
+      expect(() => buildLaunchOptions(chrome, proxy, "token", null)).toThrow(
+        "proxy auth token must be routed through relay",
+      );
     } finally {
       read.mockRestore();
     }
@@ -75,10 +91,17 @@ describe("buildLaunchOptions image policy boundary", () => {
     });
     try {
       const legacy = buildLaunchOptions(chrome, proxy, null, null);
-      const managed = buildLaunchOptions(null, proxy, null, null);
       expect(legacy.executablePath).toBe(chrome);
-      expect(legacy.args).toEqual(managed.args);
-      expect(legacy.proxy).toEqual(managed.proxy);
+      expect(policyFlags(legacy.args)).toEqual([]);
+      if (process.platform === "linux") {
+        expect(() => buildLaunchOptions(null, proxy, null, null)).toThrow(
+          "Linux artifact rendering requires /opt/meta-chromium/chrome",
+        );
+      } else {
+        const managed = buildLaunchOptions(null, proxy, null, null);
+        expect(legacy.args).toEqual(managed.args);
+        expect(legacy.proxy).toEqual(managed.proxy);
+      }
       expect(read).toHaveBeenCalledTimes(1);
       for (const code of ["EACCES", "EIO"]) {
         const failure = Object.assign(new Error(`policy read failed: ${code}`), { code });
@@ -89,6 +112,44 @@ describe("buildLaunchOptions image policy boundary", () => {
       }
     } finally {
       read.mockRestore();
+    }
+  });
+});
+
+describe("HBI-provided Chromium admission", () => {
+  test("only genuine absence admits managed development, never Linux fallback", async () => {
+    const root = await mkdtemp(join(tmpdir(), "image-chrome-admission-"));
+    const image = join(root, "chrome");
+    try {
+      expect(() => findSystemChrome("linux", image)).toThrow("required HBI-provided Chromium");
+      expect(findSystemChrome("darwin", image)).toBeNull();
+      expect(findSystemChrome("win32", image)).toBeNull();
+      await symlink(join(root, "missing-target"), image);
+      for (const platform of ["linux", "darwin", "win32"] as const) {
+        expect(() => findSystemChrome(platform, image)).toThrow("required HBI-provided Chromium");
+        expect(() => findSystemChrome(platform, join(image, "chrome"))).toThrow("required HBI-provided Chromium");
+      }
+      await rm(image);
+      await writeFile(image, "fixture", { mode: 0o600 });
+      for (const platform of ["linux", "darwin", "win32"] as const) {
+        expect(() => findSystemChrome(platform, image)).toThrow("required HBI-provided Chromium");
+        expect(() => findSystemChrome(platform, root)).toThrow("required HBI-provided Chromium");
+      }
+      await chmod(image, 0o700);
+      for (const platform of ["linux", "darwin", "win32"] as const) {
+        expect(findSystemChrome(platform, image)).toBe(image);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("Linux launch cannot bypass canonical admission through managed or PATH alternatives", () => {
+    if (process.platform !== "linux") return;
+    for (const alternative of [null, "chromium", "/usr/bin/chromium"]) {
+      expect(() => buildLaunchOptions(alternative, null, null, null)).toThrow(
+        "Linux artifact rendering requires /opt/meta-chromium/chrome",
+      );
     }
   });
 });

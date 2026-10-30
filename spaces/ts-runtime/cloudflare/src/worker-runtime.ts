@@ -10,38 +10,19 @@ import {
 } from "./read-only-access";
 import {
   createPrivilegedExecutor,
-  inferenceOptionsToPayload,
   isAction,
-  isHatchSpaceActionRefreshableFailureCode,
-  isSpaceActionAuthRefreshRequiredError,
-  SpaceActionAuthRefreshRequiredError,
-  z,
   type AgentClient,
-  type AgentSendOptions,
-  type AgentSendResult,
-  type AgentStatusResult,
   type ActionDefinition,
   type BlobClient,
   type BlobMetadata,
   type BlobPutData,
   type Ctx,
   type InferenceClient,
-  type InferenceCompleteOptions,
-  type JsonValue,
-  type PrivilegedContract,
-  type PrivilegedRequest,
   type SpaceDb,
   type SpaceToolClient,
-  type ToolFinanceOptions,
-  type ToolSearchResponse,
-  type ToolWeatherOptions,
   type CloudflareViewer as Viewer,
+  z,
 } from "./sdk";
-import {
-  buildToolContent,
-  normalizeTicker,
-  type SearchResult,
-} from "../../worker/src/search_builders";
 
 type R2PutOptions = {
   httpMetadata?: {
@@ -91,12 +72,6 @@ type CloudflareEnv = {
   BUCKET: R2Bucket;
   DB: SharedDatabase;
   SPACE_SHORTCODE?: string;
-  SPACE_ACTION_CREDENTIAL_EXPIRES_AT_MS?: string;
-  SPACE_ACTION_CREDENTIAL_REFRESH_AFTER_MS?: string;
-  SPACE_ACTION_NOTARY_TOKEN?: string;
-  SPACE_ACTION_SPACE_SLUG?: string;
-  SPACE_ACTION_VM_ID?: string;
-  SPACE_ACTION_EDGE_HOST?: string;
   SPACE_VERSION?: string;
 };
 
@@ -129,20 +104,15 @@ const viewerHeaders = {
 
 const defaultBlobContentType = "application/octet-stream";
 const defaultBlobExpiresSeconds = 600;
-const SPACE_ACTION_SDK_INFERENCE_PATH_SUFFIX = "_sdk/inference";
-const SPACE_ACTION_SDK_TOOL_CALL_PATH_SUFFIX = "_sdk/tool-call";
-const SPACE_ACTION_SDK_AGENT_PATH_SUFFIX = "_sdk/agent";
-const SPACE_ACTION_SDK_PRIVILEGED_PATH_SUFFIX = "_sdk/privileged";
 
 class SpaceActionForbiddenError extends Error {
-  constructor(message: string) {
+  code: string | undefined;
+
+  constructor(message: string, code?: string) {
     super(message);
     this.name = "SpaceActionForbiddenError";
+    this.code = code;
   }
-}
-
-function isSpaceActionForbiddenError(error: unknown): error is SpaceActionForbiddenError {
-  return error instanceof SpaceActionForbiddenError;
 }
 
 /**
@@ -340,19 +310,18 @@ function createCtx(
   env: CloudflareEnv,
   request: Request,
   action: CloudflareActionDefinition,
-  actionName: string,
   actionCallId: string | undefined,
   readOnly: boolean,
 ): Ctx {
   let db: SpaceDb | null = null;
   const viewer = viewerFromHeaders(request.headers);
   const invocationId = actionCallId ?? crypto.randomUUID();
-  const privilegedExecutor = createPrivilegedExecutor(
-    action.privileged,
-    createPrivilegedTransport(env, viewer, invocationId, actionName),
+  const privilegedExecutor = createPrivilegedExecutor(action.privileged, () =>
+    vmCapabilityUnavailable("ctx.executePrivileged"),
   );
-  // Agent, inference, tool and privileged calls already require the owner, so a
-  // view-only recipient's data access is the DB and blobs, guarded here.
+  // Agent, inference, tool and privileged calls are unavailable in shared
+  // artifacts, so a view-only recipient's data access is the DB and blobs,
+  // guarded here.
   const denyWrite = (): never => {
     throw new SpaceActionForbiddenError(READ_ONLY_DENIAL_MESSAGE);
   };
@@ -362,9 +331,9 @@ function createCtx(
     invocationId,
     spaceDir: "",
     viewer,
-    agent: createAgentClient(env, viewer, invocationId, actionName),
-    inference: createInferenceClient(env, viewer, invocationId, actionName),
-    tool: createToolClient(env, viewer, invocationId, actionName),
+    agent: createAgentClient(),
+    inference: createInferenceClient(),
+    tool: createToolClient(),
     db: () => {
       db ??= drizzle(
         (readOnly ? readOnlyDatabase(env.DB as never, denyWrite) : env.DB) as never,
@@ -380,626 +349,53 @@ function createCtx(
   };
 }
 
-interface SpaceActionCredentialStatus {
-  readonly spaceShortcode: string;
-  readonly spaceSlug: string;
-  readonly vmId: string;
-  readonly edgeHost: string;
-  readonly notaryToken: string;
-}
-
-function requiredEnvString(env: CloudflareEnv, name: keyof CloudflareEnv): string {
-  const value = env[name];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-// The per-VM FQDN is being retired, so the callback target is no longer parsed
-// out of a hostname: the deploy/refresh contract now ships the VM uuid and edge
-// host as explicit bindings (SPACE_ACTION_VM_ID + SPACE_ACTION_EDGE_HOST). We
-// validate both — vm_id is the shared edge's only routing key, and edge_host is
-// the TLS-terminating VIP we dial — so a malformed binding fails as a refreshable
-// credential error rather than producing a bad callback URL.
-const SPACE_ACTION_VM_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Shared-VIP allowlist — NOT a loose `*.metaaivm.com` matcher: a per-VM FQDN
-// (`<uuid>.metaaivm.com`, being retired) must NOT be accepted as an edge host.
-// Accepts only the prod VIP and its non-prod counterpart.
-const SPACE_ACTION_EDGE_HOST_RE = /^hatch\.(?:test-only\.)?metaaivm\.com$/i;
-const DEFAULT_SPACE_ACTION_EDGE_HOST = "hatch.metaaivm.com";
-
-function credentialStatusFromEnv(env: CloudflareEnv): SpaceActionCredentialStatus {
-  const spaceShortcode = requiredEnvString(env, "SPACE_SHORTCODE");
-  const spaceSlug = requiredEnvString(env, "SPACE_ACTION_SPACE_SLUG");
-  const vmId = requiredEnvString(env, "SPACE_ACTION_VM_ID").toLowerCase();
-  const edgeHost =
-    requiredEnvString(env, "SPACE_ACTION_EDGE_HOST").toLowerCase() ||
-    DEFAULT_SPACE_ACTION_EDGE_HOST;
-  const notaryToken = requiredEnvString(env, "SPACE_ACTION_NOTARY_TOKEN");
-  const expiresAtMs = Number(
-    requiredEnvString(env, "SPACE_ACTION_CREDENTIAL_EXPIRES_AT_MS"),
+// Shared artifacts cannot reach the owner's VM. The browser SDK treats 403
+// as permanent: no retry and no credential refresh.
+function vmCapabilityUnavailable(capability: string): never {
+  throw new SpaceActionForbiddenError(
+    `${capability} is not available in shared web artifacts`,
+    "shared_artifact_vm_capability_unavailable",
   );
-  const refreshAfterMs = Number(
-    requiredEnvString(env, "SPACE_ACTION_CREDENTIAL_REFRESH_AFTER_MS"),
-  );
-
-  if (
-    spaceShortcode.length === 0 ||
-    spaceSlug.length === 0 ||
-    !SPACE_ACTION_VM_ID_RE.test(vmId) ||
-    !SPACE_ACTION_EDGE_HOST_RE.test(edgeHost) ||
-    notaryToken.length === 0 ||
-    !Number.isFinite(expiresAtMs) ||
-    !Number.isFinite(refreshAfterMs)
-  ) {
-    throw new SpaceActionAuthRefreshRequiredError("notary_missing");
-  }
-
-  const nowMs = Date.now();
-  if (expiresAtMs <= nowMs) {
-    throw new SpaceActionAuthRefreshRequiredError("notary_expired");
-  }
-  if (refreshAfterMs <= nowMs) {
-    throw new SpaceActionAuthRefreshRequiredError("credential_stale");
-  }
-
-  return { spaceShortcode, spaceSlug, vmId, edgeHost, notaryToken };
 }
 
-function notaryAuthorizationHeader(notaryToken: string): string {
-  return notaryToken.startsWith("endorsement.")
-    ? notaryToken
-    : `endorsement.${notaryToken}`;
-}
-
-// Build the CF→VM callback URL on the shared edge. Unlike a per-VM FQDN
-// (`<uuid>.metaaivm.com`, which routed by hostname), the edge host is shared
-// across VMs and routes to one only by the `vm_id` query param. Both inputs come
-// straight from validated credential bindings — no hostname parsing — so the VM
-// uuid stays valid even after the per-VM FQDN/DNS is retired. TLS terminates at
-// the edge; the notary endorsement (not the transport cert) remains the CF→VM
-// trust anchor. Mirrors hatch's `toSharedLbVmHttpUrl` (app/_lib/hatchGatewayUrl.ts).
-export function toSharedLbVmCallbackUrl(
-  edgeHost: string,
-  vmId: string,
-  vmPath: string,
-): string {
-  const url = new URL(`https://${edgeHost}${vmPath}`);
-  url.searchParams.set("vm_id", vmId); // exactly one, server-resolved; drops any client value
-  return url.toString();
-}
-
-async function sha256Base64Url(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  let binary = "";
-  for (const byte of new Uint8Array(digest)) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/u, "");
-}
-
-async function readJsonResponse(response: Response): Promise<unknown> {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-function refreshableCodeFromVmError(body: unknown): string | null {
-  if (typeof body !== "object" || body == null) {
-    return null;
-  }
-  const error = (body as { error?: unknown }).error;
-  if (typeof error !== "object" || error == null) {
-    return null;
-  }
-  const code = (error as { code?: unknown }).code;
-  return typeof code === "string" ? code : null;
-}
-
-function createInferenceClient(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  actionInvocationId: string,
-  actionName: string,
-): InferenceClient {
+function createInferenceClient(): InferenceClient {
   return {
-    async complete<T extends z.ZodType>(
-      prompt: string,
-      options: InferenceCompleteOptions<T>,
-    ): Promise<z.infer<T>> {
-      if (viewer?.isOwner !== true) {
-        throw new SpaceActionForbiddenError(
-          "Cloudflare space action inference requires owner viewer",
-        );
-      }
-      const status = credentialStatusFromEnv(env);
-      const vmPath = `/spaces/v2/${encodeURIComponent(
-        status.spaceSlug,
-      )}/${SPACE_ACTION_SDK_INFERENCE_PATH_SUFFIX}`;
-      const payload: JsonValue = {
-        operation: "complete",
-        prompt,
-        options: inferenceOptionsToPayload(options),
-        actionInvocationId,
-        actionName,
-      };
-      const requestBody = JSON.stringify(payload);
-      const callbackRequest = {
-        body_sha256: await sha256Base64Url(requestBody),
-        capability: "inference",
-        method: "POST",
-        nonce: crypto.randomUUID(),
-        path: vmPath,
-        space: status.spaceShortcode,
-        ts: Math.floor(Date.now() / 1000),
-        payload,
-      };
-      const response = await fetch(toSharedLbVmCallbackUrl(status.edgeHost, status.vmId, vmPath), {
-        method: "POST",
-        headers: {
-          authorization: notaryAuthorizationHeader(status.notaryToken),
-          "content-type": "application/json",
-        },
-        body: JSON.stringify(callbackRequest),
-      });
-      const body = await readJsonResponse(response);
-      if (!response.ok) {
-        const code = refreshableCodeFromVmError(body);
-        if (isHatchSpaceActionRefreshableFailureCode(code)) {
-          throw new SpaceActionAuthRefreshRequiredError(code);
-        }
-        if (response.status === 401 || response.status === 403) {
-          throw new SpaceActionAuthRefreshRequiredError("notary_invalid");
-        }
-        throw new Error(
-          `inference callback failed: ${response.status} ${JSON.stringify(body)}`,
-        );
-      }
-      const parsed = options.schema.safeParse(body);
-      if (!parsed.success) {
-        throw new Error(`inference callback response did not match schema: ${parsed.error.message}`);
-      }
-      return parsed.data as z.infer<T>;
+    async complete() {
+      return vmCapabilityUnavailable("ctx.inference.complete");
     },
   };
 }
 
-type ToolMethod = "weather" | "sports_data" | "finance" | "finance_ticker" | "web_search";
-type ToolCallOptions = ToolFinanceOptions & ToolWeatherOptions;
-
-async function callVmTool(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  tool: ToolMethod,
-  query: string,
-  options: ToolCallOptions,
-  actionInvocationId: string,
-  actionName: string,
-): Promise<ToolSearchResponse> {
-  if (viewer?.isOwner !== true) {
-    throw new SpaceActionForbiddenError(
-      "Cloudflare space action tool calls require owner viewer",
-    );
-  }
-  const status = credentialStatusFromEnv(env);
-  const vmPath = `/spaces/v2/${encodeURIComponent(
-    status.spaceSlug,
-  )}/${SPACE_ACTION_SDK_TOOL_CALL_PATH_SUFFIX}`;
-  const payload: JsonValue = {
-    operation: "search",
-    tool,
-    query,
-    options: options as unknown as JsonValue,
-    actionInvocationId,
-    actionName,
-  };
-  const requestBody = JSON.stringify(payload);
-  const callbackRequest = {
-    body_sha256: await sha256Base64Url(requestBody),
-    capability: "tool_call",
-    method: "POST",
-    nonce: crypto.randomUUID(),
-    path: vmPath,
-    space: status.spaceShortcode,
-    ts: Math.floor(Date.now() / 1000),
-    payload,
-  };
-  const response = await fetch(toSharedLbVmCallbackUrl(status.edgeHost, status.vmId, vmPath), {
-    method: "POST",
-    headers: {
-      authorization: notaryAuthorizationHeader(status.notaryToken),
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(callbackRequest),
-  });
-  const body = await readJsonResponse(response);
-  if (!response.ok) {
-    const code = refreshableCodeFromVmError(body);
-    if (isHatchSpaceActionRefreshableFailureCode(code)) {
-      throw new SpaceActionAuthRefreshRequiredError(code);
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw new SpaceActionAuthRefreshRequiredError("notary_invalid");
-    }
-    throw new Error(
-      `tool call callback failed: ${response.status} ${JSON.stringify(body)}`,
-    );
-  }
-  // The daemon `_sdk/tool-call` route returns the raw web-search response with
-  // `content: null` — it carries only `summary`/`metadata`, and the typed
-  // `content` is mapped client-side. The local bun worker does this in
-  // `createToolClient`; here we run the SAME shared builder so both runtimes
-  // return identical `content`. Without this, a published Cloudflare Space
-  // reading e.g. `ctx.tool.web_search(...).content.results` would get `null` and
-  // break, even though it works locally.
-  const raw = body as unknown as SearchResult;
-  // Weather and finance selectors are applied to the complete series already
-  // in the response, so both runtimes must forward them to the shared builder.
-  const buildOptions =
-    tool === "weather"
-      ? { hourly_hours: options.hourly_hours }
-      : tool === "finance_ticker"
-        ? { symbol: normalizeTicker(query), interval: options.interval, since: options.since, until: options.until }
-        : tool === "finance"
-          ? { interval: options.interval, since: options.since, until: options.until }
-          : undefined;
-  return { ...raw, content: buildToolContent(tool, raw, buildOptions) } as ToolSearchResponse;
-}
-
-function createToolClient(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  actionInvocationId: string,
-  actionName: string,
-): SpaceToolClient {
+function createToolClient(): SpaceToolClient {
   return {
-    weather(query, options = {}) {
-      return callVmTool(env, viewer, "weather", query, options, actionInvocationId, actionName);
+    async weather() {
+      return vmCapabilityUnavailable("ctx.tool.weather");
     },
-    sports_data(query, options = {}) {
-      return callVmTool(
-        env,
-        viewer,
-        "sports_data",
-        query,
-        options,
-        actionInvocationId,
-        actionName,
-      );
+    async sports_data() {
+      return vmCapabilityUnavailable("ctx.tool.sports_data");
     },
-    finance(query, options = {}) {
-      return callVmTool(env, viewer, "finance", query, options, actionInvocationId, actionName);
+    async finance() {
+      return vmCapabilityUnavailable("ctx.tool.finance");
     },
-    finance_ticker(symbol, options = {}) {
-      // Validate up front (fail-fast) so a multi-ticker string is rejected
-      // before paying for a finance search — parity with the local worker.
-      const ticker = normalizeTicker(symbol);
-      return callVmTool(
-        env,
-        viewer,
-        "finance_ticker",
-        ticker,
-        options,
-        actionInvocationId,
-        actionName,
-      );
+    async finance_ticker() {
+      return vmCapabilityUnavailable("ctx.tool.finance_ticker");
     },
-    web_search(query, options = {}) {
-      return callVmTool(
-        env,
-        viewer,
-        "web_search",
-        query,
-        options,
-        actionInvocationId,
-        actionName,
-      );
+    async web_search() {
+      return vmCapabilityUnavailable("ctx.tool.web_search");
     },
   };
 }
 
-type AgentOperationPayload = JsonValue;
-
-async function callVmPrivileged(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  payload: JsonValue,
-): Promise<unknown> {
-  if (viewer?.isOwner !== true) {
-    throw new SpaceActionForbiddenError(
-      "Cloudflare space action privileged functions require owner viewer",
-    );
-  }
-  const status = credentialStatusFromEnv(env);
-  const vmPath = `/spaces/v2/${encodeURIComponent(
-    status.spaceSlug,
-  )}/${SPACE_ACTION_SDK_PRIVILEGED_PATH_SUFFIX}`;
-  const requestBody = JSON.stringify(payload);
-  const callbackRequest = {
-    body_sha256: await sha256Base64Url(requestBody),
-    capability: "privileged",
-    method: "POST",
-    nonce: crypto.randomUUID(),
-    path: vmPath,
-    space: status.spaceShortcode,
-    ts: Math.floor(Date.now() / 1000),
-    payload,
-  };
-  const response = await fetch(toSharedLbVmCallbackUrl(status.edgeHost, status.vmId, vmPath), {
-    method: "POST",
-    headers: {
-      authorization: notaryAuthorizationHeader(status.notaryToken),
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(callbackRequest),
-  });
-  const body = await readJsonResponse(response);
-  if (!response.ok) {
-    const code = refreshableCodeFromVmError(body);
-    if (isHatchSpaceActionRefreshableFailureCode(code)) {
-      throw new SpaceActionAuthRefreshRequiredError(code);
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw new SpaceActionAuthRefreshRequiredError("notary_invalid");
-    }
-    throw new Error(
-      `privileged callback failed: ${response.status} ${JSON.stringify(body)}`,
-    );
-  }
-  return body;
-}
-
-function createPrivilegedTransport(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  actionInvocationId: string,
-  actionName: string,
-) {
-  return async function execute<C extends PrivilegedContract>(
-    contract: C,
-    args: PrivilegedRequest<C>,
-  ): Promise<unknown> {
-    return await callVmPrivileged(env, viewer, {
-      operation: "call",
-      actionName,
-      actionInvocationId,
-      contractName: contract.name,
-      args: args as unknown as JsonValue,
-    });
-  };
-}
-
-async function callVmAgent(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  payload: AgentOperationPayload,
-): Promise<unknown> {
-  if (viewer?.isOwner !== true) {
-    throw new SpaceActionForbiddenError(
-      "Cloudflare space action agent tasks require owner viewer",
-    );
-  }
-  const status = credentialStatusFromEnv(env);
-  const vmPath = `/spaces/v2/${encodeURIComponent(
-    status.spaceSlug,
-  )}/${SPACE_ACTION_SDK_AGENT_PATH_SUFFIX}`;
-  const requestBody = JSON.stringify(payload);
-  const callbackRequest = {
-    body_sha256: await sha256Base64Url(requestBody),
-    capability: "agent",
-    method: "POST",
-    nonce: crypto.randomUUID(),
-    path: vmPath,
-    space: status.spaceShortcode,
-    ts: Math.floor(Date.now() / 1000),
-    payload,
-  };
-  const response = await fetch(toSharedLbVmCallbackUrl(status.edgeHost, status.vmId, vmPath), {
-    method: "POST",
-    headers: {
-      authorization: notaryAuthorizationHeader(status.notaryToken),
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(callbackRequest),
-  });
-  const body = await readJsonResponse(response);
-  if (!response.ok) {
-    const code = refreshableCodeFromVmError(body);
-    if (isHatchSpaceActionRefreshableFailureCode(code)) {
-      throw new SpaceActionAuthRefreshRequiredError(code);
-    }
-    if (response.status === 401 || response.status === 403) {
-      throw new SpaceActionAuthRefreshRequiredError("notary_invalid");
-    }
-    throw new Error(
-      `agent callback failed: ${response.status} ${JSON.stringify(body)}`,
-    );
-  }
-  return body;
-}
-
-function normalizeOptionalText(value: unknown): string | undefined {
-  if (typeof value !== "string") {
-    return undefined;
-  }
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? undefined : trimmed;
-}
-
-function objectString(
-  value: Record<string, unknown>,
-  snakeKey: string,
-  camelKey: string,
-): string | undefined {
-  const snakeValue = value[snakeKey];
-  if (typeof snakeValue === "string") {
-    return snakeValue;
-  }
-  const camelValue = value[camelKey];
-  return typeof camelValue === "string" ? camelValue : undefined;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function isAgentTaskStatus(
-  value: string | undefined,
-): value is AgentStatusResult["status"] {
-  return (
-    value === "queued" ||
-    value === "running" ||
-    value === "completed" ||
-    value === "failed" ||
-    value === "not_found"
-  );
-}
-
-function createAgentClient(
-  env: CloudflareEnv,
-  viewer: Viewer | undefined,
-  actionInvocationId: string,
-  actionName: string,
-): AgentClient {
-  let nextSpawnRequestOrdinal = 0;
-
-  function nextSpawnRequestId(): string {
-    nextSpawnRequestOrdinal += 1;
-    return `space-agent-spawn:${actionInvocationId}:${nextSpawnRequestOrdinal}`;
-  }
-
-  async function spawnTask(
-    message: string,
-    options: AgentSendOptions = {},
-  ): Promise<AgentSendResult> {
-    const normalizedMessage = normalizeOptionalText(message);
-    if (normalizedMessage === undefined) {
-      return { ok: false, error: "a Space task requires a non-empty message" };
-    }
-    try {
-      const expectedAction = normalizeOptionalText(options.expectsAction);
-      const dedupeKey = normalizeOptionalText(options.dedupeKey);
-      const payload: JsonValue = {
-        operation: "spawn_task",
-        actionName,
-        actionInvocationId,
-        spawnRequestId: nextSpawnRequestId(),
-        message: normalizedMessage,
-        ...(expectedAction !== undefined ? { expectedAction } : {}),
-        ...(dedupeKey !== undefined ? { dedupeKey } : {}),
-        ...(options.allowParallel === true ? { allowParallel: true } : {}),
-      };
-      const body = await callVmAgent(env, viewer, payload);
-      if (typeof body !== "object" || body === null || Array.isArray(body)) {
-        return {
-          ok: false,
-          error: "starting a Space task did not return a task handle",
-        };
-      }
-      const response = body as Record<string, unknown>;
-      const taskId = objectString(response, "task_id", "taskId");
-      const agentId = objectString(response, "agent_id", "agentId");
-      const messageId = objectString(response, "message_id", "messageId");
-      if (
-        taskId === undefined ||
-        agentId === undefined ||
-        messageId === undefined
-      ) {
-        return {
-          ok: false,
-          error: "starting a Space task did not return a task handle",
-        };
-      }
-      return { ok: true, taskId, agentId, messageId };
-    } catch (error) {
-      if (
-        isSpaceActionAuthRefreshRequiredError(error) ||
-        isSpaceActionForbiddenError(error)
-      ) {
-        throw error;
-      }
-      return { ok: false, error: errorMessage(error) };
-    }
-  }
-
+function createAgentClient(): AgentClient {
   return {
-    spawnTask,
-    send(message, options) {
-      return spawnTask(message, options);
+    async spawnTask() {
+      return vmCapabilityUnavailable("ctx.agent.spawnTask");
     },
-    async status(taskId: string): Promise<AgentStatusResult> {
-      const normalizedTaskId = normalizeOptionalText(taskId);
-      if (normalizedTaskId === undefined) {
-        return { taskId, status: "not_found" };
-      }
-      const body = await callVmAgent(env, viewer, {
-        operation: "status",
-        taskId: normalizedTaskId,
-      });
-      if (typeof body !== "object" || body === null || Array.isArray(body)) {
-        throw new Error("agent status callback response did not match schema");
-      }
-      const response = body as Record<string, unknown>;
-      const status = objectString(response, "status", "status");
-      if (!isAgentTaskStatus(status)) {
-        throw new Error("agent status callback response did not match schema");
-      }
-      const returnContractStatus = objectString(
-        response,
-        "return_contract_status",
-        "returnContractStatus",
-      );
-      const agentStatus = objectString(response, "agent_status", "agentStatus");
-      const agentId = objectString(response, "agent_id", "agentId");
-      const messageId = objectString(response, "message_id", "messageId");
-      const finalResponse = objectString(
-        response,
-        "final_response",
-        "finalResponse",
-      );
-      const statusMessage = objectString(
-        response,
-        "status_message",
-        "statusMessage",
-      );
-      const failureReason = objectString(
-        response,
-        "failure_reason",
-        "failureReason",
-      );
-      const expectedAction = objectString(
-        response,
-        "expected_action",
-        "expectedAction",
-      );
-      const completedAction = objectString(
-        response,
-        "completed_action",
-        "completedAction",
-      );
-      const result: AgentStatusResult = {
-        taskId: objectString(response, "task_id", "taskId") ?? normalizedTaskId,
-        status,
-        ...(returnContractStatus === "not_expected" ||
-        returnContractStatus === "pending" ||
-        returnContractStatus === "satisfied" ||
-        returnContractStatus === "unsatisfied"
-          ? { returnContractStatus }
-          : {}),
-        ...(agentStatus !== undefined ? { agentStatus } : {}),
-        ...(agentId !== undefined ? { agentId } : {}),
-        ...(messageId !== undefined ? { messageId } : {}),
-        ...(finalResponse !== undefined ? { finalResponse } : {}),
-        ...(statusMessage !== undefined ? { statusMessage } : {}),
-        ...(failureReason !== undefined ? { failureReason } : {}),
-        ...(expectedAction !== undefined ? { expectedAction } : {}),
-        ...(completedAction !== undefined ? { completedAction } : {}),
-      };
-      return result;
+    async send() {
+      return vmCapabilityUnavailable("ctx.agent.send");
+    },
+    async status() {
+      return vmCapabilityUnavailable("ctx.agent.status");
     },
   };
 }
@@ -1407,7 +803,6 @@ export function createWorker(
           env,
           request,
           action,
-          body.action,
           normalizeActionCallId(body.actionCallId),
           readOnly,
         ),
@@ -1433,15 +828,9 @@ export function createWorker(
         response.headers.set("retry-after", "3");
         return response;
       }
-      if (isSpaceActionAuthRefreshRequiredError(error)) {
-        return jsonResponse(
-          { error: { code: error.code, refreshable: true }, authRefreshRequired: true, retrySafe: false },
-          401,
-        );
-      }
       const forbidden = spaceActionForbiddenCause(error);
       if (forbidden) {
-        return jsonResponse({ error: forbidden.message }, 403);
+        return jsonResponse({ error: forbidden.message, code: forbidden.code }, 403);
       }
       return finish
         ? jsonResponse({ error: "The app could not confirm the result. Reload to check your changes before trying again.", code: "action_outcome_unknown" }, 409)

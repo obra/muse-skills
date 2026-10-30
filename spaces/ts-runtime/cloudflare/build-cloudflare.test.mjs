@@ -143,10 +143,22 @@ export const Actions = { upload: defineAction({ request: z.object({}), response:
   assert.deepEqual(await fs.readFile(manifestPath), offManifestBytes);
 }, 30_000);
 
-test("built Cloudflare worker forwards invocation and action authority on tool callbacks", async () => {
+test("built Cloudflare worker refuses VM-backed ctx capabilities without calling the VM", async () => {
   const spaceDir = await makeSpace({
     actionsSource: `
-import { defineAction, z, type ActionsModule } from "@hatch/space-sdk";
+import {
+  defineAction,
+  definePrivilegedContracts,
+  z,
+  type ActionsModule,
+} from "@hatch/space-sdk";
+
+const privileged = definePrivilegedContracts({
+  readCalendar: {
+    request: z.object({}),
+    response: z.object({ events: z.array(z.string()) }),
+  },
+});
 
 export const Actions = {
   searchNews: defineAction({
@@ -157,6 +169,32 @@ export const Actions = {
       return { engine: result.search_engines?.[0] ?? "" };
     },
   }),
+  summarize: defineAction({
+    request: z.object({}),
+    response: z.object({ summary: z.string() }),
+    async handler(ctx) {
+      return await ctx.inference.complete("Summarize.", {
+        schema: z.object({ summary: z.string() }),
+      });
+    },
+  }),
+  research: defineAction({
+    request: z.object({}),
+    response: z.object({ ok: z.boolean() }),
+    async handler(ctx) {
+      const result = await ctx.agent.spawnTask("Research this.");
+      return { ok: result.ok };
+    },
+  }),
+  syncCalendar: defineAction({
+    request: z.object({}),
+    response: z.object({ count: z.number() }),
+    privileged: [privileged.readCalendar],
+    async handler(ctx) {
+      const result = await ctx.executePrivileged(privileged.readCalendar, {});
+      return { count: result.events.length };
+    },
+  }),
 } satisfies ActionsModule;
 `,
   });
@@ -165,11 +203,11 @@ export const Actions = {
     outDir: path.join(spaceDir, "cloudflare-dist"),
   });
   const workerModule = await import(
-    `${pathToFileURL(workerPath).href}?authority-test=${Date.now()}`
+    `${pathToFileURL(workerPath).href}?vm-capabilities-test=${Date.now()}`
   );
   assert.equal(typeof workerModule.default?.fetch, "function");
 
-  const callbackRequests = [];
+  const outboundRequests = [];
   const sqlite = new Database(":memory:");
   sqlite.exec(`CREATE TABLE __hatch_shared_state (id INTEGER PRIMARY KEY, version INTEGER, accepting INTEGER);
     INSERT INTO __hatch_shared_state VALUES (1, 1, 1);
@@ -185,83 +223,53 @@ export const Actions = {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     const request = input instanceof Request ? input : new Request(input, init);
-    callbackRequests.push({
-      url: request.url,
-      authorization: request.headers.get("authorization"),
-      body: await request.clone().json(),
-    });
-    return new Response(
-      JSON.stringify({
-        content: null,
-        summary: {
-          top: [
-            {
-              title: "AI result",
-              url: "https://example.com/ai",
-              excerpt: "A useful result.",
-            },
-          ],
-        },
-        metadata: { perplexity_request_id: "pplx-test-1" },
-        search_engines: ["perplexity"],
-        model: null,
-        usage: null,
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    outboundRequests.push(request.url);
+    return new Response(null, { status: 500 });
   };
 
   try {
     const now = Date.now();
-    const response = await workerModule.default.fetch(
-      new Request("https://space.example/actions", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-cloudflare-spaces-viewer-authenticated": "1",
-          "x-cloudflare-spaces-share-id": "share-1",
-          "x-cloudflare-spaces-space-slug": "daily-journal",
-          "x-cloudflare-spaces-space-id": "space-1",
-          "x-cloudflare-spaces-viewer-fbid": "viewer-1",
-          "x-cloudflare-spaces-owner-fbid": "viewer-1",
-          "x-cloudflare-spaces-is-owner": "true",
-          "x-cloudflare-spaces-token-exp": String(now + 60_000),
-          "x-cloudflare-spaces-token-jti": "token-1",
-        },
-        body: JSON.stringify({
-          action: "searchNews",
-          actionCallId: "action-invocation-1",
-          args: {},
+    for (const action of ["searchNews", "summarize", "research", "syncCalendar"]) {
+      const response = await workerModule.default.fetch(
+        new Request("https://space.example/actions", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-cloudflare-spaces-viewer-authenticated": "1",
+            "x-cloudflare-spaces-share-id": "share-1",
+            "x-cloudflare-spaces-space-slug": "daily-journal",
+            "x-cloudflare-spaces-space-id": "space-1",
+            "x-cloudflare-spaces-viewer-fbid": "viewer-1",
+            "x-cloudflare-spaces-owner-fbid": "viewer-1",
+            "x-cloudflare-spaces-is-owner": "true",
+            "x-cloudflare-spaces-token-exp": String(now + 60_000),
+            "x-cloudflare-spaces-token-jti": "token-1",
+          },
+          body: JSON.stringify({
+            action,
+            actionCallId: "action-invocation-1",
+            args: {},
+          }),
         }),
-      }),
-      {
-        SPACE_SLUG: "daily-journal",
-        SPACE_SHORTCODE: "daily-journal-space-1",
-        SPACE_ACTION_SPACE_SLUG: "daily-journal",
-        SPACE_ACTION_VM_ID: "00000000-0000-4000-8000-000000000001",
-        SPACE_ACTION_EDGE_HOST: "hatch.test-only.metaaivm.com",
-        SPACE_ACTION_NOTARY_TOKEN: "test-notary-token",
-        SPACE_ACTION_CREDENTIAL_EXPIRES_AT_MS: String(now + 60_000),
-        SPACE_ACTION_CREDENTIAL_REFRESH_AFTER_MS: String(now + 30_000),
-        DB: db,
-        ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
-        BUCKET: {},
-      },
-      { waitUntil() {} },
-    );
-    assert.equal(response.status, 200, await response.text());
+        {
+          SPACE_SHORTCODE: "daily-journal-space-1",
+          DB: db,
+          ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
+          BUCKET: {},
+        },
+        { waitUntil() {} },
+      );
+      assert.equal(response.status, 403, action);
+      const body = await response.json();
+      assert.match(body.error, /not available in shared web artifacts/, action);
+      assert.equal(body.code, "shared_artifact_vm_capability_unavailable", action);
+    }
   } finally {
     globalThis.fetch = originalFetch;
     sqlite.close();
   }
 
-  assert.equal(callbackRequests.length, 1);
-  const callback = callbackRequests[0];
-  assert.equal(callback.authorization, "endorsement.test-notary-token");
-  assert.match(callback.url, /\/_sdk\/tool-call\?vm_id=/);
-  assert.equal(callback.body.capability, "tool_call");
-  assert.equal(callback.body.payload.actionInvocationId, "action-invocation-1");
-  assert.equal(callback.body.payload.actionName, "searchNews");
+  assert.deepEqual(outboundRequests, []);
 });
 
 test.each([false, true])("view-only recipients run actions read-only (checkedPut=%s)", async (checkedPut) => {

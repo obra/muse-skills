@@ -98,7 +98,7 @@ import { fulfillLocalAuditRequest } from "./local-audit-transport";
 // which is a real infrastructure failure.
 
 import { mkdir, writeFile } from "node:fs/promises";
-import fs, { accessSync, constants as fsConstants, existsSync } from "node:fs";
+import fs, { accessSync, constants as fsConstants, existsSync, lstatSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -163,14 +163,9 @@ export function confirmTransientUnreachable(
 // rounding without masking a genuinely sideways-scrolling page.
 const MOBILE_OVERFLOW_TOLERANCE_PX = 2;
 
-// System browser candidates — prefer the image-baked Meta Chromium before
-// relying on a runtime download of Playwright's bundled chromium headless
-// shell. The runtime cell's daemon can't always download chromium (HOME /
-// cache permissions, CDN egress under Sentinel), so when an image/system
-// browser is present we use it directly.
-const SYSTEM_CHROME_PATHS = [
-  "/opt/meta-chromium/chrome",
-];
+// Linux artifact callers require HBI-provided Chromium at the single image path.
+// Managed Playwright is only a non-Linux development alternative.
+const IMAGE_CHROME_PATH = "/opt/meta-chromium/chrome";
 
 const SCREENSHOT_FILENAME = "screenshot.png";
 const MOBILE_SCREENSHOT_FILENAME = "screenshot-mobile.png";
@@ -219,7 +214,7 @@ export const CHROME_HARDENING_ARGS = [
   "--disable-quic",
   "--webrtc-ip-handling-policy=disable_non_proxied_udp",
   "--force-webrtc-ip-handling-policy",
-  `--disable-features=${PW_DEFAULT_DISABLED_FEATURES},OptimizationHints,OptimizationGuideModelDownloading,AutofillServerCommunication`,
+  `--disable-features=${PW_DEFAULT_DISABLED_FEATURES},OptimizationHints,OptimizationGuideModelDownloading,AutofillServerCommunication,HatchFortress`,
 ];
 
 // Chrome phone-home hosts routed DIRECT (not through Sentinel). The runtime-cell
@@ -1653,30 +1648,43 @@ function resolveBundledPlaywrightCli(): string {
   return join(here, "node_modules", "playwright", "cli.js");
 }
 
-export function findSystemChrome(): string | null {
-  // First chrome binary that exists and is executable.
-  for (const candidate of SYSTEM_CHROME_PATHS) {
-    if (!existsSync(candidate)) continue;
-    try {
-      accessSync(candidate, fsConstants.X_OK);
-      return candidate;
-    } catch {
-      // exists but not executable — skip
+export function findSystemChrome(
+  platform: NodeJS.Platform = process.platform,
+  imageChromePath: string = IMAGE_CHROME_PATH,
+): string | null {
+  try {
+    for (let entry = imageChromePath; ; entry = dirname(entry)) {
+      try {
+        lstatSync(entry);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT" && dirname(entry) !== entry) {
+          continue;
+        }
+        throw err;
+      }
+      // Resolve the first existing ancestor before admitting absence: a dangling
+      // image or ancestor is broken provisioning, not a developer fallback.
+      statSync(entry);
+      if (entry !== imageChromePath) {
+        if (platform !== "linux") return null;
+        throw new Error("HBI-provided Chromium is missing");
+      }
+      break;
     }
+    if (!statSync(imageChromePath).isFile()) {
+      throw new Error(`HBI-provided Chromium is not a regular file: ${imageChromePath}`);
+    }
+    accessSync(imageChromePath, fsConstants.R_OK | fsConstants.X_OK);
+    return imageChromePath;
+  } catch (err) {
+    throw new Error(`required HBI-provided Chromium unavailable at ${imageChromePath}`, { cause: err });
   }
-  return null;
 }
 
 export async function ensureChromium(): Promise<void> {
-  // First call is the slow one (~30-60s, downloads ~180MB of chromium
-  // headless shell); subsequent calls are no-ops because playwright caches
-  // under ~/.cache/ms-playwright (or $PLAYWRIGHT_BROWSERS_PATH).
-  //
-  // Use `process.execPath` (the bun running this script) instead of bare
-  // "bun" — the runtime cell doesn't put bun on $PATH for this subprocess,
-  // so `spawn("bun", ...)` would ENOENT before we ever hit playwright. And
-  // call the bundled `playwright/cli.js` directly instead of `bun x
-  // playwright`, which re-resolves playwright via npm/bunx into a tmpdir.
+  if (findSystemChrome() !== null) return;
+  // Only non-Linux development can reach the managed-browser installer.
+  // Resolve the bundled CLI rather than bunx, which re-resolves packages.
   const cli = resolveBundledPlaywrightCli();
   if (!existsSync(cli)) {
     throw new Error(`bundled playwright cli not found at ${cli}`);
@@ -1862,6 +1870,9 @@ export function buildLaunchOptions(
   proxyAuthToken: string | null,
   _proxyAuthUsername: string | null,
 ): AuditLaunchOptions {
+  if (process.platform === "linux" && executablePath !== IMAGE_CHROME_PATH) {
+    throw new Error(`Linux artifact rendering requires ${IMAGE_CHROME_PATH}`);
+  }
   const launchOptions: AuditLaunchOptions = {
     headless: true,
     args: [...CHROME_HARDENING_ARGS],
@@ -2971,22 +2982,18 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
   });
   await mkdir(outputDir, { recursive: true });
 
-  // Resolution order: prefer the image-baked Meta Chromium on Hatch VMs over
-  // a runtime download.
-  // The runtime download path tends to fail in the build daemon's namespace
-  // (HOME / cache permissions, CDN egress under Sentinel), and a present
-  // image/system browser makes the download unnecessary regardless.
-  let executablePath: string | null = findSystemChrome();
-  if (executablePath === null && !args.skipInstall) {
-    try {
+  let executablePath: string | null;
+  try {
+    executablePath = findSystemChrome();
+    if (executablePath === null && !args.skipInstall) {
       await ensureChromium();
-    } catch (err) {
-      report.ok = false;
-      report.error = `chromium install failed: ${(err as Error).message}`;
-      report.duration_ms = performance.now() - started;
-      report.console_errors = consoleErrors;
-      return report;
     }
+  } catch (err) {
+    report.ok = false;
+    report.error = `chromium unavailable: ${(err as Error).message}`;
+    report.duration_ms = performance.now() - started;
+    report.console_errors = consoleErrors;
+    return report;
   }
 
   let pw: typeof import("playwright");

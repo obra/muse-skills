@@ -36,7 +36,8 @@ export { bytesToBase64, fileToBase64 } from "./client/file-encoding";
  * non-OK HTTP response. Carries the HTTP `status` so retry policy can tell a
  * permanent client error (4xx) apart from retryable backpressure/transient
  * failures, and the server's `Retry-After` (when present) as `retryAfterMs` so
- * the backoff honors it.
+ * the backoff honors it, and the server's error `code` (when present) so a
+ * page can tell refusals with the same status apart.
  */
 export class SpaceActionError extends Error {
   constructor(
@@ -44,6 +45,7 @@ export class SpaceActionError extends Error {
     readonly status: number,
     readonly retryAfterMs?: number,
     readonly retrySafe = false,
+    readonly code?: string,
   ) {
     super(message);
     this.name = "SpaceActionError";
@@ -836,6 +838,7 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
                 retryResponse.status,
                 parseRetryAfterMs(retryResponse),
                 isActionRetrySafe(retryBody),
+                actionErrorCode(retryBody),
               );
             }
             return readActionData(retryResponse, name);
@@ -847,6 +850,7 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
             response.status,
             parseRetryAfterMs(response),
             isActionRetrySafe(body),
+            actionErrorCode(body),
           );
         }
         return readActionData(response, name);
@@ -857,6 +861,12 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
 
 function isActionRetrySafe(body: unknown): boolean {
   return body !== null && typeof body === "object" && "retrySafe" in body && body.retrySafe === true;
+}
+
+function actionErrorCode(body: unknown): string | undefined {
+  return body !== null && typeof body === "object" && "code" in body && typeof body.code === "string"
+    ? body.code
+    : undefined;
 }
 
 // Parse a `Retry-After` response header (RFC 7231 delta-seconds or HTTP-date)

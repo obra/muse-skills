@@ -4,7 +4,7 @@ import { createWorker } from "./src/worker-runtime";
 import { READ_ONLY_ACTIONS_PATH } from "./src/read-only-access";
 import { defineAction, SpaceActionAuthRefreshRequiredError, z } from "./src/sdk";
 import { admitSharedAction, sharedStateAvailable } from "./src/shared-state";
-import { createActionClient, shouldRetryAction } from "../sdk/src/client";
+import { createActionClient, shouldRetryAction, SpaceActionError } from "../sdk/src/client";
 
 const databases: Database[] = [];
 afterEach(() => { for (const db of databases.splice(0)) db.close(); });
@@ -231,6 +231,18 @@ test("malformed and oversized payloads never reach a handler or shared admission
   }
   expect(calls).toBe(0);
   expect(f.sqlite.query("SELECT count(*) AS n FROM __hatch_shared_invocations").get()).toEqual({ n: 0 });
+});
+
+test("the client keeps the code that tells a capability refusal from a view-only one", async () => {
+  for (const [body, code] of [
+    [{ error: "ctx.inference.complete is not available in shared web artifacts", code: "shared_artifact_vm_capability_unavailable" }, "shared_artifact_vm_capability_unavailable"],
+    [{ error: "You can view this app but can't make changes to it." }, undefined],
+  ] as const) {
+    const client = createActionClient({ endpoint: "https://example.test/actions", fetch: async () =>
+      Response.json(body, { status: 403 }) }, "demo");
+    try { await client.save!({}); throw new Error("expected action failure"); }
+    catch (error) { expect((error as SpaceActionError).code).toBe(code); }
+  }
 });
 
 test("the client retries only an explicit pre-invocation failure, never a lost response", async () => {

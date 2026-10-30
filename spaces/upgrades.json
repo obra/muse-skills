@@ -455,7 +455,6 @@
       "instructions": [
         "Use the SDK action client. Show saved state only after a successful response; preserve entered values on errors.",
         "Shared viewers use one database and blob store. Preserve existing authorization guards and never use a client-supplied identity, but add no new per-viewer row keys, filters, or gates. Where rows are already keyed by identity, use the same keys for reads and writes before sharing, while shared, and after unsharing. Missing ctx.viewer is not proof of ownership: agent, audit, peer and scheduled calls can lack a viewer. Never fabricate a viewer or add an owner fallback. Await all writes before returning.",
-        "Keep inference, tool, agent, and privileged operations owner-only. Give other viewers a clear explanation when a feature requires the owner.",
         "Rebuild using web_artifacts.build to regenerate the managed Cloudflare worker and client SDK. Do not deploy an old worker bundle."
       ],
       "verification": [

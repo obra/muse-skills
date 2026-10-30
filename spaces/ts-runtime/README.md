@@ -140,9 +140,11 @@ for admission, failure, and recovery semantics.
 
 The build generates a Worker tsconfig and typechecks the space's
 `server/src/actions.ts` against a Cloudflare-only `@hatch/space-sdk` shim. That
-shim exposes the portable `ctx.db` surface backed by D1 and omits local-only
-APIs such as `ctx.inference`, `ctx.agent`, and `ctx.emit`, so unsupported action
-code fails through TypeScript rather than source scanning. `SpaceDb` deliberately
+shim exposes the portable `ctx.db` surface backed by D1 and omits `ctx.emit`,
+so code using it fails through TypeScript rather than source scanning. It keeps
+the `ctx.inference`, `ctx.agent`, `ctx.tool`, and `ctx.executePrivileged` types
+so one `actions.ts` serves both runtimes; the typecheck therefore misses those
+calls, which fail with 403 on Cloudflare. `SpaceDb` deliberately
 does not expose `transaction`.
 
 ## Blob Storage
