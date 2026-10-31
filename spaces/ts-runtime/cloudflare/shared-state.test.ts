@@ -71,6 +71,7 @@ test("stateful assets, blobs, and actions require viewer context bound to this a
   const blobRequest = (headers: Headers) => new Request(
     "https://demo-123.example/blobs/public/bm90ZQ", { headers });
   const worker = createWorker({ save: defineAction({ request: z.object({}), response: z.number(),
+    description: "  Saves a note\nand returns the save count.  ",
     handler: async (ctx) => { expect(ctx.slug).toBe("demo-canonical-slug-that-is-longer-than-thirty-eight-characters"); return ++calls; } }) }, "demo-canonical-slug-that-is-longer-than-thirty-eight-characters");
   for (const headers of [
     { "x-cloudflare-spaces-viewer-authenticated": "0" },
@@ -88,7 +89,8 @@ test("stateful assets, blobs, and actions require viewer context bound to this a
   const catalog = await worker.fetch(request({ kind: "catalog" }), f.env, f.execution);
   expect(catalog.status).toBe(200);
   expect(catalog.headers.get("cache-control")).toBe("no-store");
-  expect(await catalog.json()).toMatchObject({ data: [{ slug: "demo-canonical-slug-that-is-longer-than-thirty-eight-characters", action: "save", request_schema: { type: "object" } }] });
+  expect(await catalog.json()).toMatchObject({ data: [{ slug: "demo-canonical-slug-that-is-longer-than-thirty-eight-characters", action: "save", request_schema: { type: "object" },
+    description: "Saves a note and returns the save count." }] });
   expect(calls).toBe(0);
   const authorized = await worker.fetch(request(), f.env, f.execution);
   expect(authorized.status).toBe(200);

@@ -1,4 +1,5 @@
 import {
+  actionDescription,
   createDefineAction,
   createPrivilegedExecutor,
   definePrivilegedContracts,
@@ -51,6 +52,7 @@ export {
 } from "../../sdk/src/server-contract";
 
 export {
+  actionDescription,
   createPrivilegedExecutor,
   definePrivilegedContracts,
   definePrivilegedHandlers,

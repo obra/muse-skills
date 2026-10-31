@@ -15,6 +15,7 @@
 // The browser-side counterpart lives at @hatch/space-sdk/client.
 
 import {
+  actionDescription,
   createDefineAction,
   createPrivilegedExecutor,
   definePrivilegedContracts,
@@ -66,6 +67,7 @@ export {
 import { type SpaceToolClient } from "./verticals";
 
 export {
+  actionDescription,
   createPrivilegedExecutor,
   definePrivilegedContracts,
   definePrivilegedHandlers,

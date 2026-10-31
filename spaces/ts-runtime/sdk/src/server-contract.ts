@@ -294,6 +294,8 @@ export interface PortableCtx extends PrivilegedExecutor {
 export const ACTION_BRAND = "@hatch/space-sdk/action/v1" as const;
 const LEGACY_ACTION_BRAND = Symbol.for("@hatch/space-sdk/action");
 
+const ACTION_DESCRIPTION_MAX_CHARS = 300;
+
 export interface ActionDefinition<
   TCtx extends PortableCtx = PortableCtx,
   Req extends z.ZodType = z.ZodType,
@@ -302,6 +304,7 @@ export interface ActionDefinition<
   readonly __brand: typeof ACTION_BRAND;
   readonly request: Req;
   readonly response: Res;
+  readonly description?: string;
   readonly privileged?: readonly PrivilegedContract[];
   readonly handler: (ctx: TCtx, args: z.infer<Req>) => Promise<z.infer<Res>>;
 }
@@ -313,9 +316,19 @@ export type ActionFactoryInput<
 > = {
   request: Req;
   response: Res;
+  /** One sentence telling the user's agent what the action does. */
+  description?: string;
   privileged?: readonly PrivilegedContract[];
   handler: (ctx: TCtx, args: z.infer<Req>) => Promise<z.infer<Res>>;
 };
+
+/** Both runtimes list actions through this, so local and shared catalogs agree. */
+export function actionDescription(
+  definition: Pick<ActionDefinition, "description">,
+): string | undefined {
+  const description = definition.description?.replace(/[\s\u0000-\u001f\u007f]+/g, " ").trim();
+  return description ? [...description].slice(0, ACTION_DESCRIPTION_MAX_CHARS).join("") : undefined;
+}
 
 /** Bind the shared action implementation to a runtime-specific Ctx type. */
 export function createDefineAction<TCtx extends PortableCtx>() {
@@ -326,6 +339,7 @@ export function createDefineAction<TCtx extends PortableCtx>() {
       __brand: ACTION_BRAND,
       request: spec.request,
       response: spec.response,
+      ...(spec.description !== undefined ? { description: spec.description } : {}),
       ...(spec.privileged !== undefined ? { privileged: spec.privileged } : {}),
       handler: spec.handler,
     };

@@ -829,12 +829,13 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
                 markSpaceUnavailable(actionCallId);
                 throwIfSpaceUnavailable();
               }
-              const retryText =
-                typeof retryBody === "string"
-                  ? retryBody
-                  : JSON.stringify(retryBody ?? null);
               throw new SpaceActionError(
-                `action ${name} failed after auth refresh: ${retryResponse.status} ${retryText}`,
+                actionFailureMessage(
+                  name,
+                  "failed after auth refresh",
+                  retryResponse.status,
+                  retryBody,
+                ),
                 retryResponse.status,
                 parseRetryAfterMs(retryResponse),
                 isActionRetrySafe(retryBody),
@@ -843,10 +844,8 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
             }
             return readActionData(retryResponse, name);
           }
-          const text =
-            typeof body === "string" ? body : JSON.stringify(body ?? null);
           throw new SpaceActionError(
-            `action ${name} failed: ${response.status} ${text}`,
+            actionFailureMessage(name, "failed", response.status, body),
             response.status,
             parseRetryAfterMs(response),
             isActionRetrySafe(body),
@@ -861,6 +860,20 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
 
 function isActionRetrySafe(body: unknown): boolean {
   return body !== null && typeof body === "object" && "retrySafe" in body && body.retrySafe === true;
+}
+
+/**
+ * A view-only viewer's refusal keeps the shared app's own sentence, so an app
+ * that shows the error tells the person why; any other failure names the
+ * action, status, and body.
+ */
+function actionFailureMessage(name: string, failure: string, status: number, body: unknown): string {
+  const error = body !== null && typeof body === "object" && "error" in body ? body.error : undefined;
+  if (actionErrorCode(body) === "view_only" && typeof error === "string" && error.length > 0) {
+    return error;
+  }
+  const text = typeof body === "string" ? body : JSON.stringify(body ?? null);
+  return `action ${name} ${failure}: ${status} ${text}`;
 }
 
 function actionErrorCode(body: unknown): string | undefined {

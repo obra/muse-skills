@@ -29,6 +29,7 @@ import { createInterface } from "node:readline";
 import { z } from "zod";
 
 import {
+  actionDescription,
   createPrivilegedExecutor,
   isAction,
   type ActionDefinition,
@@ -195,6 +196,7 @@ function buildActionMetadata(
   return [...actionsByName.entries()].map(([name, definition]) => ({
     name,
     request_schema: zodToJsonSchema(definition.request),
+    description: actionDescription(definition),
   }));
 }
 

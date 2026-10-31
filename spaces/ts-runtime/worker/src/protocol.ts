@@ -44,6 +44,7 @@ export interface ReadyFrame {
 export interface SpaceActionMetadata {
   name: string;
   request_schema?: Record<string, unknown>;
+  description?: string;
 }
 
 export interface DataFrame {

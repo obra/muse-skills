@@ -1,6 +1,7 @@
 // Actions for this artifact. One file, one exported `Actions` map.
 //
-// Each action has a zod Request/Response schema and a handler. The handler
+// Each action has a zod Request/Response schema, a one-sentence
+// `description` for the user's agent, and a handler. The handler
 // receives a typed `ctx` (see `@hatch/space-sdk`) with:
 //   ctx.db<typeof schema>()  — drizzle-orm DB instance, typed by your schema
 //   ctx.tool                 — direct calls: web search, search verticals,
@@ -29,6 +30,7 @@ import * as schema from "./schema";
 
 export const Actions = {
   listEntries: defineAction({
+    description: "Lists the most recent entries, newest first.",
     request: z.object({
       limit: z.number().int().positive().max(100).default(20),
     }),
@@ -59,6 +61,7 @@ export const Actions = {
   }),
 
   addEntry: defineAction({
+    description: "Adds one entry with the given text and returns its id.",
     request: z.object({ text: z.string().min(1) }),
     response: z.object({ id: z.number() }),
     async handler(ctx, args) {

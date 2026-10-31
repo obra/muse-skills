@@ -1,5 +1,5 @@
 {
-  "currentVersion": 25,
+  "currentVersion": 26,
   "versionField": "platformVersion",
   "upgrades": [
     {
@@ -483,6 +483,21 @@
         "The TypeScript web artifact build and typecheck succeed, including the confidential-client transform.",
         "A PDF stored through ctx.blobs renders its first page, page controls work for a multipage file, and the browser console has no blocked-frame or missing PDF.js asset error.",
         "An uploaded HTML or SVG blob still receives the existing CSP sandbox and cannot execute with the artifact's authority."
+      ]
+    },
+    {
+      "version": 26,
+      "id": "2026-10-07-agent-readable-actions",
+      "title": "Describe actions for the agent",
+      "runtime": "typescript",
+      "summary": "defineAction takes a description, which the user's agent uses to choose actions.",
+      "applicability": "TypeScript web artifacts with server actions.",
+      "instructions": [
+        "Give every defineAction a one-sentence description.",
+        "For this upgrade, do not change existing actions' names, schemas, handlers, or authorization guards."
+      ],
+      "verification": [
+        "artifact.list_actions shows a description for every action."
       ]
     }
   ]
