@@ -14,6 +14,8 @@ description: Use the bundled map helpers for URL generation, interactive maps, a
 
 - Redirect stdout to a file and wait for the command to complete before reading it. An explicit `yield_ms: 60000` helps, and collect the background result if the command outlives it.
 
+- When parsing redirected `places details` output, skip the reserved top-level `_meta` entry as [Resolve places](maps.md#resolve-places) requires.
+
 ## Location data
 
 - A `PlaceRef` has a required `label` and optional `venue`, `address`, `locality`, `region`, `country`, `lat`, `lng` and `source`. Coordinates are named numbers and address fields are strings.

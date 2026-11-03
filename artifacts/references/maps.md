@@ -35,6 +35,7 @@ builders: web, file
   - For a "best", insider or trending request, find candidate names with web search, then resolve each with `local-search --search-type known_place`.
   - Fetch details in a batch with `--motivation` describing the artifact's purpose. Always pass `--product-source IG --product-source FB`, because other sources can return review-site quotes and media. Bound `--num-quotes` and `--num-gallery-media` to what the artifact will show.
   - Save the output to a file and read it after the command finishes. Avoid consumers that close the output pipe early, set an explicit `yield_ms` and collect the result if the call continues in the background.
+  - Saved or piped details output can retain the reserved top-level `_meta` privacy entry. Filter it out before building a place list or map, for example with `Object.entries(payload).filter(([id]) => id !== '_meta')`. Runtime readback can hide `_meta` from the agent without rewriting the saved file.
   - A failed details batch returns no records. Retry its IDs one at a time and keep the successful results. A place whose details stay unavailable can still appear with the information already obtained.
 
 - Keep the lookup outcomes distinct:

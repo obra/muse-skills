@@ -1,0 +1,732 @@
+#!/usr/bin/env python3
+"""Install, run and set up the Home Assistant that Muse ships.
+
+Usage: home-assistant {status|install|start|stop|setup|rollback}
+
+Every command prints one JSON object on stdout and exits 0 when "ok" is true.
+The install lives in ~/homeassistant (HOME_ASSISTANT_ROOT overrides it):
+venv/ (the pinned release), config/ (Home Assistant's configuration),
+install.json (what is installed), enabled (keep the service running),
+installing (held while install or rollback changes venv/; the service and
+its ensure timer stay off), previous/ (the last release and a copy of its
+database, for rollback). Muse provides home-assistant.service; never write
+or edit unit files.
+"""
+
+import fcntl
+import hashlib
+import json
+import os
+import platform
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ASSETS = Path(__file__).resolve().parent
+PINS = json.loads((ASSETS / "pins.json").read_text())
+LOCK = ASSETS / "requirements.lock"
+ADAPTER = ASSETS / "muse_link_route.py"
+SERVICE = "home-assistant.service"
+TIMER = "home-assistant-ensure.timer"
+BASE = "http://127.0.0.1:8123"
+CLIENT_ID = f"{BASE}/"
+REDIRECT = f"{BASE}/?auth_callback=1"
+# Created with Home Assistant itself rather than by the user.
+SYSTEM_ENTRY_SOURCES = {"onboarding", "system", "hassio", "import"}
+
+ROOT = Path(os.environ.get("HOME_ASSISTANT_ROOT") or Path.home() / "homeassistant")
+VENV = ROOT / "venv"
+HASS = VENV / "bin" / "hass"
+PYTHON = VENV / "bin" / "python"
+CONFIG = ROOT / "config"
+MANIFEST = ROOT / "install.json"
+ENABLED = ROOT / "enabled"
+INSTALLING = ROOT / "installing"
+PREVIOUS = ROOT / "previous"
+CREDENTIALS = CONFIG / "muse_owner.json"
+LOG = ROOT / "install.log"
+JOURNAL = ROOT / "transaction.json"
+CHANGE_LOCK = ROOT / ".lock"
+STAGED = ROOT / "previous.new"
+UNDO = ROOT / "rollback.undo"
+DATABASE_FILES = ("home-assistant_v2.db", "home-assistant_v2.db-wal", "home-assistant_v2.db-shm")
+
+
+class Failure(Exception):
+    def __init__(self, error, **fields):
+        super().__init__(error)
+        self.fields = fields
+
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def read_json(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def write_json(path, data, mode=0o644):
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
+def pinned():
+    return {
+        "home_assistant": PINS["home_assistant"],
+        "python": PINS["python"],
+        "lock_sha256": sha256(LOCK),
+        "adapter_sha256": sha256(ADAPTER),
+    }
+
+
+# --- systemd -----------------------------------------------------------------
+
+
+def systemctl(*args, check=False):
+    result = subprocess.run(["systemctl", *args], capture_output=True, text=True)
+    if check and result.returncode != 0:
+        raise Failure(f"systemctl {' '.join(args)} failed: {result.stderr.strip()}")
+    return result
+
+
+def service_state():
+    if systemctl("cat", SERVICE).returncode != 0:
+        return "missing"
+    return systemctl("is-active", SERVICE).stdout.strip() or "unknown"
+
+
+def require_unit():
+    if service_state() == "missing":
+        raise Failure(
+            f"{SERVICE}, which Muse provides, is missing; it returns when the runtime "
+            "restarts. Do not write a replacement."
+        )
+
+
+def recovery_mode_in_journal():
+    invocation = systemctl("show", "-p", "InvocationID", "--value", SERVICE).stdout.strip()
+    if not invocation:
+        return False
+    log = subprocess.run(
+        ["journalctl", "-q", "-o", "cat", f"_SYSTEMD_INVOCATION_ID={invocation}"],
+        capture_output=True, text=True,
+    ).stdout
+    return "Activating recovery mode" in log
+
+
+def service_routes_link():
+    env = systemctl("show", "-p", "Environment", SERVICE).stdout
+    return "MUSE_LINK_PROXY=" in env
+
+
+# --- Home Assistant's HTTP API ---------------------------------------------------
+
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def api(path, token=None, timeout=5):
+    request = urllib.request.Request(f"{BASE}{path}")
+    if token:
+        request.add_header("Authorization", f"Bearer {token}")
+    with _OPENER.open(request, timeout=timeout) as response:
+        return json.loads(response.read() or b"null")
+
+
+def http_up():
+    try:
+        api("/api/", timeout=3)
+    except urllib.error.HTTPError as err:
+        return err.code == 401
+    except (OSError, ValueError, urllib.error.URLError):
+        return False
+    return True
+
+
+def onboarding_steps():
+    """Step -> done, or None when unknown. Once onboarding is finished, Home
+    Assistant stops serving /api/onboarding after its next start."""
+    try:
+        return {s["step"]: s["done"] for s in api("/api/onboarding", timeout=3)}
+    except urllib.error.HTTPError as err:
+        if err.code == 404:
+            return {"user": True, "core_config": True, "analytics": True, "integration": True}
+        return None
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+
+
+def stored_token():
+    creds = read_json(CREDENTIALS) or {}
+    return creds.get("token")
+
+
+def credentials_state(token):
+    if not token:
+        return "missing"
+    try:
+        api("/api/", token)
+        return "valid"
+    except urllib.error.HTTPError as err:
+        return "invalid" if err.code in (401, 403) else "unknown"
+    except (OSError, urllib.error.URLError):
+        return "unknown"
+
+
+def integrations(token):
+    entries = api("/api/config/config_entries/entry", token)
+    return [
+        {
+            "domain": e["domain"],
+            "title": e.get("title"),
+            "state": e.get("state"),
+            "connected": e.get("state") == "loaded",
+        }
+        for e in entries
+        if e.get("source") not in SYSTEM_ENTRY_SOURCES
+    ]
+
+
+# --- installs made another way ----------------------------------------------------
+
+
+def _walk(top, max_depth, skip):
+    top = Path(top)
+    for dirpath, dirnames, filenames in os.walk(top, onerror=lambda e: None):
+        here = Path(dirpath)
+        depth = len(here.relative_to(top).parts)
+        dirnames[:] = [
+            d for d in dirnames
+            if depth < max_depth and here / d != skip and not (here / d).is_symlink()
+        ]
+        yield here, filenames
+
+
+def other_installs():
+    found = set()
+    home = Path.home()
+    if (home / ".homeassistant").is_dir():
+        found.add(str(home / ".homeassistant"))
+    on_path = shutil.which("hass")
+    if on_path and not Path(on_path).resolve().is_relative_to(ROOT):
+        found.add(on_path)
+    for here, files in _walk(home, 5, ROOT):
+        if "hass" in files and here.name == "bin":
+            found.add(str(here / "hass"))
+        if "home-assistant_v2.db" in files:
+            found.add(str(here))
+    for proc in Path("/proc").glob("[0-9]*"):
+        try:
+            argv = (proc / "cmdline").read_bytes().split(b"\0")
+        except OSError:
+            continue
+        args = [a.decode(errors="replace") for a in argv if a]
+        if any(Path(a).name == "hass" for a in args) and not any(str(VENV) in a for a in args):
+            found.add("process: " + " ".join(args)[:200])
+    return sorted(found)
+
+
+def change_in_progress():
+    """True while an install or rollback process holds the lock."""
+    try:
+        fd = os.open(CHANGE_LOCK, os.O_RDONLY)
+    except FileNotFoundError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(fd)
+    return False
+
+
+def install_interrupted():
+    """The installing marker remains but no process holds the lock: a change
+    died partway and must be settled before the service may start."""
+    return INSTALLING.exists() and not change_in_progress()
+
+
+# --- status --------------------------------------------------------------------------
+
+
+def status():
+    manifest = read_json(MANIFEST)
+    pins = pinned()
+    installed = HASS.exists() and os.access(HASS, os.X_OK)
+    adapter_current = False
+    if installed and PYTHON.exists():
+        installed_adapter = site_packages() / "muse_link_route.py"
+        adapter_current = installed_adapter.exists() and sha256(installed_adapter) == pins["adapter_sha256"]
+    service = service_state()
+    answering = service == "active" and http_up()
+    token = stored_token()
+    creds = credentials_state(token) if answering else ("missing" if not token else "unknown")
+    recovery = False
+    if answering:
+        # Home Assistant falls back to recovery mode when its first-start
+        # downloads fail, e.g. before the user approved them.
+        try:
+            recovery = bool(api("/api/config", token).get("recovery_mode")) if creds == "valid" else recovery_mode_in_journal()
+        except (OSError, ValueError, urllib.error.URLError):
+            recovery = recovery_mode_in_journal()
+    ready = answering and not recovery
+    steps = onboarding_steps() if ready else None
+    report = {
+        "ok": True,
+        "installed": installed,
+        "install": manifest,
+        "pinned": pins,
+        # An install without install.json predates this command; its
+        # contents are unknown, so `install` should rebuild it.
+        "update_available": bool(
+            installed and (manifest is None or any(
+                manifest.get(k) != pins[k] for k in ("home_assistant", "python", "lock_sha256")
+            ))
+        ),
+        "installing": INSTALLING.exists() and change_in_progress(),
+        "install_interrupted": install_interrupted(),
+        "enabled": ENABLED.exists(),
+        "service": service,
+        "running": service == "active",
+        "ready": ready,
+        "recovery_mode": recovery,
+        "onboarded": all(steps.values()) if steps else None,
+        "credentials": creds,
+        "link_routing": bool(installed and service == "active" and adapter_current and service_routes_link()),
+        "rollback_available": (PREVIOUS / "install.json").exists(),
+        "integrations": None,
+        "other_installs": [] if installed else other_installs(),
+    }
+    if creds == "valid":
+        try:
+            report["integrations"] = integrations(token)
+        except (OSError, ValueError, urllib.error.URLError):
+            pass
+    return report
+
+
+# --- install, rollback ------------------------------------------------------------
+
+
+def site_packages():
+    out = subprocess.run(
+        [str(PYTHON), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
+        capture_output=True, text=True, check=True,
+    )
+    return Path(out.stdout.strip())
+
+
+def install_adapter():
+    target = site_packages()
+    shutil.copyfile(ADAPTER, target / "muse_link_route.py")
+    (target / "muse_link_route.pth").write_text("import muse_link_route\n")
+
+
+class Hold:
+    """Exclusive change to ~/homeassistant: the installing marker keeps the
+    service and its ensure timer off while held.
+
+    A change records its phase in transaction.json. Leaving the hold with an
+    exception, or taking over a hold whose process died, first finishes a
+    committed change or undoes an unfinished one, so the environment, the
+    database and install.json match again before the marker goes and the
+    service may start. If that recovery fails, the marker stays and the
+    service stays off."""
+
+    def __enter__(self):
+        ROOT.mkdir(parents=True, exist_ok=True)
+        self.lock = os.open(CHANGE_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(self.lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(self.lock)
+            raise Failure("Another install or rollback is running.") from None
+        try:
+            INSTALLING.write_text(str(os.getpid()))
+            systemctl("stop", SERVICE)
+            settle_transaction()
+        except BaseException:
+            os.close(self.lock)
+            raise
+        return self
+
+    def __exit__(self, exc_type, *exc):
+        try:
+            if exc_type is not None:
+                previous = signal.signal(signal.SIGTERM, signal.SIG_IGN)
+                try:
+                    settle_transaction()
+                finally:
+                    signal.signal(signal.SIGTERM, previous)
+            INSTALLING.unlink(missing_ok=True)
+        finally:
+            os.close(self.lock)
+        if exc_type is not None and ENABLED.exists():
+            systemctl("start", "--no-block", SERVICE)
+        return False
+
+
+def begin(op, phase, **fields):
+    write_json(JOURNAL, {"op": op, "phase": phase, **fields})
+
+
+def settle_transaction():
+    """Finish a committed change or undo an unfinished one; idempotent."""
+    journal = read_json(JOURNAL)
+    if journal is None:
+        shutil.rmtree(STAGED, ignore_errors=True)
+        shutil.rmtree(UNDO, ignore_errors=True)
+        return
+    op, phase = journal.get("op"), journal.get("phase")
+    if phase == "undone":
+        # The undo already restored everything; only its copies remain.
+        pass
+    elif op == "install" and phase == "committed":
+        if STAGED.exists():
+            shutil.rmtree(PREVIOUS, ignore_errors=True)
+            STAGED.rename(PREVIOUS)
+    elif op == "install":
+        # The new environment never passed its checks: put the old one back,
+        # or, on a first install, remove the partial one.
+        if (STAGED / "venv").is_dir():
+            shutil.rmtree(VENV, ignore_errors=True)
+            (STAGED / "venv").rename(VENV)
+        elif not journal.get("had_venv", True):
+            shutil.rmtree(VENV, ignore_errors=True)
+        if (STAGED / "install.json").exists():
+            shutil.copyfile(STAGED / "install.json", MANIFEST)
+        elif not journal.get("had_manifest", True):
+            MANIFEST.unlink(missing_ok=True)
+        begin(op, "undone")
+    elif op == "rollback" and phase == "committed":
+        if (UNDO / "config").is_dir():
+            (UNDO / "config").rename(unused_path(ROOT / f"replaced-{journal.get('started', int(time.time()))}"))
+        shutil.rmtree(PREVIOUS, ignore_errors=True)
+    elif op == "rollback":
+        # Put back what the rollback replaced, and keep previous/ for a retry.
+        if (UNDO / "venv").is_dir():
+            if VENV.is_dir():
+                if (PREVIOUS / "venv").exists():
+                    shutil.rmtree(VENV)
+                else:
+                    VENV.rename(PREVIOUS / "venv")
+            (UNDO / "venv").rename(VENV)
+        if (UNDO / "config").is_dir():
+            copy_database(UNDO / "config", CONFIG)
+        if (UNDO / "install.json").exists():
+            shutil.copyfile(UNDO / "install.json", MANIFEST)
+        # Record the restore before deleting its source: an interruption
+        # while deleting must not make a retry restore from a partial copy.
+        begin(op, "undone")
+    shutil.rmtree(STAGED, ignore_errors=True)
+    shutil.rmtree(UNDO, ignore_errors=True)
+    JOURNAL.unlink(missing_ok=True)
+
+
+def unused_path(path):
+    candidate, n = path, 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}-{n}")
+        n += 1
+    return candidate
+
+
+def recover_interrupted():
+    """Settle a change whose process died before anything reads the install."""
+    if install_interrupted():
+        with Hold():
+            pass
+
+
+def run_logged(cmd, env=None):
+    with open(LOG, "a") as log:
+        log.write(f"$ {' '.join(map(str, cmd))}\n")
+        log.flush()
+        result = subprocess.run(list(map(str, cmd)), stdout=log, stderr=subprocess.STDOUT, env=env)
+    if result.returncode != 0:
+        tail = LOG.read_text(errors="replace").splitlines()[-15:]
+        raise Failure(f"{Path(str(cmd[0])).name} failed", log_tail=tail)
+
+
+def ensure_uv():
+    uv_pin = PINS["uv"]
+    uv = ROOT / "uv" / uv_pin["version"] / "uv"
+    if uv.exists():
+        return uv
+    arch = platform.machine()
+    digest = uv_pin["sha256"].get(arch)
+    if not digest:
+        raise Failure(f"No pinned uv build for {arch}.")
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / "uv.tar.gz"
+        url = (
+            "https://github.com/astral-sh/uv/releases/download/"
+            f"{uv_pin['version']}/uv-{arch}-unknown-linux-gnu.tar.gz"
+        )
+        run_logged(["curl", "-fsSL", "-o", archive, url])
+        if sha256(archive) != digest:
+            raise Failure("The uv download does not match its pinned checksum.")
+        run_logged(["tar", "-xzf", archive, "-C", tmp])
+        uv.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(Path(tmp) / f"uv-{arch}-unknown-linux-gnu" / "uv", uv)
+        uv.chmod(0o755)
+    return uv
+
+
+def copy_database(src, dest):
+    """Make dest's database files and .storage exactly src's."""
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in DATABASE_FILES:
+        (dest / name).unlink(missing_ok=True)
+        if (src / name).exists():
+            shutil.copy2(src / name, dest / name)
+    shutil.rmtree(dest / ".storage", ignore_errors=True)
+    if (src / ".storage").is_dir():
+        shutil.copytree(src / ".storage", dest / ".storage")
+
+
+def start_service():
+    ENABLED.touch()
+    systemctl("reset-failed", SERVICE)
+    systemctl("start", "--no-block", SERVICE, check=True)
+    systemctl("start", TIMER)
+
+
+def install():
+    require_unit()
+    recover_interrupted()
+    pins = pinned()
+    manifest = read_json(MANIFEST)
+    current = (
+        HASS.exists()
+        and manifest
+        and all(manifest.get(k) == pins[k] for k in ("home_assistant", "python", "lock_sha256"))
+    )
+    if current:
+        install_adapter()
+        write_json(MANIFEST, {**manifest, "adapter_sha256": pins["adapter_sha256"]})
+        CONFIG.mkdir(exist_ok=True)
+        start_service()
+        return {"ok": True, "changed": False, "installed": pins, "service": "starting"}
+
+    with Hold():
+        LOG.write_text("")
+        uv = ensure_uv()
+        env = {**os.environ, "UV_PYTHON_INSTALL_DIR": str(ROOT / "python")}
+        run_logged([uv, "python", "install", pins["python"]], env=env)
+        upgrade = HASS.exists()
+        STAGED.mkdir()
+        if manifest:
+            write_json(STAGED / "install.json", manifest)
+        if upgrade and CONFIG.exists():
+            copy_database(CONFIG, STAGED / "config")
+        begin("install", "building", had_venv=VENV.exists(), had_manifest=MANIFEST.exists())
+        if VENV.exists():
+            VENV.rename(STAGED / "venv")
+        run_logged([uv, "venv", "--managed-python", "--python", pins["python"], VENV], env=env)
+        run_logged(
+            [uv, "pip", "install", "--python", PYTHON, "--require-hashes", "-r", LOCK], env=env
+        )
+        version = subprocess.run([str(HASS), "--version"], capture_output=True, text=True).stdout.strip()
+        if version != pins["home_assistant"]:
+            raise Failure(f"Installed Home Assistant {version}, expected {pins['home_assistant']}.")
+        install_adapter()
+        CONFIG.mkdir(exist_ok=True)
+        write_json(MANIFEST, {**pins, "uv": PINS["uv"]["version"], "installed_at": int(time.time())})
+        if not upgrade:
+            shutil.rmtree(STAGED / "venv", ignore_errors=True)
+        begin("install", "committed")
+        if upgrade:
+            settle_transaction()
+        else:
+            shutil.rmtree(STAGED, ignore_errors=True)
+            JOURNAL.unlink(missing_ok=True)
+    start_service()
+    return {
+        "ok": True,
+        "changed": True,
+        "installed": pins,
+        "previous": (manifest or {}).get("home_assistant") if upgrade else None,
+        "service": "starting",
+    }
+
+
+def rollback():
+    require_unit()
+    recover_interrupted()
+    previous_manifest = read_json(PREVIOUS / "install.json")
+    if not previous_manifest or not (PREVIOUS / "venv").is_dir():
+        raise Failure("No previous release to roll back to.")
+    started = int(time.time())
+    with Hold():
+        UNDO.mkdir()
+        copy_database(CONFIG, UNDO / "config")
+        if MANIFEST.exists():
+            shutil.copyfile(MANIFEST, UNDO / "install.json")
+        begin("rollback", "swapping", started=started)
+        VENV.rename(UNDO / "venv")
+        (PREVIOUS / "venv").rename(VENV)
+        if (PREVIOUS / "config").is_dir():
+            copy_database(PREVIOUS / "config", CONFIG)
+        write_json(MANIFEST, previous_manifest)
+        begin("rollback", "committed", started=started)
+        settle_transaction()
+    start_service()
+    kept = sorted(ROOT.glob(f"replaced-{started}*"), key=lambda p: p.stat().st_mtime)
+    return {
+        "ok": True,
+        "installed": previous_manifest,
+        "replaced_database": str(kept[-1]) if kept else None,
+        "service": "starting",
+    }
+
+
+def sync_adapter():
+    """Run by the service before each start: bring the routing module to the shipped one."""
+    if not PYTHON.exists():
+        return {"ok": True, "changed": False}
+    target = site_packages() / "muse_link_route.py"
+    if target.exists() and sha256(target) == sha256(ADAPTER):
+        return {"ok": True, "changed": False}
+    install_adapter()
+    manifest = read_json(MANIFEST)
+    if manifest:
+        write_json(MANIFEST, {**manifest, "adapter_sha256": sha256(ADAPTER)})
+    return {"ok": True, "changed": True}
+
+
+def start():
+    require_unit()
+    recover_interrupted()
+    if not HASS.exists():
+        raise Failure("Home Assistant is not installed; run `home-assistant install`.")
+    start_service()
+    return {"ok": True, "service": "starting"}
+
+
+def stop():
+    ENABLED.unlink(missing_ok=True)
+    systemctl("stop", SERVICE)
+    return {"ok": True, "service": service_state()}
+
+
+# --- setup (onboarding) -------------------------------------------------------------
+
+
+def setup():
+    if not PYTHON.exists():
+        raise Failure("Home Assistant is not installed; run `home-assistant install`.")
+    if Path(sys.prefix).resolve() != VENV.resolve():
+        os.execv(str(PYTHON), [str(PYTHON), str(Path(__file__).resolve()), "setup"])
+    import asyncio
+
+    return asyncio.run(_setup())
+
+
+async def _setup():
+    import secrets
+
+    import aiohttp
+
+    async def post(http, path, **kwargs):
+        async with http.post(f"{BASE}{path}", **kwargs) as response:
+            response.raise_for_status()
+            return await response.json()
+
+    creds = read_json(CREDENTIALS)
+    done = onboarding_steps()
+    if done is None:
+        raise Failure("Home Assistant is not answering yet; check `home-assistant status`.")
+    if creds and all(done.values()) and credentials_state(creds.get("token")) == "valid":
+        return {"ok": True, "onboarded": True, "credentials": "valid", "credentials_file": str(CREDENTIALS)}
+    async with aiohttp.ClientSession() as http:
+        if done.get("user") and creds is None:
+            raise Failure(
+                "An owner exists without stored credentials; ask the user how they want to sign in."
+            )
+        if creds is None:
+            creds = {"username": "muse", "password": secrets.token_urlsafe(24)}
+            write_json(CREDENTIALS, creds, mode=0o600)
+        if not done.get("user"):
+            user = {"client_id": CLIENT_ID, "name": "Muse", "language": "en",
+                    "username": creds["username"], "password": creds["password"]}
+            code = (await post(http, "/api/onboarding/users", json=user))["auth_code"]
+        else:
+            flow = await post(http, "/auth/login_flow", json={
+                "client_id": CLIENT_ID, "redirect_uri": REDIRECT, "handler": ["homeassistant", None]})
+            step = await post(http, f"/auth/login_flow/{flow['flow_id']}", json={
+                "client_id": CLIENT_ID, "username": creds["username"], "password": creds["password"]})
+            if step.get("type") != "create_entry":
+                raise Failure("Signing in with the stored credentials failed.")
+            code = step["result"]
+        grant = {"grant_type": "authorization_code", "code": code, "client_id": CLIENT_ID}
+        access = (await post(http, "/auth/token", data=grant))["access_token"]
+        auth = {"Authorization": f"Bearer {access}"}
+        for name, body in (("core_config", None), ("analytics", None),
+                           ("integration", {"client_id": CLIENT_ID, "redirect_uri": REDIRECT})):
+            if not done.get(name):
+                await post(http, f"/api/onboarding/{name}", headers=auth, json=body)
+        if credentials_state(creds.get("token")) != "valid":
+            async with http.ws_connect(f"{BASE}/api/websocket") as ws:
+                await ws.receive_json()
+                await ws.send_json({"type": "auth", "access_token": access})
+                if (await ws.receive_json())["type"] != "auth_ok":
+                    raise Failure("WebSocket authentication failed.")
+                await ws.send_json({"id": 1, "type": "auth/long_lived_access_token",
+                                    "client_name": "Muse", "lifespan": 3650})
+                reply = await ws.receive_json()
+                if not reply.get("success"):
+                    raise Failure(f"Token creation failed: {reply.get('error')}")
+            creds["token"] = reply["result"]
+            write_json(CREDENTIALS, creds, mode=0o600)
+    return {"ok": True, "onboarded": True, "credentials": "valid", "credentials_file": str(CREDENTIALS)}
+
+
+COMMANDS = {
+    "status": status,
+    "install": install,
+    "start": start,
+    "stop": stop,
+    "setup": setup,
+    "rollback": rollback,
+    "sync-adapter": sync_adapter,
+}
+
+
+def _interrupted(*_):
+    raise Failure("Interrupted; the previous release is kept.")
+
+
+def main():
+    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
+        print(json.dumps({"ok": False, "error": f"usage: home-assistant {{{'|'.join(c for c in COMMANDS if c != 'sync-adapter')}}}"}))
+        return 2
+    # Stopping the activity sends SIGTERM; turn it into an exception so an
+    # unfinished install restores the previous release and releases its hold.
+    signal.signal(signal.SIGTERM, _interrupted)
+    try:
+        result = COMMANDS[sys.argv[1]]()
+    except Failure as failure:
+        result = {"ok": False, "error": str(failure), **failure.fields}
+    except subprocess.CalledProcessError as err:
+        result = {"ok": False, "error": f"{err.cmd[0]} failed with exit code {err.returncode}"}
+    print(json.dumps(result, indent=2))
+    return 0 if result.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

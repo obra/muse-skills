@@ -30,6 +30,9 @@ export interface SpaceDb {
 
 export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
   const client: Client = createClient({ url: `file:${dbPath}` });
+  // Wait for other app.db writers and checkpoints instead of failing at once
+  // with SQLITE_BUSY. Set first: the first read can meet WAL recovery.
+  await client.execute("PRAGMA busy_timeout = 5000");
   await client.execute("PRAGMA journal_mode = WAL");
   await client.execute("PRAGMA foreign_keys = ON");
   const drizzleInstance = drizzle(client);
