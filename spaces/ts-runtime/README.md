@@ -184,10 +184,11 @@ const url = await ctx.blobs.getUrl("images/avatar.png", {
 ```
 
 `getUrl()` asks the runtime to mint a fetchable blob URL. Local Muse VM web artifacts
-return a document-relative `./blobs/<key>` URL served by the daemon under nginx
-bearer auth — relative so it resolves against the `/spaces/v2/<slug>/` document
-base whether that sits at the origin root (prod) or behind a `/backend/<sid>/`
-reverse-proxy prefix (annotation rig). Cloudflare web artifacts return a Worker-relative
+return a document-relative `./blobs/<key>` URL served by the daemon behind
+ingress authentication (the owner's bearer or the Space's grant) — relative so
+it resolves against the `/spaces/v2/<slug>/` document base whether that sits at
+the origin root (prod) or behind a `/backend/<sid>/` reverse-proxy
+prefix (annotation rig). Cloudflare web artifacts return a Worker-relative
 `./blobs/public/<key>` or `./blobs/private/<key>?token=...` URL backed by the
 per-web-artifact R2 bucket bound as `BUCKET`, with HMAC-signed tokens for private
 blobs. Stateful downloads require a verified viewer and use `Cache-Control:

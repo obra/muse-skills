@@ -24,6 +24,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, 'dist');
 const ENTRY = join(ROOT, 'src', 'index.tsx');
 const OUT = join(DIST, 'hatch-maps.js');
+const META = join(ROOT, 'esbuild-meta.json');
 const HELPERS_ENTRY = join(ROOT, '..', 'scripts', 'map_helpers.mjs');
 const HELPERS_OUT = join(DIST, 'map_helpers.js');
 
@@ -88,6 +89,10 @@ run(bun, [
   '--minify',
   '--define:process.env.NODE_ENV="production"',
   `--outfile=${OUT}`,
+  // Which packages put bytes into the bundle, for the bundle SBOM
+  // (scripts/build-sbom.py, bundled_lockfiles in bundle-setup/sbom-rules.json).
+  // It ships beside bun.lock, outside dist/.
+  `--metafile=${META}`,
 ]);
 
 // The helpers are plain browser JavaScript with no dependency of their own, so
@@ -106,7 +111,7 @@ run(bun, [
   `--outfile=${HELPERS_OUT}`,
 ]);
 
-for (const required of [OUT, join(DIST, 'hatch-maps.css'), HELPERS_OUT]) {
+for (const required of [OUT, join(DIST, 'hatch-maps.css'), HELPERS_OUT, META]) {
   if (!existsSync(required)) {
     throw new Error(`expected build output missing: ${required}`);
   }

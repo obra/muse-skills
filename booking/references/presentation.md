@@ -10,7 +10,7 @@
 
 - For text comparisons with no requested count, show three to five distinct choices, best first, or fewer when fewer qualify. Honor an explicit count. Native result previews follow the connector's preview and See all contract instead of this text default.
 
-- Follow [flight comparison](/opt/muse/skills/flight-booking/references/flights.md) and [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) for native results. Use the Markdown table below for their fallback, restaurants and tickets.
+- Follow [flight comparison](/opt/muse/skills/flight-booking/references/flights.md), [hotel comparison](/opt/muse/skills/hotel-booking/references/hotels.md) and [rental cars](/opt/muse/skills/trip-transport/references/rental-cars.md) for native results. Use the Markdown table below for their fallback, restaurants and tickets.
 
 - Do not add another picker or use `muse.create_options` to repeat a booking selection. For a single exact match, use short labeled lines instead of a one-row table.
 
@@ -45,6 +45,14 @@
 - Include the exact room and bed, dates, mandatory fees, the amount due at the property, the cancellation deadline and material benefits. Show verified travel time to a named place when location matters.
 
 - After the user picks a property, exact-room photos may help. Label any photo that does not show that room `Property photo`.
+
+### Rental cars
+
+- Use one row per rate, with the columns Option, Supplier and car, Pickup and drop-off, Seats, bags and transmission, Full total, and Mileage and payment.
+
+- Show the supplier, the exact returned vehicle or "or similar", the category or type, the local rental period, the branch or access instructions when stated, and for an airport pickup or return the location type and estimated transfer time. Show the full total and currency, never the base amount.
+
+- Do not imply that optional extras, fuel, tolls, deposits or locally charged fees are included unless the live rate says so.
 
 ### Restaurants
 
