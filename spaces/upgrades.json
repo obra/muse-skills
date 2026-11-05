@@ -1,5 +1,5 @@
 {
-  "currentVersion": 26,
+  "currentVersion": 28,
   "versionField": "platformVersion",
   "upgrades": [
     {
@@ -498,6 +498,45 @@
       ],
       "verification": [
         "artifact.list_actions shows a description for every action."
+      ]
+    },
+    {
+      "version": 27,
+      "id": "2026-10-28-public-stateful-guests",
+      "title": "Guest access for public shared apps",
+      "runtime": "typescript",
+      "summary": "Public stateful apps admit signed-out visitors by default after this upgrade and publication. Guests have no ctx.viewer; restricted shares still authenticate.",
+      "applicability": "TypeScript artifacts with server actions. Inspect and adapt guest handling before completing this upgrade; rebuilding alone is insufficient.",
+      "instructions": [
+        "Classify each action as a collaborative operation or an owner-only operation. Allow guests only for the intended collaborative operations, while retaining existing private-row authorization and identity partitioning. Never fabricate a guest viewer or use a missing viewer as proof of ownership.",
+        "For owner-only or paid browser operations supported by the shared runtime, require ctx.viewer?.isOwner === true. A guard that only rejects isOwner === false admits a missing viewer and must be corrected. Show a clear owner-required result to guests for these supported operations. If such an operation also fills or refreshes data, do not run it as post_submit_action; let a schedule or the user's main agent run it, since they act as the owner, and report it.",
+        "Shared pages cannot call inference, tools, agents or privileged callbacks for any viewer, including the signed-in owner. Show shared_artifact_vm_capability_unavailable as unavailable while shared; signing in as the owner does not enable these calls. Keep local schedule and agent refreshes working, and use saved data from those refreshes or the user's agent for shared page features. Report the limitation without removing capabilities that still work locally.",
+        "Do not key anonymous rows by a fabricated identity, weaken existing private data checks, or grant guests private blobs. If intended collaboration requires a real identity, preserve that requirement and report the limitation.",
+        "Adapt client state to handle denied owner operations, validation failures and unavailable backends without showing unsaved state as saved.",
+        "Rebuild with web_artifacts.build to include the guest-capable managed worker. Complete this upgrade only after inspecting and adapting the app source and performing the available verification. If a required identity or private-data boundary cannot be preserved, report the upgrade blocked."
+      ],
+      "verification": [
+        "Review every reachable server action with ctx.viewer absent; collaborative operations remain usable and owner-only or paid operations are denied.",
+        "Verify save and reload share the same intended data, and validation or backend failures retain entered values without reporting success.",
+        "Verify signed-in owner behavior remains unchanged for operations supported by the shared runtime, and restricted recipient authorization remains unchanged. Shared-page inference, tool, agent and privileged calls must remain unavailable even to the owner; local schedule and agent refreshes must still work. Record browser paths the edit builder cannot execute as unverified; never manufacture viewers to pass them.",
+        "The rebuilt app includes the managed guest runtime. Public publication and automatic updates enable guest access without separate owner approval; restricted shares still require login. An already deployed app needs republishing to adopt the upgrade."
+      ]
+    },
+    {
+      "version": 28,
+      "id": "2026-11-03-cloudflare-viewer-identity-removal",
+      "title": "Shared viewer authorization without account identity",
+      "runtime": "typescript",
+      "summary": "Cloudflare ctx.viewer no longer exposes viewerFbid, ownerFbid or displayName. isOwner and share context remain; the local viewer contract is unchanged.",
+      "applicability": "TypeScript web artifacts with server actions. Source changes are needed where Cloudflare viewer identity fields are read.",
+      "instructions": [
+        "Remove Cloudflare viewerFbid, ownerFbid and displayName reads and identity displays. Keep owner-only checks as ctx.viewer?.isOwner === true.",
+        "If an identity field keys private rows or authorizes access for individual nonowners, stop and report that unsupported dependency. Do not remove its guard, merge row identities or substitute caller-supplied IDs.",
+        "Rebuild against the updated SDK during this edit. Do not change LocalViewer handling or preemptively modify other Spaces."
+      ],
+      "verification": [
+        "The artifact builds and typechecks without the removed Cloudflare fields; existing owner-only checks remain enforced.",
+        "Use available sandbox checks and record authenticated owner/nonowner paths as unverified when they cannot be exercised. Do not fabricate a viewer to pass a check."
       ]
     }
   ]

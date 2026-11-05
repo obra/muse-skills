@@ -48,8 +48,6 @@ function request(body?: unknown, overrides: Record<string, string> = {}) {
       "x-cloudflare-spaces-share-id": "share-1",
       "x-cloudflare-spaces-space-slug": "demo",
       "x-cloudflare-spaces-space-id": "123",
-      "x-cloudflare-spaces-viewer-fbid": "owner",
-      "x-cloudflare-spaces-owner-fbid": "owner",
       "x-cloudflare-spaces-is-owner": "true",
       "x-cloudflare-spaces-token-exp": "2000000000",
       "x-cloudflare-spaces-token-jti": "test-jti",
@@ -76,7 +74,7 @@ test("stateful assets, blobs, and actions require viewer context bound to this a
   for (const headers of [
     { "x-cloudflare-spaces-viewer-authenticated": "0" },
     { "x-cloudflare-spaces-space-id": "different" },
-    { "x-cloudflare-spaces-viewer-fbid": "guest" },
+    { "x-cloudflare-spaces-is-owner": "invalid" },
   ]) {
     expect((await worker.fetch(request(undefined, headers), f.env, f.execution)).status).toBe(401);
     expect((await worker.fetch(blobRequest(request(undefined, headers).headers), f.env, f.execution)).status).toBe(401);
@@ -207,20 +205,35 @@ test("a write followed by failure cannot authorize an automatic replay", async (
   }
 });
 
-test("guests can save collaborative data but cannot use the owner's VM tools", async () => {
+test("viewer context omits identity while owner-only data access and VM denial remain enforced", async () => {
   const f = fixture();
   const worker = createWorker({
-    save: defineAction({ request: z.object({}), response: z.string(), async handler(ctx) {
-      return ctx.viewer!.viewerFbid;
+    save: defineAction({ request: z.object({}), response: z.unknown(), async handler(ctx) {
+      return ctx.viewer;
     } }),
     weather: defineAction({ request: z.object({}), response: z.unknown(), async handler(ctx) {
       return ctx.tool.weather("New York");
     } }),
   }, "demo");
-  const guest = { "x-cloudflare-spaces-viewer-fbid": "guest", "x-cloudflare-spaces-is-owner": "false" };
-  const saved = await worker.fetch(request({ action: "save", args: {} }, guest), f.env, f.execution);
-  expect(await saved.json()).toEqual({ data: "guest", version: 1 });
-  expect((await worker.fetch(request({ action: "weather", args: {} }, guest), f.env, f.execution)).status).toBe(403);
+  for (const isOwner of [false, true]) {
+    const headers = {
+      "x-cloudflare-spaces-viewer-fbid": isOwner ? "owner" : "guest",
+      "x-cloudflare-spaces-owner-fbid": "owner",
+      "x-cloudflare-spaces-viewer-display-name": "Synthetic%20Viewer",
+      "x-cloudflare-spaces-is-owner": String(isOwner),
+    };
+    const saved = await worker.fetch(request({ action: "save", args: {} }, headers), f.env, f.execution);
+    expect(await saved.json()).toEqual({ data: {
+      source: "cloudflare", authenticated: true, shareId: "share-1", spaceSlug: "demo", spaceId: "123",
+      isOwner, tokenExpiresAt: 2000000000, tokenId: "test-jti",
+    }, version: 1 });
+    expect((await worker.fetch(request({ action: "weather", args: {} }, headers), f.env, f.execution)).status).toBe(403);
+    const direct = await worker.fetch(request({ kind: "shared_data", operation: {
+      type: "statement", method: "run", sql: "INSERT INTO entries VALUES ('owner')",
+    } }, headers), f.env, f.execution);
+    expect(direct.status).toBe(isOwner ? 200 : 403);
+    expect(f.sqlite.query("SELECT count(*) AS n FROM entries").get()).toEqual({ n: isOwner ? 1 : 0 });
+  }
 });
 
 test("malformed and oversized payloads never reach a handler or shared admission", async () => {

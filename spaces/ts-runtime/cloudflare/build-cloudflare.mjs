@@ -413,6 +413,7 @@ async function writeDeployManifest({ spaceDir, outDir, workerPath }) {
   const manifest = {
     runtime: "hatch-ts-cloudflare-v1",
     sharedStateVersion: 1,
+    publicAccessVersion: 1,
     runWorkerFirst: serverActions.hasServerActions,
     slug: packageJson.hatch?.slug ?? path.basename(spaceDir),
     name: packageJson.hatch?.name ?? packageJson.name ?? path.basename(spaceDir),

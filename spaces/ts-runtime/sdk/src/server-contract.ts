@@ -54,12 +54,9 @@ export type CloudflareViewer = {
   shareId: string;
   spaceSlug: string;
   spaceId?: string;
-  viewerFbid: string;
-  ownerFbid: string;
   isOwner: boolean;
   tokenExpiresAt: number;
   tokenId: string;
-  displayName?: string;
 };
 
 export type Viewer = LocalViewer | CloudflareViewer;
