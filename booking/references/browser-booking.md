@@ -28,6 +28,6 @@
 
 - Use the supported sign-in or one-time-code path. Never bypass a site's controls.
 
-- The browser solves CAPTCHAs without asking. Never ask the user to solve one. A site it cannot get past counts as blocked automation.
+- A site the browser cannot get past counts as blocked automation. The browser's bot-challenge specialist can solve CAPTCHAs and bot checks, so do not treat encountering one as blocked automation.
 
 - If automation is blocked, try another authorized seller, a call when the phone tools are available, or a precise handoff with the exact link, the choices already made and what remains. A difficult checkout never justifies a different date, venue, property, seat, room, rate or price.
