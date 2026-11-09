@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bun test src/blobs.test.ts src/invocation_env.test.ts src/validate-migrations.test.ts src/validate-server-actions.test.ts src/playwright-audit.test.ts src/transport-ledger.test.ts src/probe-ui.test.ts src/probe-ctx-cli.test.ts src/privileged.test.ts src/privileged_contracts.test.ts src/privileged_executor.test.ts src/extract-privileged-contracts-cli.test.ts src/execute-privileged-cli.test.ts src/privileged_space_e2e.test.ts",
+    "test": "bun test src/blobs.test.ts src/read_only.test.ts src/invocation_env.test.ts src/validate-migrations.test.ts src/validate-server-actions.test.ts src/playwright-audit.test.ts src/transport-ledger.test.ts src/probe-ui.test.ts src/probe-ctx-cli.test.ts src/privileged.test.ts src/privileged_contracts.test.ts src/privileged_executor.test.ts src/extract-privileged-contracts-cli.test.ts src/execute-privileged-cli.test.ts src/privileged_space_e2e.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

@@ -4,13 +4,13 @@
 // The daemon-side dispatcher (Rust) is the canonical schema authority — these
 // types must stay byte-compatible with what the daemon produces and consumes.
 
-import type { LocalViewer } from "@hatch/space-sdk";
+import type { LocalViewer, PeerViewer } from "@hatch/space-sdk";
 
 export interface InvokeCommand {
   kind: "invoke";
   action: string;
   args: Record<string, unknown>;
-  viewer?: LocalViewer;
+  viewer?: LocalViewer | PeerViewer;
   invocation_id: string;
   request_id: string;
   slug: string;
@@ -22,6 +22,7 @@ export interface InvokeCommand {
   proxy_env?: Record<string, string>;
   // This invocation's deadline when it is not HATCH_SPACE_ACTION_TIMEOUT_MS.
   timeout_ms?: number;
+  read_only?: boolean;
 }
 
 export interface CancelCommand {
@@ -62,6 +63,7 @@ export interface ErrorFrame {
   kind: "error";
   request_id: string;
   error: string;
+  code?: "view_only";
 }
 
 export interface InvalidateQueriesFrame {

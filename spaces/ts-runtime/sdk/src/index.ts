@@ -60,6 +60,8 @@ export {
   type Viewer,
   type LocalViewer,
   type CloudflareViewer,
+  type PeerViewer,
+  type SpaceRole,
 } from "./server-contract";
 
 // Local handle for the `Ctx` interface below; the full set of these symbols

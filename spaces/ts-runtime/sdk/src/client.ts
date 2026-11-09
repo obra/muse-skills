@@ -21,6 +21,12 @@ import { QueryClient } from "@tanstack/react-query";
 import type { ZodType } from "zod";
 
 import { installSpaceThemeListener } from "./client/host-theme";
+import {
+  createSpaceViewerStore,
+  useSpaceViewerFrom,
+  type SpaceViewer,
+  type SpaceViewerEvent,
+} from "./client/viewer";
 import type { ActionRequest, ActionResponse } from "./index";
 
 export { SafeAreaTopScrim } from "./client/safe-area";
@@ -30,6 +36,13 @@ export type {
 } from "./client/safe-area";
 
 export { bytesToBase64, fileToBase64 } from "./client/file-encoding";
+export type {
+  SpacePerson,
+  SpacePresentPerson,
+  SpaceRole,
+  SpaceViewer,
+  SpaceViewerEvent,
+} from "./client/viewer";
 
 /**
  * Error thrown by a {@link createActionClient} call when the daemon returns a
@@ -406,6 +419,7 @@ function queryKeysFromMessage(
 }
 
 const localActionCalls = new Map<string, number>();
+const bridgedActionCalls = new Map<string, number>();
 let spaceUnavailable = false;
 type LocalInvalidationTarget = "all" | readonly unknown[];
 const recentLocalInvalidations: Array<{
@@ -515,6 +529,16 @@ function rememberLocalActionCall(actionCallId: string): void {
       localActionCalls.delete(actionCallId);
     }
   }, LOCAL_ACTION_CALL_RETENTION_MS);
+}
+
+function rememberBridgedActionCall(actionCallId: string): void {
+  const tsMs = nowMs();
+  for (const [callId, seenMs] of bridgedActionCalls) {
+    if (tsMs - seenMs > LOCAL_ACTION_CALL_RETENTION_MS * 2) {
+      bridgedActionCalls.delete(callId);
+    }
+  }
+  bridgedActionCalls.set(actionCallId, tsMs);
 }
 
 function markSpaceUnavailable(actionCallId: string): void {
@@ -653,6 +677,9 @@ export function installSpaceQueryInvalidationListener(
     }
 
     const originActionCallId = originActionCallIdFromMessage(event.data);
+    if (originActionCallId != null) {
+      rememberBridgedActionCall(originActionCallId);
+    }
     const queryKeys = queryKeysFromMessage(event.data);
     if (queryKeys == null) {
       return;
@@ -862,24 +889,46 @@ function isActionRetrySafe(body: unknown): boolean {
   return body !== null && typeof body === "object" && "retrySafe" in body && body.retrySafe === true;
 }
 
+const SHOWN_REFUSAL_CODES = new Set([
+  "view_only",
+  "peer_artifact_view_only",
+]);
+
 /**
- * A view-only viewer's refusal keeps the shared app's own sentence, so an app
- * that shows the error tells the person why; any other failure names the
- * action, status, and body.
+ * A shown refusal, such as a view-only viewer's, keeps the host's own
+ * sentence, so an app that shows the error tells the person why; any other
+ * failure names the action, status, and body.
  */
 function actionFailureMessage(name: string, failure: string, status: number, body: unknown): string {
   const error = body !== null && typeof body === "object" && "error" in body ? body.error : undefined;
-  if (actionErrorCode(body) === "view_only" && typeof error === "string" && error.length > 0) {
-    return error;
+  const code = actionErrorCode(body);
+  const message =
+    typeof error === "string" ? error : (error as { message?: unknown } | null | undefined)?.message;
+  if (
+    code !== undefined &&
+    SHOWN_REFUSAL_CODES.has(code) &&
+    typeof message === "string" &&
+    message.length > 0
+  ) {
+    return message;
   }
   const text = typeof body === "string" ? body : JSON.stringify(body ?? null);
   return `action ${name} ${failure}: ${status} ${text}`;
 }
 
 function actionErrorCode(body: unknown): string | undefined {
-  return body !== null && typeof body === "object" && "code" in body && typeof body.code === "string"
-    ? body.code
-    : undefined;
+  if (body === null || typeof body !== "object") {
+    return undefined;
+  }
+  if ("code" in body && typeof body.code === "string") {
+    return body.code;
+  }
+  const error = "error" in body ? body.error : undefined;
+  const nested =
+    error !== null && typeof error === "object" && "code" in error
+      ? (error as { code?: unknown }).code
+      : undefined;
+  return typeof nested === "string" && SHOWN_REFUSAL_CODES.has(nested) ? nested : undefined;
 }
 
 // Parse a `Retry-After` response header (RFC 7231 delta-seconds or HTTP-date)
@@ -919,4 +968,37 @@ function createActionCallId(): string {
   return `space-action-${Date.now().toString(36)}-${Math.random()
     .toString(36)
     .slice(2)}`;
+}
+
+const spaceViewerStore = createSpaceViewerStore({
+  isKnownCall: (callId) => localActionCalls.has(callId) || bridgedActionCalls.has(callId),
+  refresh: () => {
+    void invalidateAllQueriesFromBridge(spaceQueryClient);
+  },
+});
+
+/**
+ * Who is viewing this Space, its owner, and who else has it open now, read
+ * from the Muse that serves it. Null when the Space has no viewer context,
+ * such as a public share link or when the owner hasn't turned on connections.
+ */
+export function getSpaceViewer(): Promise<SpaceViewer | null> {
+  return spaceViewerStore.get();
+}
+
+/**
+ * Follow the viewer context while the page is visible: the listener gets the
+ * current context, plus an event when someone joins, leaves, or changes the
+ * data. Subscribing keeps this viewer present for others and refetches the
+ * page's queries when someone else changes the data. Returns an unsubscribe.
+ */
+export function subscribeSpaceViewer(
+  listener: (viewer: SpaceViewer | null, event?: SpaceViewerEvent) => void,
+): () => void {
+  return spaceViewerStore.subscribe((event) => listener(spaceViewerStore.current(), event));
+}
+
+/** React hook form of {@link subscribeSpaceViewer}: the current context, or null. */
+export function useSpaceViewer(): SpaceViewer | null {
+  return useSpaceViewerFrom(spaceViewerStore);
 }

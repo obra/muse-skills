@@ -59,7 +59,26 @@ export type CloudflareViewer = {
   tokenId: string;
 };
 
-export type Viewer = LocalViewer | CloudflareViewer;
+/** What a viewer may do in a Space: read it, run its actions, or edit it. */
+export type SpaceRole = "view" | "use" | "edit";
+
+/**
+ * A person using the owner's Space from their own Muse, identified by the
+ * connection the owner's Muse admitted. Never the owner.
+ */
+export type PeerViewer = {
+  source: "peer";
+  authenticated: true;
+  spaceSlug: string;
+  /** The person's Muse ID, the same `id` the page's viewer context shows. */
+  museId: string;
+  /** Their display name as the owner's Muse knows it. */
+  name?: string;
+  role: SpaceRole;
+  isOwner: false;
+};
+
+export type Viewer = LocalViewer | CloudflareViewer | PeerViewer;
 
 export type BlobPutData = string | ArrayBuffer | ArrayBufferView | Blob;
 

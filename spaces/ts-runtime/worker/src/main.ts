@@ -36,12 +36,15 @@ import {
   type Ctx,
   type JsonValue,
   type LocalViewer,
+  type PeerViewer,
   type PrivilegedContract,
+  type SpaceDbAccessor,
   type SpaceQueryInvalidationInput,
   type SpaceToolClient,
 } from "@hatch/space-sdk";
 
 import { openSpaceDb, type SpaceDb } from "./db";
+import { ViewOnlyError, VIEW_ONLY_CODE, isReadOnlyRefusal, readOnlyBlobs } from "./read_only";
 import { createAgentClient } from "./agent";
 import { createBlobClient } from "./blobs";
 import { createSharedBlobClient, createSharedDbAccessor } from "./shared_data";
@@ -119,8 +122,13 @@ function emitEnd(requestId: string): void {
   writeFrame({ kind: "end", request_id: requestId });
 }
 
-function emitError(requestId: string, error: string): void {
-  writeFrame({ kind: "error", request_id: requestId, error });
+function emitError(requestId: string, error: string, code?: "view_only"): void {
+  writeFrame({
+    kind: "error",
+    request_id: requestId,
+    error,
+    ...(code !== undefined ? { code } : {}),
+  });
 }
 
 type QueryInvalidationState = {
@@ -288,7 +296,7 @@ function buildCtx(args: {
   blobDir?: string;
   spaceDb: SpaceDb | null;
   invocationId: string;
-  viewer?: LocalViewer;
+  viewer?: LocalViewer | PeerViewer;
   requestId: string;
   rootRequestId?: string;
   timeoutMs?: number;
@@ -296,6 +304,9 @@ function buildCtx(args: {
   privileged?: readonly PrivilegedContract[];
   transport: InvokeCommand["transport"];
   queryInvalidation: QueryInvalidationState;
+  readOnly: boolean;
+  /** The read-only accessor a read-only invocation's data access uses. */
+  readOnlyDb: SpaceDbAccessor | null;
 }): Ctx {
   const agent = createAgentClient({
     slug: args.slug,
@@ -316,13 +327,14 @@ function buildCtx(args: {
     action: args.action,
     invocationId: args.invocationId,
   };
-  const blobs =
+  const dataBlobs =
     args.spaceDb === null
       ? createSharedBlobClient(sharedData)
       : createBlobClient({
           spaceDir: args.spaceDir,
           blobDir: args.blobDir,
         });
+  const blobs = args.readOnly ? readOnlyBlobs(dataBlobs) : dataBlobs;
   const privilegedExecutor = createPrivilegedExecutor(
     args.privileged,
     createPrivilegedTransport({
@@ -351,7 +363,10 @@ function buildCtx(args: {
     slug: args.slug,
     invocationId: args.invocationId,
     spaceDir: args.spaceDir,
-    db: args.spaceDb === null ? createSharedDbAccessor(sharedData) : args.spaceDb.accessor,
+    db:
+      args.spaceDb === null
+        ? createSharedDbAccessor(sharedData)
+        : (args.readOnlyDb ?? args.spaceDb.accessor),
     ...(args.viewer !== undefined ? { viewer: args.viewer } : {}),
     agent,
     inference,
@@ -365,6 +380,9 @@ function buildCtx(args: {
       emitData(args.requestId, data);
     },
     invalidateQueries(input?: SpaceQueryInvalidationInput): void {
+      if (args.readOnly) {
+        return;
+      }
       const invalidation = normalizeQueryInvalidationInput(input);
       if (invalidation === undefined || args.queryInvalidation.invalidateAll) {
         return;
@@ -413,6 +431,17 @@ async function runInvocation(args: {
     invalidateAll: false,
     queryKeys: [],
   };
+  const readOnly = command.read_only === true;
+  let readOnlyDb: SpaceDbAccessor | null = null;
+  if (readOnly && spaceDb !== null) {
+    try {
+      readOnlyDb = await spaceDb.readOnlyAccessor();
+    } catch (err) {
+      emitError(command.request_id, err instanceof Error ? err.message : String(err));
+      emitEnd(command.request_id);
+      return;
+    }
+  }
   const ctx = buildCtx({
     slug,
     spaceDir,
@@ -427,6 +456,8 @@ async function runInvocation(args: {
     privileged: definition.privileged,
     transport: command.transport,
     queryInvalidation,
+    readOnly,
+    readOnlyDb,
   });
 
   let invalidationsEmitted = false;
@@ -450,6 +481,8 @@ async function runInvocation(args: {
     emitQueuedInvalidations();
     if (err instanceof z.ZodError) {
       emitError(command.request_id, `response validation failed: ${err.message}`);
+    } else if (readOnly && isReadOnlyRefusal(err)) {
+      emitError(command.request_id, new ViewOnlyError().message, VIEW_ONLY_CODE);
     } else {
       emitError(
         command.request_id,

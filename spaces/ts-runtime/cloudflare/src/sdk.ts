@@ -49,6 +49,8 @@ export {
   type Viewer,
   type LocalViewer,
   type CloudflareViewer,
+  type PeerViewer,
+  type SpaceRole,
 } from "../../sdk/src/server-contract";
 
 export {

@@ -23,9 +23,25 @@ import { createClient, type Client } from "@libsql/client";
 import { drizzle, type LibSQLDatabase } from "drizzle-orm/libsql";
 import type { SpaceDbAccessor } from "@hatch/space-sdk";
 
+import { readOnlyClient } from "./read_only";
+
 export interface SpaceDb {
   accessor: SpaceDbAccessor;
+  /**
+   * The accessor a `view` grantee's action gets (`read_only.ts`). Its
+   * connection opens on first use, so a Space no one views read-only never
+   * opens it.
+   */
+  readOnlyAccessor(): Promise<SpaceDbAccessor>;
   close(): Promise<void>;
+}
+
+/** A second connection that SQLite keeps from writing. */
+export async function openReadOnlyClient(dbPath: string): Promise<Client> {
+  const client: Client = createClient({ url: `file:${dbPath}` });
+  await client.execute("PRAGMA busy_timeout = 5000");
+  await client.execute("PRAGMA query_only = ON");
+  return client;
 }
 
 export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
@@ -36,10 +52,20 @@ export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
   await client.execute("PRAGMA journal_mode = WAL");
   await client.execute("PRAGMA foreign_keys = ON");
   const drizzleInstance = drizzle(client);
+  let readOnlyRaw: Promise<Client> | null = null;
 
   return {
     accessor: <TSchema extends Record<string, unknown>>() =>
       drizzleInstance as unknown as LibSQLDatabase<TSchema>,
+    async readOnlyAccessor(): Promise<SpaceDbAccessor> {
+      readOnlyRaw ??= openReadOnlyClient(dbPath).catch((err: unknown) => {
+        readOnlyRaw = null;
+        throw err;
+      });
+      const readOnlyInstance = drizzle(readOnlyClient(await readOnlyRaw));
+      return <TSchema extends Record<string, unknown>>() =>
+        readOnlyInstance as unknown as LibSQLDatabase<TSchema>;
+    },
     async close(): Promise<void> {
       // libsql's close is sync in file mode but the Client interface
       // exposes it as void; await-ing is harmless and forward-compatible
@@ -48,6 +74,13 @@ export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
         client.close();
       } catch (err) {
         process.stderr.write(`[ts-worker] libsql close failed: ${String(err)}\n`);
+      }
+      if (readOnlyRaw !== null) {
+        try {
+          (await readOnlyRaw).close();
+        } catch (err) {
+          process.stderr.write(`[ts-worker] libsql close failed: ${String(err)}\n`);
+        }
       }
     },
   };
