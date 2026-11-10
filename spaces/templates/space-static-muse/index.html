@@ -48,6 +48,10 @@
     <link rel="icon" href="data:," />
     <title>__SPACE_TITLE__</title>
     <style>
+      /* Phone tap targets: at least 32px tall. */
+      button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) { min-height: 2rem; }
+    </style>
+    <style>
       /* Muse template. Hatch sets data-hatch-color-scheme and
          data-hatch-accent on <html>; without them, light/dark follows the
          browser and the accent is monochrome. Style with the semantic roles

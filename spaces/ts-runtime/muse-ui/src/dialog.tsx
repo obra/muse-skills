@@ -90,7 +90,7 @@ function DialogRoot({
                 <BaseDialog.Close
                   aria-label={closeLabel}
                   className={cx(
-                    "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-secondary text-secondary-foreground",
+                    "inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-secondary text-secondary-foreground",
                     ELEVATION_1,
                     FILLED_HOVER,
                     FOCUS_RING,

@@ -161,4 +161,8 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Phone tap targets: at least 32px tall. */
+  button, [role="button"], select, summary, input:not([type="checkbox"], [type="radio"]) {
+    min-height: 2rem;
+  }
 }

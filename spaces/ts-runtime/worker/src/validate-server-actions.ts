@@ -220,8 +220,10 @@ export function checkServerActionSource(content: string): string | null {
   if (/\bimport\s*\(/.test(stripped)) {
     return REASON_DYNAMIC_IMPORT;
   }
+  // A member call such as `pattern.exec(text)` is not a subprocess API; the
+  // host modules that provide one are rejected at import.
   if (
-    /\b(spawn|spawnSync|exec|execFile|execFileSync|execSync)\s*\(/.test(
+    /(?<![\w$.])(spawn|spawnSync|exec|execFile|execFileSync|execSync)\s*\(/.test(
       stripped,
     )
   ) {

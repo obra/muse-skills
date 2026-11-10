@@ -7,6 +7,7 @@ import {
   REASON_HOST_MODULE_IMPORT,
   REASON_IMPORT_PRIVILEGED_IMPLEMENTATION,
   REASON_PROCESS_GLOBAL,
+  REASON_SUBPROCESS_API,
   analyzeServerActionsShape,
   checkServerActionGraphAsync,
   checkServerActionSource,
@@ -38,6 +39,18 @@ describe("checkServerActionSource", () => {
     expect(checkServerActionSource("const mode = process.env.NODE_ENV;")).toBe(
       REASON_PROCESS_GLOBAL,
     );
+  });
+
+  test("rejects bare subprocess calls but allows RegExp exec", () => {
+    expect(checkServerActionSource('exec("ls");')).toBe(REASON_SUBPROCESS_API);
+    expect(checkServerActionSource('spawnSync("ls", []);')).toBe(
+      REASON_SUBPROCESS_API,
+    );
+    expect(
+      checkServerActionSource(
+        "const m = /(\\d+)/.exec(text); const n = pattern?.exec(text);",
+      ),
+    ).toBeNull();
   });
 });
 

@@ -23,6 +23,8 @@ builders: web
 
 - Once an artifact is shared, its page cannot reach `ctx.inference`, `ctx.agent` or `ctx.tool`; scheduled actions still can. So a shared artifact's page reads saved data, and a schedule or the user's agent refreshes it.
 
+- Every `ctx.tool` call returns `{ content }`, and the fields below live on `content`: `(await ctx.tool.weather(q)).content.conditions`. Its options are only `since`, `until`, `language_code`, `location`, `timeout_secs` and the per-tool ones named below.
+
 ### Quotes with ctx.tool.finance_ticker
 
 - `ctx.tool.finance_ticker(symbol, options?)` returns quotes and price history. Pass one ticker symbol per call, since "META GOOG" is rejected, and fetch a watchlist with `Promise.all`.
