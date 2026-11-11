@@ -16,7 +16,7 @@
  */
 
 import {spawnSync} from 'node:child_process';
-import {mkdirSync, rmSync, existsSync} from 'node:fs';
+import {mkdirSync, rmSync, existsSync, readFileSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -94,6 +94,25 @@ run(bun, [
   // It ships beside bun.lock, outside dist/.
   `--metafile=${META}`,
 ]);
+
+// MapLibre takes its request referrer from the parent frame's location when the
+// page itself is a blob: document. Muse's hermetic Space frame is a blob:
+// document under a cross-origin parent, so that read throws a SecurityError and
+// the map reports a fatal error before it draws. Fall back to the page's own
+// location there. The match is exact, and the build fails if it stops finding
+// it, so a MapLibre update cannot silently bring the throw back.
+const PARENT_REFERRER =
+  '(window.location.protocol==="blob:"?window.parent:window).location.href';
+const SAFE_REFERRER =
+  '(()=>{try{return(window.location.protocol==="blob:"?window.parent:window).location.href}catch{return window.location.href}})()';
+const bundled = readFileSync(OUT, 'utf8');
+const referrerReads = bundled.split(PARENT_REFERRER).length - 1;
+if (referrerReads !== 1) {
+  throw new Error(
+    `expected one MapLibre parent-referrer read in ${OUT}, found ${referrerReads}`,
+  );
+}
+writeFileSync(OUT, bundled.replace(PARENT_REFERRER, SAFE_REFERRER));
 
 // The helpers are plain browser JavaScript with no dependency of their own, so
 // this pass only changes the module's calling convention: the seven exports

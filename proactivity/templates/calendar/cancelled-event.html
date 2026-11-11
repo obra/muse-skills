@@ -1,0 +1,84 @@
+<style>
+.muse-event, .muse-event * { box-sizing: border-box; }
+  .muse-event { min-width: 0; max-width: 100%; font-family: var(--font-optimistic, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: var(--text-body, 16px); line-height: var(--text-body--line-height, 22px); color: var(--hatch-widget-text); overflow-wrap: anywhere; }
+  .muse-event h3, .muse-event p { margin: 0; }
+
+  .muse-event { --event-accent: #986238; --event-wash: #f8ede1; --event-line: #e7c7a4; --hatch-widget-surface: #fffaf2; --hatch-widget-border: #e9ddcd; --hatch-widget-text: #493422; --hatch-widget-muted: #7b6853; background: var(--hatch-widget-surface); border: 1px solid var(--hatch-widget-border); border-radius: 22px; overflow: hidden; box-shadow: 0 5px 18px var(--hatch-widget-shadow, transparent); }
+  html[data-theme="dark"] .muse-event { --event-accent: #e5bd8f; --event-wash: #362c25; --event-line: #80603b; --hatch-widget-surface: #2e251f; --hatch-widget-border: #574737; --hatch-widget-text: #faeddd; --hatch-widget-muted: #ceb89b; }
+  .muse-event .event-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 22px 0; font-size: var(--text-caption-1, 12px); letter-spacing: 1.2px; text-transform: uppercase; color: var(--event-accent); line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-event .event-state { text-transform: none; letter-spacing: 0; color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-event .event-hero { display: grid; grid-template-columns: 66px minmax(0,1fr); gap: 17px; padding: 22px; align-items: center; }
+  .muse-event .event-date { border: 1px solid var(--event-line); border-radius: 12px; text-align: center; overflow: hidden; background: var(--event-wash); color: var(--event-accent); }
+  .muse-event .event-month { display: block; padding: 4px 2px; border-bottom: 1px solid var(--event-line); font-size: var(--text-caption-1, 12px); font-weight: 600; letter-spacing: 1px; text-transform: uppercase; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-event .event-day { display: block; font-size: var(--text-title-1, 30px); font-weight: 400; letter-spacing: -.01em; line-height: var(--text-title-1--line-height, 34px); padding: 3px 2px; }
+  .muse-event h3 { font-size: var(--text-title-3, 18px); letter-spacing: -.01em; line-height: var(--text-title-3--line-height, 26px); font-weight: 600; }
+  .muse-event .event-weekday { display: block; font-size: var(--text-subheadline, 14px); color: var(--hatch-widget-muted); margin-top: 6px; line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .event-details { margin: 0 22px; padding: 16px 0; border-top: 1px solid var(--hatch-widget-border); border-bottom: 1px solid var(--hatch-widget-border); display: grid; gap: 13px; }
+  .muse-event .event-row { display: flex; align-items: flex-start; gap: 11px; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event svg { width: 17px; height: 17px; flex: none; margin-top: 2px; color: var(--event-accent); }
+  .muse-event .event-row small { display: block; color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); margin-top: 2px; line-height: var(--text-footnote--line-height, 18px); }
+  .muse-event .event-guests { padding: 15px 22px 17px; }
+  .muse-event .event-guests-label { display: block; font-size: var(--text-caption-1, 12px); color: var(--hatch-widget-muted); margin-bottom: 8px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-event .event-chips { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; list-style: none; margin: 0; padding: 0; max-height: 100px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--hatch-widget-border) transparent; }
+  .muse-event .event-chips:focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: 3px; border-radius: 6px; }
+  .muse-event .event-chips li { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 3px 8px 3px 3px; border: 1px solid var(--hatch-widget-border); border-radius: 16px; font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-event .event-chips .initial { width: 20px; height: 20px; flex: none; border-radius: 50%; display: grid; place-items: center; background: var(--event-wash); color: var(--event-accent); font-size: var(--text-caption-1, 12px); font-weight: 600; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-event .event-chips .name { min-width: 0; overflow-wrap: anywhere; }
+  .muse-event footer { padding: 12px 22px; background: var(--event-wash); color: var(--event-accent); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+
+  .muse-event .v-panel { margin: 0 18px 16px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 13px; background: color-mix(in srgb, var(--hatch-widget-surface-muted) 55%, transparent); min-width: 0; }
+  .muse-event .v-panel h4 { margin: 0 0 10px; font-size: var(--text-footnote, 13px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-event .v-panel h3 { margin: 0 0 12px; font-size: var(--text-title-3, 18px); line-height: var(--text-title-3--line-height, 26px); }
+  .muse-event .v-label { display: block; color: var(--hatch-widget-muted); font-size: var(--text-caption-1, 12px); margin-bottom: 4px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-event .v-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,100px),1fr)); gap: 12px; margin: 0; }
+  .muse-event .v-facts > div { min-width: 0; }
+  .muse-event .v-facts dt { color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-event .v-facts dd { margin: 3px 0 0; font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+  .muse-event .v-compare { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,105px),1fr)); gap: 10px; }
+  .muse-event .v-compare > div { min-width: 0; padding: 10px; border: 1px solid var(--hatch-widget-border); border-radius: 9px; }
+  .muse-event .v-compare strong { display: block; font-size: var(--text-body, 16px); font-weight: 500; white-space: pre-wrap; line-height: var(--text-body--line-height, 22px); }
+  .muse-event .v-note { font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); white-space: pre-wrap; margin: 9px 0 0; }
+  .muse-event .v-lines { list-style: none; margin: 0; padding: 0; max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-event .v-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 12px; padding: 8px 0; border-top: 1px solid var(--hatch-widget-border); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .v-lines li:first-child { border-top: 0; padding-top: 0; }
+  .muse-event .v-lines strong { font-weight: 500; }
+  .muse-event .v-lines span { color: var(--hatch-widget-muted); }
+  .muse-event :is(.v-lines,.v-reading,.v-rail):focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: -2px; border-radius: 5px; }
+  .muse-event a { color: var(--hatch-widget-text); text-decoration: underline; text-underline-offset: 3px; }
+  .muse-event a:focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: 3px; }
+  .muse-event .v-rail { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--hatch-widget-border); max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-event .v-rail li { padding: 0 0 13px 8px; position: relative; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .v-rail li:last-child { padding-bottom: 0; }
+  .muse-event .v-rail li:before { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: -13px; top: 5px; background: var(--hatch-widget-muted); }
+  .muse-event .v-rail strong { font-weight: 500; }
+  .muse-event .v-measure { padding: 22px; }
+  .muse-event .v-measure strong { font-size: var(--text-lg-title-2, 40px); letter-spacing: -.01em; line-height: var(--text-lg-title-2--line-height, 46px); font-weight: 300; display: block; }
+  .muse-event .v-reading { max-height: 210px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; white-space: pre-wrap; font-size: var(--text-body, 16px); line-height: var(--text-response--line-height, 26px); }
+  .muse-event :is(header,.event-hero) + .v-panel { margin-top: 18px; }
+  .muse-event .v-draft { margin: 0 10px 12px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; background: var(--mail-paper,transparent); }
+  .muse-event .v-draft h4 { margin: 0 0 10px; font-size: var(--text-subheadline, 14px); font-weight: 600; line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .v-draft p { white-space: pre-wrap; }
+  .muse-event .v-draft p + p { margin-top: 12px; }
+  .muse-event .v-summary { margin: 0 20px 14px; font-size: var(--text-subheadline, 14px); color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .v-qa { border-top: 1px solid var(--hatch-widget-border); padding-top: 13px; margin-top: 13px; }
+  .muse-event .v-qa .question { font-size: var(--text-subheadline, 14px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-event .v-measure-with-icon { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+  .muse-event .v-measure-with-icon > div { min-width: 0; }
+  .muse-event .v-measure-with-icon strong { font-size: clamp(30px, 10vw, 40px); }
+  .muse-event .v-weather-icon { width: 56px; height: 56px; flex: none; display: block; overflow: visible; }
+  .muse-event .v-weather-icon.weather-hero-icon { width: 96px; height: 96px; }
+  .muse-event .v-weather-icon [data-symbol] { display: none; }
+  .muse-event .v-weather-icon[data-condition="sun"] [data-symbol="sun"] { display: inline; }.muse-event .v-weather-icon[data-condition="cloud"] [data-symbol="cloud"] { display: inline; }.muse-event .v-weather-icon[data-condition="partly-cloudy"] [data-symbol="partly-cloudy"] { display: inline; }.muse-event .v-weather-icon[data-condition="rain"] [data-symbol="rain"] { display: inline; }.muse-event .v-weather-icon[data-condition="snow"] [data-symbol="snow"] { display: inline; }.muse-event .v-weather-icon[data-condition="wind"] [data-symbol="wind"] { display: inline; }.muse-event .v-weather-icon[data-condition="fog"] [data-symbol="fog"] { display: inline; }.muse-event .v-weather-icon[data-condition="storm"] [data-symbol="storm"] { display: inline; }
+  .muse-event .v-weather-cells { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,86px),1fr)); gap: 10px; }
+  .muse-event .v-weather-cells > div { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; padding: 8px 5px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; }
+  .muse-event .v-weather-cells strong { font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+
+</style>
+<article class="muse-preview muse-event" aria-label="Event preview" data-design="cancelled-event">
+  <header class="event-top"><span>[[EVENT_CATEGORY]]</span><span class="event-state">Cancelled</span></header>
+  <section class="v-panel"><h4>Updated arrangement</h4><p class="v-note">[[CANCELLATION_DETAIL]]</p><p class="v-note">[[REPLACEMENT_DETAIL]]</p></section>
+  <section class="event-hero"><div class="event-date"><span class="event-month">[[MONTH]]</span><span class="event-day">[[DAY]]</span></div><div><h3>[[EVENT_TITLE]]</h3><span class="event-weekday">Previously scheduled · [[WEEKDAY_AND_YEAR]]</span></div></section>
+
+
+  
+</article>

@@ -30,6 +30,11 @@
 //   isExternalUrl      — fragment-only / data: / blob: / about: / javascript: /
 //                        scheme-relative "//" / any absolute scheme → external;
 //                        self-origin and bare relative refs → internal.
+//   ownObjectUrl       — a Worker script URL is allowed only when it is an
+//                        object URL this document minted; anything else would
+//                        load code from outside the tunnel.
+//   workerScriptBlob   — prefix a page-minted worker script with a __tunnel the
+//                        worker can call, since rewritten code reaches it too.
 //   normalizeToRelPath — map "/foo", "foo", "./foo", and a self-base-absolute
 //                        URL all to the same `{*subpath}` route param.
 //   resolveTunnelUrl   — `new URL(rel, blobBase)` resolves against the blob's
@@ -113,6 +118,62 @@ export function isExternalUrl(
  * expects: strip our base dir, a leading "./", and leading slashes, so "/foo",
  * "foo", "./foo", and `${selfBaseDir}foo` all collapse to "foo".
  */
+/**
+ * The object URL a Worker may start from, or null when the script URL is not
+ * one this document minted. Such a worker runs code the page already holds;
+ * the frame's CSP still decides whether it may start and what it may reach.
+ */
+export function ownObjectUrl(
+  scriptUrl: unknown,
+  objectUrls: ReadonlySet<string>,
+): string | null {
+  const href =
+    typeof scriptUrl === "string"
+      ? scriptUrl
+      : scriptUrl instanceof URL
+        ? scriptUrl.href
+        : null;
+  return href !== null && href.startsWith("blob:") && objectUrls.has(href) ? href : null;
+}
+
+/**
+ * A `__tunnel` for a worker's global scope. The bundle rewrite routes `fetch`,
+ * `.style` reads, URL property writes and the rest through `__tunnel` in every
+ * function, and a library that builds its worker from its own functions' source
+ * (MapLibre does) carries those calls into the worker, where the prelude never
+ * ran. A worker has no DOM and no tunnel port, so each member does what the
+ * prelude does for a non-element receiver: it performs the original operation.
+ * The frame's CSP, which the worker inherits, still decides what it may reach.
+ * The source is a string so the bundle rewrite never touches it.
+ */
+export const WORKER_TUNNEL_SHIM = [
+  "self.__tunnel=self.__tunnel||{",
+  "fetch:function(){return self.fetch.apply(self,arguments)},",
+  "XHR:self.XMLHttpRequest,WebSocket:self.WebSocket,EventSource:self.EventSource,",
+  "Worker:self.Worker,import:function(s){return import(s)},",
+  "Image:function(w,h){return new Image(w,h)},",
+  "sendBeacon:function(){return false},",
+  "getStyle:function(x){if(x==null)return x;try{return x.style}catch(e){return undefined}},",
+  "setStyle:function(x,n,v){x.style[n]=v},",
+  "setUrlProp:function(x,n,v){x[n]=v;return v},",
+  "setAttr:function(x){return x.setAttribute.apply(x,[].slice.call(arguments,1))},",
+  "setAttrNS:function(x){return x.setAttributeNS.apply(x,[].slice.call(arguments,1))},",
+  "setInnerHTML:function(x,v,w){x[w||'innerHTML']=v},",
+  "setStyleText:function(x,v){x.textContent=v},",
+  "insertAdjacentHTML:function(x,p,v){return x.insertAdjacentHTML(p,v)},",
+  "_importMeta:{url:self.location.href}};\n",
+].join("");
+
+/** Whether a minted object is a script a worker could start from. */
+export function isWorkerScriptBlob(obj: unknown): obj is Blob {
+  return obj instanceof Blob && (obj.type === "" || /javascript|ecmascript/i.test(obj.type));
+}
+
+/** The worker script to start: the shim, then the page's own script. */
+export function workerScriptBlob(script: Blob): Blob {
+  return new Blob([WORKER_TUNNEL_SHIM, script], { type: "text/javascript" });
+}
+
 export function normalizeToRelPath(u: string, selfBaseDir: string): string {
   let s = u;
   if (selfBaseDir && s.startsWith(selfBaseDir)) {

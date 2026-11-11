@@ -1,0 +1,87 @@
+<style>
+.muse-flight, .muse-flight * { box-sizing: border-box; }
+  .muse-flight { min-width: 0; max-width: 100%; font-family: var(--font-optimistic, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: var(--text-body, 16px); line-height: var(--text-body--line-height, 22px); color: var(--hatch-widget-text); overflow-wrap: anywhere; }
+  .muse-flight h3, .muse-flight p { margin: 0; }
+
+  .muse-flight { --flight-accent: #446b61; --flight-wash: #dceee7; --hatch-widget-surface: #f6fbf8; --hatch-widget-border: #cbdfd5; --hatch-widget-text: #183e32; --hatch-widget-muted: #557569; background: var(--hatch-widget-surface); border: 1px solid var(--hatch-widget-border); border-radius: 22px; overflow: hidden; box-shadow: 0 5px 18px var(--hatch-widget-shadow, transparent); }
+  html[data-theme="dark"] .muse-flight { --flight-accent: #a1c6b7; --flight-wash: #254b40; --hatch-widget-surface: #182f29; --hatch-widget-border: #385a4f; --hatch-widget-text: #e5f5ed; --hatch-widget-muted: #a8c9ba; }
+  .muse-flight .flight-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 7px 12px; padding: 16px 21px; border-bottom: 1px solid var(--hatch-widget-border); }
+  .muse-flight .flight-name { font-size: var(--text-footnote, 13px); font-weight: 600; line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .flight-state { background: var(--flight-wash); color: var(--flight-accent); border-radius: 20px; padding: 3px 8px; font-size: var(--text-caption-1, 12px); line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-flight .flight-route { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); padding: 20px 22px 0; align-items: center; gap: 5px; }
+  .muse-flight .flight-route h3 { font-size: var(--text-title-1, 30px); line-height: var(--text-title-1--line-height, 34px); font-weight: 500; letter-spacing: -.01em; }
+  .muse-flight .flight-city { font-size: var(--text-footnote, 13px); color: var(--hatch-widget-muted); margin-top: 3px; line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .flight-destination { text-align: right; }
+  .muse-flight .flight-journey { padding: 19px 22px 17px; }
+  .muse-flight .flight-track { position: relative; height: 2px; background: var(--hatch-widget-border); margin: 7px 11px 15px; }
+  .muse-flight .flight-track:before { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--flight-progress); background: var(--flight-accent); }
+  .muse-flight .flight-node { position: absolute; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--hatch-widget-surface); border: 1px solid var(--flight-accent); }
+  .muse-flight .flight-node:first-child { left: 0; }
+  .muse-flight .flight-node:nth-child(2) { right: 0; }
+  .muse-flight .flight-plane { width: 26px; height: 24px; position: absolute; left: var(--flight-progress); top: 1px; transform: translate(-50%,-50%); background: var(--hatch-widget-surface); color: var(--flight-accent); padding: 2px; }
+  .muse-flight .flight-duration { color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); text-align: center; line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .flight-times { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; padding: 0 22px 22px; }
+  .muse-flight .flight-times > div:last-child { text-align: right; }
+  .muse-flight .flight-time { font-size: var(--text-title-2, 24px); font-weight: 400; line-height: var(--text-title-2--line-height, 29px); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .muse-flight .flight-kind { font-size: var(--text-caption-1, 12px); color: var(--hatch-widget-muted); margin-top: 4px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-flight .flight-local { font-size: var(--text-caption-1, 12px); color: var(--hatch-widget-muted); margin-top: 2px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-flight .flight-stub { padding: 15px 22px; border-top: 1px dashed var(--hatch-widget-border); background: var(--flight-wash); color: var(--flight-accent); display: flex; align-items: center; gap: 9px; font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .flight-stub svg { width: 15px; height: 15px; flex: none; }
+  .muse-flight footer { padding: 12px 22px; color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+
+  .muse-flight .v-panel { margin: 0 18px 16px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 13px; background: color-mix(in srgb, var(--hatch-widget-surface-muted) 55%, transparent); min-width: 0; }
+  .muse-flight .v-panel h4 { margin: 0 0 10px; font-size: var(--text-footnote, 13px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .v-panel h3 { margin: 0 0 12px; font-size: var(--text-title-3, 18px); line-height: var(--text-title-3--line-height, 26px); }
+  .muse-flight .v-label { display: block; color: var(--hatch-widget-muted); font-size: var(--text-caption-1, 12px); margin-bottom: 4px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-flight .v-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,100px),1fr)); gap: 12px; margin: 0; }
+  .muse-flight .v-facts > div { min-width: 0; }
+  .muse-flight .v-facts dt { color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-flight .v-facts dd { margin: 3px 0 0; font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+  .muse-flight .v-compare { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,105px),1fr)); gap: 10px; }
+  .muse-flight .v-compare > div { min-width: 0; padding: 10px; border: 1px solid var(--hatch-widget-border); border-radius: 9px; }
+  .muse-flight .v-compare strong { display: block; font-size: var(--text-body, 16px); font-weight: 500; white-space: pre-wrap; line-height: var(--text-body--line-height, 22px); }
+  .muse-flight .v-note { font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); white-space: pre-wrap; margin: 9px 0 0; }
+  .muse-flight .v-lines { list-style: none; margin: 0; padding: 0; max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-flight .v-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 12px; padding: 8px 0; border-top: 1px solid var(--hatch-widget-border); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-flight .v-lines li:first-child { border-top: 0; padding-top: 0; }
+  .muse-flight .v-lines strong { font-weight: 500; }
+  .muse-flight .v-lines span { color: var(--hatch-widget-muted); }
+  .muse-flight :is(.v-lines,.v-reading,.v-rail):focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: -2px; border-radius: 5px; }
+  .muse-flight a { color: var(--hatch-widget-text); text-decoration: underline; text-underline-offset: 3px; }
+  .muse-flight a:focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: 3px; }
+  .muse-flight .v-rail { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--hatch-widget-border); max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-flight .v-rail li { padding: 0 0 13px 8px; position: relative; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-flight .v-rail li:last-child { padding-bottom: 0; }
+  .muse-flight .v-rail li:before { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: -13px; top: 5px; background: var(--hatch-widget-muted); }
+  .muse-flight .v-rail strong { font-weight: 500; }
+  .muse-flight .v-measure { padding: 22px; }
+  .muse-flight .v-measure strong { font-size: var(--text-lg-title-2, 40px); letter-spacing: -.01em; line-height: var(--text-lg-title-2--line-height, 46px); font-weight: 300; display: block; }
+  .muse-flight .v-reading { max-height: 210px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; white-space: pre-wrap; font-size: var(--text-body, 16px); line-height: var(--text-response--line-height, 26px); }
+  .muse-flight :is(header,.event-hero) + .v-panel { margin-top: 18px; }
+  .muse-flight .v-draft { margin: 0 10px 12px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; background: var(--mail-paper,transparent); }
+  .muse-flight .v-draft h4 { margin: 0 0 10px; font-size: var(--text-subheadline, 14px); font-weight: 600; line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-flight .v-draft p { white-space: pre-wrap; }
+  .muse-flight .v-draft p + p { margin-top: 12px; }
+  .muse-flight .v-summary { margin: 0 20px 14px; font-size: var(--text-subheadline, 14px); color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-flight .v-qa { border-top: 1px solid var(--hatch-widget-border); padding-top: 13px; margin-top: 13px; }
+  .muse-flight .v-qa .question { font-size: var(--text-subheadline, 14px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-flight .v-measure-with-icon { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+  .muse-flight .v-measure-with-icon > div { min-width: 0; }
+  .muse-flight .v-measure-with-icon strong { font-size: clamp(30px, 10vw, 40px); }
+  .muse-flight .v-weather-icon { width: 56px; height: 56px; flex: none; display: block; overflow: visible; }
+  .muse-flight .v-weather-icon.weather-hero-icon { width: 96px; height: 96px; }
+  .muse-flight .v-weather-icon [data-symbol] { display: none; }
+  .muse-flight .v-weather-icon[data-condition="sun"] [data-symbol="sun"] { display: inline; }.muse-flight .v-weather-icon[data-condition="cloud"] [data-symbol="cloud"] { display: inline; }.muse-flight .v-weather-icon[data-condition="partly-cloudy"] [data-symbol="partly-cloudy"] { display: inline; }.muse-flight .v-weather-icon[data-condition="rain"] [data-symbol="rain"] { display: inline; }.muse-flight .v-weather-icon[data-condition="snow"] [data-symbol="snow"] { display: inline; }.muse-flight .v-weather-icon[data-condition="wind"] [data-symbol="wind"] { display: inline; }.muse-flight .v-weather-icon[data-condition="fog"] [data-symbol="fog"] { display: inline; }.muse-flight .v-weather-icon[data-condition="storm"] [data-symbol="storm"] { display: inline; }
+  .muse-flight .v-weather-cells { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,86px),1fr)); gap: 10px; }
+  .muse-flight .v-weather-cells > div { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; padding: 8px 5px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; }
+  .muse-flight .v-weather-cells strong { font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+</style>
+<article class="muse-preview muse-flight" aria-label="Flight status" data-design="in-flight">
+  <header class="flight-bar"><span class="flight-name">[[OPERATING_AIRLINE_FLIGHT_AND_DATE]]</span><span class="flight-state">[[VERIFIED_STATUS]]</span></header>
+  <section class="flight-route"><div><h3>[[ORIGIN_AIRPORT]]</h3><p class="flight-city">[[ORIGIN_CITY]]</p></div><div class="flight-destination"><h3>[[DESTINATION_AIRPORT]]</h3><p class="flight-city">[[DESTINATION_CITY]]</p></div></section>
+  <div class="flight-journey"><div class="flight-track" style="--flight-progress: [[PROGRESS_PERCENT]]%;" aria-hidden="true"><span class="flight-node"></span><span class="flight-node"></span><svg class="flight-plane" viewBox="0 0 24 24" fill="currentColor"><path transform="rotate(90 12 12)" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5Z"/></svg></div><p class="flight-duration">[[DURATION_AND_PROGRESS_LABEL]]</p></div>
+  <section class="v-panel"><h4>In the air</h4><dl class="v-facts"><div><dt>Departed</dt><dd>[[ACTUAL_DEPARTURE]]</dd></div><div><dt>Time remaining</dt><dd>[[REMAINING_TIME]]</dd></div></dl><p class="v-note">[[PROGRESS_BASIS]]</p></section>
+  <div class="flight-times"><div><div class="flight-time">[[DEPARTURE_TIME]]</div><p class="flight-kind">[[DEPARTURE_TIME_KIND]]</p><p class="flight-local">[[DEPARTURE_LOCAL_DATE_AND_ZONE]]</p></div><div><div class="flight-time">[[ARRIVAL_TIME]]</div><p class="flight-kind">[[ARRIVAL_TIME_KIND]]</p><p class="flight-local">[[ARRIVAL_LOCAL_DATE_AND_ZONE]]</p></div></div>
+  <div class="flight-stub"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>[[VERIFIED_GATE_TERMINAL_OR_CONNECTION_DETAIL]]</span></div>
+  <footer>[[SOURCE]] · [[LOCAL_DATE_TIME_AND_ZONE]]</footer>
+</article>

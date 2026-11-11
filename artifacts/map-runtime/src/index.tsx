@@ -24,16 +24,79 @@ import {
   type LayerSpecification,
 } from '@meta/maps';
 
+import {isMetaMapSupported as libraryIsMetaMapSupported} from '@meta/maps';
+
 /**
- * Re-exported so a page can ask before it mounts. Returns
+ * Lets a page ask before it mounts. Returns
  * `{supported, reason?: 'webgl' | 'worker'}`.
  *
  * It is a capability check, not a guarantee: a surface can pass it and still
  * refuse the style, glyph and tile requests once the map has mounted, which
  * reaches the caller through `onFatalError`. Probing first means a page that
- * cannot run a map renders its place list rather than briefly mounting one.
+ * cannot run a map renders its fallback rather than briefly mounting one.
+ *
+ * The library only checks that the `Worker` constructor exists. This also
+ * starts a worker the way MapLibre does, from a blob URL, because a page can
+ * refuse that while keeping the constructor: Muse's hermetic Space frame throws
+ * on it. A refusal that arrives later as an error event, such as a frame CSP of
+ * `worker-src 'none'`, passes here and is caught by `mountMap`.
  */
-export {isMetaMapSupported} from '@meta/maps';
+export function isMetaMapSupported(): ReturnType<typeof libraryIsMetaMapSupported> {
+  try {
+    const url = blobWorkerUrl();
+    new Worker(url).terminate();
+    URL.revokeObjectURL(url);
+  } catch {
+    return {supported: false, reason: 'worker'};
+  }
+  return libraryIsMetaMapSupported();
+}
+
+function blobWorkerUrl(): string {
+  return URL.createObjectURL(
+    new Blob(['postMessage(0)'], {type: 'text/javascript'}),
+  );
+}
+
+/**
+ * How long a worker gets to answer before its silence counts as a refusal. A
+ * worker that neither answers nor fires `error` would otherwise leave the page
+ * waiting with no map and no fallback. A one-line blob worker answers in well
+ * under a second, so this only trips on a page that refuses it.
+ */
+const WORKER_ANSWER_TIMEOUT_MS = 3000;
+
+/**
+ * Resolves true once a blob worker answers. A refused worker throws when
+ * constructed, fires `error` instead of answering, or stays silent, and
+ * MapLibre reports none of these, so the map would mount and stay blank.
+ */
+function blobWorkerAnswers(): Promise<boolean> {
+  return new Promise(resolve => {
+    let url: string | null = null;
+    let worker: Worker | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let settled = false;
+    const settle = (answered: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (timer !== null) clearTimeout(timer);
+      worker?.terminate();
+      if (url) URL.revokeObjectURL(url);
+      resolve(answered);
+    };
+    try {
+      url = blobWorkerUrl();
+      worker = new Worker(url);
+    } catch {
+      settle(false);
+      return;
+    }
+    worker.onmessage = () => settle(true);
+    worker.onerror = () => settle(false);
+    timer = setTimeout(() => settle(false), WORKER_ANSWER_TIMEOUT_MS);
+  });
+}
 
 /** `_nc_client_caller` for every artifact map request. */
 const CLIENT_CALLER = 'Muse_Artifact';
@@ -190,7 +253,7 @@ export type MountOptions = {
   /** Fixed camera. Omit to frame all places. */
   center?: {lat: number; lng: number};
   zoom?: number;
-  /** Called on a fatal error (no WebGL, style load failed, context lost). */
+  /** Called on a fatal error (no WebGL, worker refused, style load failed, context lost). */
   onFatalError?: (message: string) => void;
 };
 
@@ -566,11 +629,18 @@ export function mountMap(container: HTMLElement, options: MountOptions): MapHand
     },
   };
 
-  root.render(
-    <MapErrorBoundary onFatalError={options.onFatalError}>
-      <ArtifactMap options={options} selection={selection} />
-    </MapErrorBoundary>,
-  );
+  void blobWorkerAnswers().then(answered => {
+    if (!root) return;
+    if (!answered) {
+      options.onFatalError?.('This page does not allow the Web Worker the map needs');
+      return;
+    }
+    root.render(
+      <MapErrorBoundary onFatalError={options.onFatalError}>
+        <ArtifactMap options={options} selection={selection} />
+      </MapErrorBoundary>,
+    );
+  });
 
   return {
     destroy() {

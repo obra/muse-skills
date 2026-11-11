@@ -1,0 +1,44 @@
+<style>
+.muse-status, .muse-status * { box-sizing:border-box; }
+.muse-status { --status-bg:#f9f6fb; --status-ink:#463552; --status-muted:#776184; --status-line:#e5ddeb; --status-wash:#ede2f4; --status-accent:#74518e; min-width:0; max-width:100%; border:1px solid var(--status-line); border-radius:23px; overflow:hidden; background:var(--status-bg); color:var(--status-ink); font-family: var(--font-optimistic, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: var(--text-body, 16px); line-height: var(--text-body--line-height, 22px); overflow-wrap:anywhere; }
+html[data-theme="dark"] .muse-status { --status-bg:#302538; --status-ink:#f1e6f8; --status-muted:#c6b5d1; --status-line:#554060; --status-wash:#463151; --status-accent:#d8b5ef; }
+.muse-status.muse-delivery { --status-bg:#f5f9fc; --status-ink:#264759; --status-muted:#5b7685; --status-line:#d8e4eb; --status-wash:#e2eff6; --status-accent:#367599; }
+html[data-theme="dark"] .muse-status.muse-delivery { --status-bg:#20313b; --status-ink:#e6f2fa; --status-muted:#afc8d8; --status-line:#3d5869; --status-wash:#2b485c; --status-accent:#a7cfe6; }
+.muse-status.muse-payment { --status-bg:#f8faf5; --status-ink:#34432c; --status-muted:#68775e; --status-line:#dde6d5; --status-wash:#e9f0df; --status-accent:#526d3b; }
+html[data-theme="dark"] .muse-status.muse-payment { --status-bg:#293125; --status-ink:#edf3e4; --status-muted:#bac8aa; --status-line:#4a5940; --status-wash:#3a4930; --status-accent:#c8dfa9; }
+.muse-status h3,.muse-status p { margin:0; }
+.muse-status .status-body { padding:23px; }
+.muse-status .status-top { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:20px; font-size: var(--text-footnote, 13px); color:var(--status-muted); line-height: var(--text-footnote--line-height, 18px); }
+.muse-status .status-top svg { width:32px; height:32px; padding:6px; border-radius:10px; background:var(--status-wash); color:var(--status-accent); flex:none; }
+.muse-status h3 { font-size: var(--text-title-3, 18px); font-weight: 500; line-height: var(--text-title-3--line-height, 26px); letter-spacing: -.01em; }
+.muse-status .status-subtitle { font-size: var(--text-subheadline, 14px); color:var(--status-muted); margin-top:6px; line-height: var(--text-subheadline--line-height, 20px); }
+.muse-status .status-badge { display:inline-block; padding:4px 9px; background:var(--status-wash); color:var(--status-accent); font-size: var(--text-footnote, 13px); border-radius:20px; margin-top:12px; line-height: var(--text-footnote--line-height, 18px); }
+.muse-status .status-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-top:22px; padding:17px 0; border-top:1px solid var(--status-line); border-bottom:1px solid var(--status-line); }
+.muse-status .status-label { display:block; color:var(--status-muted); font-size: var(--text-caption-1, 12px); margin-bottom:4px; letter-spacing:.5px; text-transform:uppercase; line-height: var(--text-caption-1--line-height, 16px); }
+.muse-status .status-note { margin-top:17px; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+.muse-status .status-footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 12px; margin-top:22px; font-size: var(--text-footnote, 13px); color:var(--status-muted); line-height: var(--text-footnote--line-height, 18px); }
+.muse-status a { color:var(--status-accent); text-underline-offset:3px; }
+.muse-status a:focus-visible,.muse-status summary:focus-visible,.muse-status [tabindex]:focus-visible { outline:2px solid var(--status-accent); outline-offset:3px; }
+.muse-status .event-head { display:grid; grid-template-columns:minmax(0,1fr) 66px; gap:20px; align-items:start; }
+.muse-status .event-date { text-align:center; background:var(--status-wash); border-radius:13px; padding:10px 5px; color:var(--status-accent); }
+.muse-status .event-date strong { font-size: var(--text-title-1, 30px); font-weight:500; display:block; line-height: var(--text-title-1--line-height, 34px); }
+.muse-status .event-date span { font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+.muse-status .status-timeline { margin:22px 0 0; padding:0; list-style:none; }
+.muse-status .status-timeline li { position:relative; padding:0 0 20px 24px; border-left:1px solid var(--status-line); margin-left:5px; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+.muse-status .status-timeline li:last-child { border:0; padding-bottom:0; }
+.muse-status .status-timeline li:before { position:absolute; top:4px; left:-5px; content:""; width:9px; height:9px; background:var(--status-bg); border:1px solid var(--status-accent); border-radius:50%; }
+.muse-status .status-timeline li.current:before { background:var(--status-accent); }
+.muse-status .status-timeline small { color:var(--status-muted); display:block; font-size: var(--text-footnote, 13px); margin-top:3px; line-height: var(--text-footnote--line-height, 18px); }
+.muse-status .status-amount { font-size: var(--text-lg-title-2, 40px); line-height: var(--text-lg-title-2--line-height, 46px); font-weight: 400; letter-spacing: -.01em; font-variant-numeric:tabular-nums; margin-top:15px; }
+.muse-status details { margin-top:18px; font-size: var(--text-subheadline, 14px); color:var(--status-muted); line-height: var(--text-subheadline--line-height, 20px); }
+.muse-status summary { cursor:pointer; color:var(--status-accent); }
+.muse-status details p { margin-top:8px; }
+</style>
+<article class="muse-preview muse-status muse-payment" aria-label="Payments and renewals"><div class="status-body">
+<div class="status-top"><span>[[BILLER_NAME]]</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2h14v20l-3-2-4 2-4-2-3 2V2Z"/><path d="M8 7h8M8 11h8M8 15h5"/></svg></div>
+<h3>[[PAYMENT_DESCRIPTION]]</h3><p class="status-subtitle">[[STATEMENT_PERIOD]]</p><p class="status-amount">[[AMOUNT_WITH_CURRENCY]]</p><span class="status-badge">[[VERIFIED_PAYMENT_STATE]]</span>
+<div class="status-facts"><div><span class="status-label">[[PAYMENT_DATE_LABEL]]</span>[[PAYMENT_DATE]]</div><div><span class="status-label">Account</span>[[MASKED_ACCOUNT]]</div></div>
+<p class="status-note">[[WHAT_CHANGED_OR_REMAINS]]</p>
+<details><summary>Statement details</summary><p>[[VERIFIED_BREAKDOWN]]</p><p>[[REFERENCE_OR_TERMS]]</p></details>
+<div class="status-footer"><span>[[SOURCE_AND_CHECK_TIME]]</span></div>
+</div></article>

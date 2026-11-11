@@ -1,0 +1,88 @@
+<!-- To, Cc and Bcc are optional. Omit each entire address row when it has no recipients. Keep the subject compact and readable, with its own scoped style. -->
+<style>
+.muse-mail, .muse-mail * { box-sizing: border-box; }
+  .muse-mail { min-width: 0; max-width: 100%; font-family: var(--font-optimistic, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: var(--text-body, 16px); line-height: var(--text-body--line-height, 22px); color: var(--hatch-widget-text); overflow-wrap: anywhere; }
+  .muse-mail h3, .muse-mail p { margin: 0; }
+
+  .muse-mail { --mail-accent: #315c9e; --mail-tint: #dce9ff; --hatch-widget-text: #193452; --hatch-widget-muted: #56708e; --hatch-widget-border: #cfdcf0; --hatch-widget-surface: #f3f7ff; --hatch-widget-surface-muted: #e7effc; --mail-paper: #ffffff; --mail-header: #dce9ff; --mail-header-text: #234f87; --mail-chip: #e3edfc; --mail-cc: #e2f2eb; --mail-cc-text: #29634f; border: 1px solid var(--hatch-widget-border); border-radius: 20px; background: var(--hatch-widget-surface); overflow: hidden; box-shadow: 0 5px 18px var(--hatch-widget-shadow, transparent); }
+  html[data-theme="dark"] .muse-mail { --mail-accent: #b4d2ff; --mail-tint: #315b91; --hatch-widget-text: #eaf3ff; --hatch-widget-muted: #abc2df; --hatch-widget-border: #365174; --hatch-widget-surface: #182c48; --hatch-widget-surface-muted: #213c60; --mail-paper: #102139; --mail-header: #254e82; --mail-header-text: #f0f6ff; --mail-chip: #28466f; --mail-cc: #234e4c; --mail-cc-text: #b7ede2; }
+  .muse-mail .mail-bar { display: flex; align-items: center; gap: 8px; padding: 14px 20px; background: var(--mail-header); color: var(--mail-header-text); border-bottom: 1px solid var(--hatch-widget-border); font-size: var(--text-subheadline, 14px); font-weight: 600; line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail svg { width: 17px; height: 17px; flex: none; color: var(--mail-accent); }
+  .muse-mail .mail-state { margin-left: auto; color: inherit; opacity: .8; font-size: var(--text-footnote, 13px); font-weight: 400; line-height: var(--text-footnote--line-height, 18px); }
+  .muse-mail .mail-fields { padding: 7px 17px 0; }
+  .muse-mail .mail-row { display: grid; grid-template-columns: 34px minmax(0,1fr); gap: 6px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--hatch-widget-border); }
+  .muse-mail .mail-label { color: var(--hatch-widget-muted); font-size: var(--text-caption-1, 12px); line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-mail .mail-chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; max-height: 92px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--hatch-widget-border) transparent; }
+  .muse-mail .mail-chip { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; border: 1px solid var(--hatch-widget-border); border-radius: 20px; padding: 3px 9px 3px 3px; background: var(--mail-chip); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .mail-copy .mail-chip { background: var(--mail-cc); color: var(--mail-cc-text); border-color: transparent; }
+  .muse-mail .mail-avatar { width: 21px; height: 21px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--mail-tint); color: var(--mail-accent); font-size: var(--text-caption-1, 12px); font-weight: 600; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-mail .mail-subject { padding: 11px 0; display: grid; grid-template-columns: 45px minmax(0,1fr); align-items: baseline; gap: 6px; }
+  .muse-mail .mail-subject h3 { margin: 0; font-size: var(--text-body, 16px); font-weight: 600; line-height: var(--text-body--line-height, 22px); letter-spacing: 0; }
+  .muse-mail .mail-body { margin: 0 9px 10px; padding: 16px 12px; max-height: 185px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--hatch-widget-border) transparent; border: 1px solid var(--hatch-widget-border); border-radius: 10px; font-size: var(--text-body, 16px); line-height: var(--text-response--line-height, 26px); background: var(--mail-paper); }
+  .muse-mail .mail-body p { white-space: pre-wrap; }
+  .muse-mail .mail-body p + p { margin-top: 13px; }
+  .muse-mail .mail-body:focus-visible, .muse-mail .mail-chips:focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: -2px; }
+  .muse-mail footer { display: flex; align-items: center; gap: 7px; padding: 12px 22px; background: var(--hatch-widget-surface-muted); color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-mail footer svg { width: 13px; height: 13px; color: inherit; }
+
+  .muse-mail .v-panel { margin: 0 18px 16px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 13px; background: color-mix(in srgb, var(--hatch-widget-surface-muted) 55%, transparent); min-width: 0; }
+  .muse-mail .v-panel h4 { margin: 0 0 10px; font-size: var(--text-footnote, 13px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-mail .v-panel h3 { margin: 0 0 12px; font-size: var(--text-title-3, 18px); line-height: var(--text-title-3--line-height, 26px); }
+  .muse-mail .v-label { display: block; color: var(--hatch-widget-muted); font-size: var(--text-caption-1, 12px); margin-bottom: 4px; line-height: var(--text-caption-1--line-height, 16px); }
+  .muse-mail .v-facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,100px),1fr)); gap: 12px; margin: 0; }
+  .muse-mail .v-facts > div { min-width: 0; }
+  .muse-mail .v-facts dt { color: var(--hatch-widget-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+  .muse-mail .v-facts dd { margin: 3px 0 0; font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+  .muse-mail .v-compare { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,105px),1fr)); gap: 10px; }
+  .muse-mail .v-compare > div { min-width: 0; padding: 10px; border: 1px solid var(--hatch-widget-border); border-radius: 9px; }
+  .muse-mail .v-compare strong { display: block; font-size: var(--text-body, 16px); font-weight: 500; white-space: pre-wrap; line-height: var(--text-body--line-height, 22px); }
+  .muse-mail .v-note { font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); white-space: pre-wrap; margin: 9px 0 0; }
+  .muse-mail .v-lines { list-style: none; margin: 0; padding: 0; max-height: 150px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-mail .v-lines li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 12px; padding: 8px 0; border-top: 1px solid var(--hatch-widget-border); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .v-lines li:first-child { border-top: 0; padding-top: 0; }
+  .muse-mail .v-lines strong { font-weight: 500; }
+  .muse-mail .v-lines span { color: var(--hatch-widget-muted); }
+  .muse-mail :is(.v-lines,.v-reading,.v-rail):focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: -2px; border-radius: 5px; }
+  .muse-mail a { color: var(--hatch-widget-text); text-decoration: underline; text-underline-offset: 3px; }
+  .muse-mail a:focus-visible { outline: 2px solid var(--hatch-widget-focus); outline-offset: 3px; }
+  .muse-mail .v-rail { list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 1px solid var(--hatch-widget-border); max-height: 240px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .muse-mail .v-rail li { padding: 0 0 13px 8px; position: relative; font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .v-rail li:last-child { padding-bottom: 0; }
+  .muse-mail .v-rail li:before { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; left: -13px; top: 5px; background: var(--hatch-widget-muted); }
+  .muse-mail .v-rail strong { font-weight: 500; }
+  .muse-mail .v-measure { padding: 22px; }
+  .muse-mail .v-measure strong { font-size: var(--text-lg-title-2, 40px); letter-spacing: -.01em; line-height: var(--text-lg-title-2--line-height, 46px); font-weight: 300; display: block; }
+  .muse-mail .v-reading { max-height: 210px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; white-space: pre-wrap; font-size: var(--text-body, 16px); line-height: var(--text-response--line-height, 26px); }
+  .muse-mail :is(header,.event-hero) + .v-panel { margin-top: 18px; }
+  .muse-mail .v-draft { margin: 0 10px 12px; padding: 14px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; background: var(--mail-paper,transparent); }
+  .muse-mail .v-draft h4 { margin: 0 0 10px; font-size: var(--text-subheadline, 14px); font-weight: 600; line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .v-draft p { white-space: pre-wrap; }
+  .muse-mail .v-draft p + p { margin-top: 12px; }
+  .muse-mail .v-summary { margin: 0 20px 14px; font-size: var(--text-subheadline, 14px); color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .v-qa { border-top: 1px solid var(--hatch-widget-border); padding-top: 13px; margin-top: 13px; }
+  .muse-mail .v-qa .question { font-size: var(--text-subheadline, 14px); font-weight: 600; color: var(--hatch-widget-muted); line-height: var(--text-subheadline--line-height, 20px); }
+  .muse-mail .v-measure-with-icon { display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+  .muse-mail .v-measure-with-icon > div { min-width: 0; }
+  .muse-mail .v-measure-with-icon strong { font-size: clamp(30px, 10vw, 40px); }
+  .muse-mail .v-weather-icon { width: 56px; height: 56px; flex: none; display: block; overflow: visible; }
+  .muse-mail .v-weather-icon.weather-hero-icon { width: 96px; height: 96px; }
+  .muse-mail .v-weather-icon [data-symbol] { display: none; }
+  .muse-mail .v-weather-icon[data-condition="sun"] [data-symbol="sun"] { display: inline; }.muse-mail .v-weather-icon[data-condition="cloud"] [data-symbol="cloud"] { display: inline; }.muse-mail .v-weather-icon[data-condition="partly-cloudy"] [data-symbol="partly-cloudy"] { display: inline; }.muse-mail .v-weather-icon[data-condition="rain"] [data-symbol="rain"] { display: inline; }.muse-mail .v-weather-icon[data-condition="snow"] [data-symbol="snow"] { display: inline; }.muse-mail .v-weather-icon[data-condition="wind"] [data-symbol="wind"] { display: inline; }.muse-mail .v-weather-icon[data-condition="fog"] [data-symbol="fog"] { display: inline; }.muse-mail .v-weather-icon[data-condition="storm"] [data-symbol="storm"] { display: inline; }
+  .muse-mail .v-weather-cells { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,86px),1fr)); gap: 10px; }
+  .muse-mail .v-weather-cells > div { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; padding: 8px 5px; border: 1px solid var(--hatch-widget-border); border-radius: 10px; }
+  .muse-mail .v-weather-cells strong { font-size: var(--text-body, 16px); font-weight: 500; line-height: var(--text-body--line-height, 22px); }
+
+</style>
+<article class="muse-preview muse-mail" aria-label="Email draft" data-design="follow-through">
+  <header class="mail-bar"><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></svg><span>[[DRAFT_LOCATION]]</span><span class="mail-state">[[SEND_STATUS]]</span></header>
+  <div class="mail-fields">
+    <div class="mail-row"><span class="mail-label">From</span><div class="mail-chips" tabindex="0" role="group" aria-label="Email addresses"><span class="mail-chip"><span class="mail-avatar" aria-hidden="true">[[SENDER_INITIAL]]</span><span>[[SENDING_ACCOUNT]]</span></span></div></div>
+    <div class="mail-row"><span class="mail-label">To</span><div class="mail-chips" tabindex="0" role="group" aria-label="Email addresses"><span class="mail-chip" title="[[RECIPIENT_NAME]]"><span class="mail-avatar" aria-hidden="true">[[RECIPIENT_INITIALS]]</span><span>[[TO]]</span></span></div></div>
+    <div class="mail-row mail-copy"><span class="mail-label">Cc</span><div class="mail-chips" tabindex="0" role="group" aria-label="Email addresses"><span class="mail-chip"><span class="mail-avatar" aria-hidden="true">[[CC_INITIAL]]</span><span>[[CC]]</span></span></div></div>
+    <div class="mail-row mail-copy"><span class="mail-label">Bcc</span><div class="mail-chips" tabindex="0" role="group" aria-label="Email addresses"><span class="mail-chip"><span class="mail-avatar" aria-hidden="true">[[BCC_INITIAL]]</span><span>[[BCC]]</span></span></div></div>
+    <div class="mail-subject"><span class="mail-label">Subject</span><h3>[[SUBJECT]]</h3></div>
+  </div>
+  <section class="v-panel"><h4>Following through</h4><ol class="v-rail" tabindex="0" aria-label="Sequence"><li><span class="v-label">Earlier commitment</span><strong>[[EARLIER_COMMITMENT]]</strong></li><li><span class="v-label">Now ready</span><strong>[[READY_RESULT]]</strong></li></ol></section>
+  <section class="mail-body" tabindex="0" role="region" aria-label="Draft message body"><p>[[GREETING]]</p><p>[[BODY]]</p><p>[[SIGN_OFF]]</p></section>
+  <footer><svg class="" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-12 12-6 1 1-6Z"/><path d="m13 6 5 5"/></svg><span>[[ATTACHMENTS_OR_REMAINING_DECISION]]</span></footer>
+</article>

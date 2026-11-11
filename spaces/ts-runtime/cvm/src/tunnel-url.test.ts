@@ -5,7 +5,11 @@ import {
   isExternalUrl,
   isSelfOriginUrl,
   normalizeToRelPath,
+  isWorkerScriptBlob,
+  ownObjectUrl,
   resolveTunnelUrl,
+  WORKER_TUNNEL_SHIM,
+  workerScriptBlob,
 } from "./tunnel-url";
 
 // Core self-origin / external / fail-closed rows only. The fixtures model a
@@ -118,4 +122,59 @@ test("isSelfOriginUrl: a tracked object URL is a real resource on either shape",
   const obj = "blob:null/live-object";
   assert.equal(isSelfOriginUrl(obj, OPAQUE_BASE, OPAQUE_HREF, new Set([obj])), false);
   assert.equal(isSelfOriginUrl(obj, OPAQUE_BASE, OPAQUE_HREF, NO_OBJ), true);
+});
+
+test("ownObjectUrl: only an object URL this document minted can start a Worker", () => {
+  const obj = "blob:null/worker-code";
+  const minted = new Set([obj]);
+  assert.equal(ownObjectUrl(obj, minted), obj);
+  assert.equal(ownObjectUrl(new URL("blob:https://host/abc"), new Set(["blob:https://host/abc"])), "blob:https://host/abc");
+  // Unminted blobs, relative scripts, remote scripts and data: URLs still load
+  // code from outside the tunnel, so they stay refused.
+  assert.equal(ownObjectUrl("blob:null/someone-else", minted), null);
+  assert.equal(ownObjectUrl("./worker.js", minted), null);
+  assert.equal(ownObjectUrl("https://cdn.example.com/worker.js", minted), null);
+  assert.equal(ownObjectUrl("data:text/javascript,postMessage(1)", minted), null);
+  assert.equal(ownObjectUrl(undefined, minted), null);
+});
+
+test("WORKER_TUNNEL_SHIM gives a worker a __tunnel that calls the worker's own fetch", () => {
+  const calls: unknown[][] = [];
+  const workerSelf: Record<string, unknown> = {
+    fetch: (...args: unknown[]) => {
+      calls.push(args);
+      return "response";
+    },
+    location: { href: "blob:null/worker" },
+  };
+  new Function("self", WORKER_TUNNEL_SHIM)(workerSelf);
+  const tunnel = workerSelf.__tunnel as { fetch: (...args: unknown[]) => unknown };
+  assert.equal(tunnel.fetch("https://external.xx.fbcdn.net/maps/tile"), "response");
+  assert.deepEqual(calls, [["https://external.xx.fbcdn.net/maps/tile"]]);
+});
+
+test("WORKER_TUNNEL_SHIM performs rewritten style reads and property writes on plain objects", () => {
+  const workerSelf: Record<string, unknown> = { location: { href: "blob:null/worker" } };
+  new Function("self", WORKER_TUNNEL_SHIM)(workerSelf);
+  const tunnel = workerSelf.__tunnel as {
+    getStyle: (x: unknown) => unknown;
+    setUrlProp: (x: Record<string, unknown>, name: string, value: unknown) => unknown;
+  };
+  // MapLibre's own objects have a `style` property; the rewrite reaches them too.
+  const layer = { style: { id: "roads" } };
+  assert.equal(tunnel.getStyle(layer), layer.style);
+  assert.equal(tunnel.getStyle(null), null);
+  const target: Record<string, unknown> = {};
+  assert.equal(tunnel.setUrlProp(target, "href", "https://x/a"), "https://x/a");
+  assert.equal(target.href, "https://x/a");
+});
+
+test("workerScriptBlob starts with the shim and keeps the page's script after it", async () => {
+  const script = new Blob(["postMessage(1)"], { type: "text/javascript" });
+  assert.equal(await workerScriptBlob(script).text(), WORKER_TUNNEL_SHIM + "postMessage(1)");
+  assert.equal(isWorkerScriptBlob(script), true);
+  assert.equal(isWorkerScriptBlob(new Blob([""])), true);
+  // Images and other media are minted too; they never start a worker.
+  assert.equal(isWorkerScriptBlob(new Blob([""], { type: "image/png" })), false);
+  assert.equal(isWorkerScriptBlob("blob:null/x"), false);
 });

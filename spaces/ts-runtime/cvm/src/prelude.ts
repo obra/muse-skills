@@ -19,7 +19,10 @@ import {
   isExternalUrl as isExternalUrlImpl,
   isSelfOriginUrl as isSelfOriginUrlImpl,
   normalizeToRelPath as normalizeToRelPathImpl,
+  isWorkerScriptBlob,
+  ownObjectUrl,
   resolveTunnelUrl,
+  workerScriptBlob,
 } from "./tunnel-url";
 import { installDownloadLinks } from "./download-links";
 import { installFragmentLinks } from "./fragment-links";
@@ -482,6 +485,9 @@ declare global {
   // blob: URLs minted via URL.createObjectURL (populated by the override near
   // the bottom of this prelude). Real resources — never tunneled.
   const objectUrls = new Set<string>();
+  // The scripts behind those URLs, kept so a worker started from one gets the
+  // worker tunnel prepended (see WORKER_TUNNEL_SHIM).
+  const objectUrlScripts = new Map<string, Blob>();
 
   // Thin wrappers binding the live SELF_*/objectUrls to the pure helpers in
   // ./tunnel-url (see that file's "Cases" header for the full classification).
@@ -1219,9 +1225,17 @@ declare global {
     return true;
   }
 
-  function tunnelWorker(_url: any): never {
-    throw new Error(
-      "[__tunnel] new Worker() is not supported in Muse web artifacts."
+  function tunnelWorker(url: any, options?: WorkerOptions): Worker {
+    const own = ownObjectUrl(url, objectUrls);
+    if (own === null || typeof originalWorker !== "function") {
+      throw new Error(
+        "[__tunnel] new Worker() is not supported in Muse Spaces."
+      );
+    }
+    const script = objectUrlScripts.get(own);
+    return new originalWorker(
+      script === undefined ? own : originalCreateObjectURL(workerScriptBlob(script)),
+      options
     );
   }
 
@@ -1229,7 +1243,7 @@ declare global {
     throw new Error(
       "[__tunnel] dynamic import() of '" +
         String(spec) +
-        "' is not supported in Muse web artifacts."
+        "' is not supported in Muse Spaces."
     );
   }
 
@@ -1391,6 +1405,8 @@ declare global {
     throw new Error("no native fetch");
   });
   const originalXHR = (globalThis as any).XMLHttpRequest;
+  const originalWorker = (globalThis as any).Worker;
+  const originalCreateObjectURL = URL.createObjectURL.bind(URL);
   const originalImage = (globalThis as any).Image;
 
   // --- The exposed __tunnel object ----------------------------------------
@@ -1555,12 +1571,14 @@ declare global {
       const created = nativeCreateObjectURL(obj as any);
       try {
         objectUrls.add(created);
+        if (isWorkerScriptBlob(obj)) objectUrlScripts.set(created, obj);
       } catch {}
       return created;
     };
     URL.revokeObjectURL = function (objectUrl: string): void {
       try {
         objectUrls.delete(objectUrl);
+        objectUrlScripts.delete(objectUrl);
       } catch {}
       nativeRevokeObjectURL(objectUrl);
     };

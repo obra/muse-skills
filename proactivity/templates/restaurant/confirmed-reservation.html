@@ -1,0 +1,45 @@
+<style>
+.muse-reservation, .muse-reservation * { box-sizing: border-box; }
+.muse-reservation { --card-bg:#faf9f5; --card-ink:#253b34; --card-muted:#5b6d63; --card-line:#dce3da; --card-accent:#3e6453; --card-wash:#eaf0e6; min-width:0; max-width:100%; overflow:hidden; border:1px solid var(--card-line); border-radius:24px; background:var(--card-bg); color:var(--card-ink); font-family: var(--font-optimistic, system-ui), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: var(--text-body, 16px); line-height: var(--text-body--line-height, 22px); overflow-wrap:anywhere; }
+html[data-theme="dark"] .muse-reservation { --card-bg:#202d27; --card-ink:#edf3e8; --card-muted:#b5c6b6; --card-line:#415147; --card-accent:#bed3b0; --card-wash:#304337; }
+.muse-reservation.muse-hotel { --card-bg:#f7f8fc; --card-ink:#29364f; --card-muted:#60718b; --card-line:#dce2ee; --card-accent:#465c8b; --card-wash:#e9edf7; }
+html[data-theme="dark"] .muse-reservation.muse-hotel { --card-bg:#242b3d; --card-ink:#eef1fb; --card-muted:#b4c0db; --card-line:#454f68; --card-accent:#c1cfee; --card-wash:#323e58; }
+.muse-reservation h3,.muse-reservation p { margin:0; }
+.muse-reservation .reservation-photo { display:block; width:100%; height:172px; object-fit:cover; background:var(--card-wash); }
+.muse-reservation .reservation-content { padding:21px; }
+.muse-reservation .reservation-top { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 12px; margin-bottom:10px; font-size: var(--text-footnote, 13px); color:var(--card-muted); line-height: var(--text-footnote--line-height, 18px); }
+.muse-reservation .reservation-state { padding:4px 9px; border-radius:20px; background:var(--card-wash); color:var(--card-accent); font-weight:600; }
+.muse-reservation h3 { font-family: inherit; font-size: var(--text-title-3, 18px); line-height: var(--text-title-3--line-height, 26px); font-weight: 500; letter-spacing: -.01em; }
+.muse-reservation .reservation-location { font-size: var(--text-subheadline, 14px); color:var(--card-muted); margin-top:5px; line-height: var(--text-subheadline--line-height, 20px); }
+.muse-reservation .reservation-dates { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:15px; margin:21px 0 16px; padding:16px; border-radius:15px; background:var(--card-wash); }
+.muse-reservation .reservation-dates > div + div { position:relative; }
+.muse-reservation .reservation-dates > div + div:before { content:""; position:absolute; top:0; bottom:0; left:-8px; width:1px; background:var(--card-line); }
+.muse-reservation .reservation-label { display:block; color:var(--card-muted); font-size: var(--text-caption-1, 12px); letter-spacing:.7px; text-transform:uppercase; margin-bottom:5px; line-height: var(--text-caption-1--line-height, 16px); }
+.muse-reservation .reservation-date { font-size: var(--text-title-3, 18px); line-height: var(--text-title-3--line-height, 26px); font-weight: 500; letter-spacing: -.01em; font-variant-numeric:tabular-nums; }
+.muse-reservation .reservation-time { font-size: var(--text-footnote, 13px); margin-top:5px; color:var(--card-muted); line-height: var(--text-footnote--line-height, 18px); }
+.muse-reservation .reservation-chips { display:flex; flex-wrap:wrap; gap:6px; max-height:106px; overflow:auto; overscroll-behavior:contain; padding:2px; margin:0 -2px 17px; }
+.muse-reservation .reservation-chip { min-width:0; padding:5px 9px; border:1px solid var(--card-line); border-radius:20px; font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+.muse-reservation .reservation-address { display:flex; gap:9px; align-items:flex-start; padding-top:16px; border-top:1px solid var(--card-line); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+.muse-reservation .reservation-address svg { width:16px; height:16px; flex:none; margin-top:2px; color:var(--card-accent); }
+.muse-reservation .reservation-note { margin-top:14px; color:var(--card-muted); font-size: var(--text-subheadline, 14px); line-height: var(--text-subheadline--line-height, 20px); }
+.muse-reservation details { margin-top:17px; border-top:1px solid var(--card-line); padding-top:12px; font-size: var(--text-footnote, 13px); color:var(--card-muted); line-height: var(--text-footnote--line-height, 18px); }
+.muse-reservation summary { cursor:pointer; color:var(--card-accent); }
+.muse-reservation details p { margin-top:8px; }
+.muse-reservation .reservation-footer { display:flex; flex-wrap:wrap; gap:8px 16px; justify-content:space-between; align-items:center; margin-top:17px; color:var(--card-muted); font-size: var(--text-footnote, 13px); line-height: var(--text-footnote--line-height, 18px); }
+.muse-reservation a { color:var(--card-accent); text-underline-offset:3px; }
+.muse-reservation a:focus-visible,.muse-reservation summary:focus-visible,.muse-reservation [tabindex]:focus-visible { outline:2px solid var(--card-accent); outline-offset:3px; }
+@media(max-width:300px) { .muse-reservation .reservation-content { padding:17px; } .muse-reservation .reservation-dates { padding:12px; gap:10px; } .muse-reservation .reservation-dates > div + div:before { left:-5px; } }
+</style>
+<article class="muse-preview muse-reservation muse-restaurant" aria-label="Restaurant reservation">
+  <img class="reservation-photo" src="[[VENUE_PHOTO_URL]]" alt="[[VENUE_PHOTO_DESCRIPTION]]">
+  <div class="reservation-content">
+    <header class="reservation-top"><span>Restaurant reservation</span><span class="reservation-state">[[VERIFIED_BOOKING_STATE]]</span></header>
+    <h3>[[VENUE_NAME]]</h3><p class="reservation-location">[[NEIGHBORHOOD_AND_CITY]]</p>
+    <section class="reservation-dates" aria-label="Reservation dates and times"><div><span class="reservation-label">[[RESERVATION_WEEKDAY]]</span><p class="reservation-date">[[RESERVATION_DATE]]</p><p class="reservation-time">[[RESERVATION_YEAR]]</p></div><div><span class="reservation-label">Table for [[PARTY_SIZE]]</span><p class="reservation-date">[[RESERVATION_TIME]]</p><p class="reservation-time">[[TIMEZONE]]</p></div></section>
+    <div class="reservation-chips" tabindex="0" role="region" aria-label="Booking details"><span class="reservation-chip">[[BOOKED_SEATING]]</span><span class="reservation-chip">[[GUEST_OR_OCCASION]]</span></div>
+    <div class="reservation-address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span>[[STREET_ADDRESS]]</span></div>
+    <p class="reservation-note">[[USEFUL_ARRIVAL_NOTE]]</p>
+    <details><summary>Reservation details</summary><p>[[BOOKING_NAME_AND_REFERENCE]]</p><p>[[VERIFIED_POLICY_OR_REMAINING_STEP]]</p></details>
+    <footer class="reservation-footer"><span>[[BOOKING_SOURCE_AND_CHECK_TIME]]</span></footer>
+  </div>
+</article>

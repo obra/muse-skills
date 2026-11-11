@@ -78,7 +78,11 @@ overlay, or reimplement it. See
 ## Maps do not render in every artifact surface
 
 A vector map needs WebGL and a Web Worker, and not every surface an artifact
-opens on provides them. Ask before mounting:
+opens on provides them. Muse's hermetic Space frame, which renders a private
+Space on muse.ai web and every Space on a confidential VM, may refuse a worker
+by throwing, which the probe reports as `reason: 'worker'`, or by failing it
+later, which `mountMap` checks before it renders and reports through
+`onFatalError`. Ask before mounting:
 
 ```js
 const {supported, reason} = HatchMaps.isMetaMapSupported();

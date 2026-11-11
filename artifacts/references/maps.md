@@ -14,11 +14,11 @@ builders: web, file
 - Never substitute another renderer or tile source, including vendored libraries and downloaded tile pyramids. Satellite and aerial imagery are unavailable. Keep the required attribution described below.
 
 - Pick what to show from the surface and the data:
-  - A live web page with trusted coordinates shows an interactive vector map. If the control is unavailable or cannot render, it shows the place list without a map.
+  - A live web page showing places with trusted coordinates shows an interactive vector map. Where the control cannot run, it shows a static map image of the same places that the build stored, with the place list beside it, as [Interactive maps](#interactive-maps) describes. The owner's view of a page on muse.ai web runs in a sandbox that blocks workers, so this fallback is what they see there.
   - A fixed-layout export or headless rasterization with trusted coordinates shows a stored static map image with the place list beside it. On a confidential VM this case changes, as [Exports on a confidential VM](#exports-on-a-confidential-vm) describes.
   - Places without trusted coordinates get a place list with maps search links and no map.
 
-- A live page uses a vector map or no map, so a static image is never its fallback. Missing coordinates never justify a different renderer or invented location data.
+- A live page's primary view is a vector map. When it cannot render, a place map shows the static image the build stored for the same places with the place list, and a data map shows its values as a table or chart. Missing coordinates never justify a different renderer or invented location data.
 
 - Static maps take `[lat, lng]` and GeoJSON `[lng, lat]`; the interactive control takes `{lat, lng}`. Keep latitude and longitude named and convert at the boundary.
 
@@ -102,7 +102,9 @@ builders: web, file
 
 - Never install another renderer, load one from a public CDN or import `@meta/maps` directly. Give the map container a resolved height.
 
-- Use the [mount helpers](maps-recipes.md#interactive-map), which check capabilities and route fatal errors to your `onUnavailable` callback. That callback shows "Map unavailable" with a place list, or a table or chart of the values for a data map.
+- Use the [mount helpers](maps-recipes.md#interactive-map), which check capabilities and route fatal errors to your `onUnavailable` callback. That callback shows the stored static map image with the place list, or a table or chart of the values for a data map.
+
+- For a place map with trusted coordinates, fetch a static map of the same places at build time as [Static maps](#static-maps) describes, store it as a build-time image where the builder's asset rules put one (`assets/` on a static page, `client/src/assets/` imported by the client on a fullstack page), and keep it hidden until `onUnavailable` runs. If the fetch fails, the callback shows "Map unavailable" with the place list. On a confidential VM, store no image: the static endpoint is off limits there, so the callback shows the place list.
 
 - Boundary-data fetch failures use the same callback. Leave a map mounted after non-fatal tile, sprite or glyph errors.
 
@@ -193,6 +195,8 @@ builders: web, file
 - Check that no alternative renderer or tile source ships. Tile, style and glyph requests go to `external.xx.fbcdn.net`, and basemaps are selected by name.
 
 - For static maps, inspect the stored image, the required caller parameters, the task-supplied locale values, the uncropped credit and the notices link, and confirm no image `src` is remote.
+
+- For a live place map with trusted coordinates outside a confidential VM, confirm the stored fallback image ships with the build, stays hidden while the control renders, and appears with the place list when `onUnavailable` runs.
 
 - On a confidential VM, confirm the export drew its own map and the build made no static-endpoint, tile or basemap request at all.
 

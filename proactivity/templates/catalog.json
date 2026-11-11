@@ -1,0 +1,554 @@
+{
+  "email": [
+    {
+      "file": "email/compact-reply.html",
+      "name": "Compact reply",
+      "when": "A short reply that needs very little framing.",
+      "requires": ""
+    },
+    {
+      "file": "email/long-letter.html",
+      "name": "Long letter",
+      "when": "A longer message that should read like a letter.",
+      "requires": ""
+    },
+    {
+      "file": "email/quoted-thread-reply.html",
+      "name": "Quoted thread reply",
+      "when": "A reply whose meaning depends on one earlier passage.",
+      "requires": "The exact source passage and its sender."
+    },
+    {
+      "file": "email/question-by-question.html",
+      "name": "Question by question",
+      "when": "A draft organized around several questions.",
+      "requires": "The actual questions and complete answers, each paired within the draft."
+    },
+    {
+      "file": "email/availability.html",
+      "name": "Availability",
+      "when": "An email proposing a few specific times.",
+      "requires": "Verified availability, dates and timezone."
+    },
+    {
+      "file": "email/plan-confirmation.html",
+      "name": "Plan confirmation",
+      "when": "A message confirming an agreed plan.",
+      "requires": "An agreed plan. The message may still be unsent."
+    },
+    {
+      "file": "email/proposed-change.html",
+      "name": "Proposed change",
+      "when": "An email asking to change an existing arrangement.",
+      "requires": "The existing arrangement and the requested replacement."
+    },
+    {
+      "file": "email/introduction.html",
+      "name": "Introduction",
+      "when": "An introduction where both people need context.",
+      "requires": "Grounded identities and the reason for introducing them."
+    },
+    {
+      "file": "email/group-coordination.html",
+      "name": "Group coordination",
+      "when": "A group email with a few clear responsibilities.",
+      "requires": "Actual agreed or clearly proposed roles."
+    },
+    {
+      "file": "email/attachment-packet.html",
+      "name": "Attachment packet",
+      "when": "A covering email for one or more prepared files.",
+      "requires": "Files that actually exist. Deliver their real attachments separately."
+    },
+    {
+      "file": "email/review-request.html",
+      "name": "Review request",
+      "when": "A request to review a specific document or version.",
+      "requires": "The actual document and requested feedback."
+    },
+    {
+      "file": "email/event-invitation.html",
+      "name": "Event invitation",
+      "when": "A prepared invitation with event details at a glance.",
+      "requires": "Verified or explicitly proposed event details."
+    },
+    {
+      "file": "email/personal-note.html",
+      "name": "Personal note",
+      "when": "A warm short message with very little visual chrome.",
+      "requires": ""
+    },
+    {
+      "file": "email/follow-through.html",
+      "name": "Follow through",
+      "when": "A ready follow-up connected to an earlier commitment.",
+      "requires": "The actual earlier commitment, without reviving settled work."
+    },
+    {
+      "file": "email/service-request.html",
+      "name": "Service request",
+      "when": "A request about a particular order, booking or service.",
+      "requires": "The correct service and reference. Avoid unnecessary sensitive data."
+    },
+    {
+      "file": "email/reimbursement.html",
+      "name": "Reimbursement",
+      "when": "A claim email with a concise expense summary.",
+      "requires": "Verified amounts, currency and supporting files."
+    },
+    {
+      "file": "email/cancellation-request.html",
+      "name": "Cancellation request",
+      "when": "A draft asking to cancel a specific service.",
+      "requires": "The requested effective date. A draft is not a completed cancellation."
+    },
+    {
+      "file": "email/two-language-draft.html",
+      "name": "Two language draft",
+      "when": "A message with a requested or useful translation.",
+      "requires": "An intentional language pair. Identify which text will be sent."
+    },
+    {
+      "file": "email/compare-drafts.html",
+      "name": "Compare drafts",
+      "when": "Two complete alternatives when the user needs a choice.",
+      "requires": "Two complete alternatives with the same recipients and subject. Explain their difference and use `muse.create_options` for the actual choice."
+    },
+    {
+      "file": "email/recipient-review.html",
+      "name": "Recipient review",
+      "when": "Complex routing where exact recipients deserve emphasis.",
+      "requires": "Exact From, To, Cc and Bcc addresses. Remove empty optional rows."
+    }
+  ],
+  "calendar": [
+    {
+      "file": "calendar/event-summary.html",
+      "name": "Event summary",
+      "when": "One event with balanced emphasis on date, time and place.",
+      "requires": ""
+    },
+    {
+      "file": "calendar/date-led.html",
+      "name": "Date led",
+      "when": "An occasion whose date is the main thing to remember.",
+      "requires": ""
+    },
+    {
+      "file": "calendar/time-led.html",
+      "name": "Time led",
+      "when": "An event in a tightly scheduled day.",
+      "requires": ""
+    },
+    {
+      "file": "calendar/location-led.html",
+      "name": "Location led",
+      "when": "An event where finding the place needs extra care.",
+      "requires": "Verified location and entrance details."
+    },
+    {
+      "file": "calendar/remote-meeting.html",
+      "name": "Remote meeting",
+      "when": "A remote meeting with verified joining details.",
+      "requires": "A verified HTTPS meeting URL. Do not invent credentials."
+    },
+    {
+      "file": "calendar/invitation-review.html",
+      "name": "Invitation review",
+      "when": "An invitation with a real response still needed.",
+      "requires": "The actual invitation and current response state."
+    },
+    {
+      "file": "calendar/guest-roster.html",
+      "name": "Guest roster",
+      "when": "An event with many guests or useful attendance context.",
+      "requires": "Verified response counts. Remove these facts when unavailable."
+    },
+    {
+      "file": "calendar/preparation-checklist.html",
+      "name": "Preparation checklist",
+      "when": "An event with a few useful things to prepare.",
+      "requires": "Useful preparation, not a decorative or invented checklist."
+    },
+    {
+      "file": "calendar/event-materials.html",
+      "name": "Event materials",
+      "when": "A meeting with relevant prepared documents.",
+      "requires": "Actual materials. Share their real attachments separately."
+    },
+    {
+      "file": "calendar/changed-event.html",
+      "name": "Changed event",
+      "when": "A verified change to an existing event.",
+      "requires": "Both versions. Keep the main event details current."
+    },
+    {
+      "file": "calendar/reschedule-options.html",
+      "name": "Reschedule options",
+      "when": "A few viable alternative times to choose between.",
+      "requires": "Verified availability. Use `muse.create_options` for the actual choice."
+    },
+    {
+      "file": "calendar/overlap-comparison.html",
+      "name": "Overlap comparison",
+      "when": "Two events whose times genuinely conflict.",
+      "requires": "Actual event times and overlap, including timezone."
+    },
+    {
+      "file": "calendar/travel-buffer.html",
+      "name": "Travel buffer",
+      "when": "An event whose travel time affects the plan.",
+      "requires": "Grounded travel time and the intended arrival buffer."
+    },
+    {
+      "file": "calendar/timezones.html",
+      "name": "Timezones",
+      "when": "An event involving people in different timezones.",
+      "requires": "The same instant converted with the correct dates and offsets."
+    },
+    {
+      "file": "calendar/overnight-event.html",
+      "name": "Overnight event",
+      "when": "An event that ends on a different local date.",
+      "requires": "Explicit start and end dates, not just clock times."
+    },
+    {
+      "file": "calendar/multiday-event.html",
+      "name": "Multiday event",
+      "when": "A single event spanning several days.",
+      "requires": "One multi-day event and its actual milestones."
+    },
+    {
+      "file": "calendar/all-day-event.html",
+      "name": "All day event",
+      "when": "An all-day event without invented clock times.",
+      "requires": "A source event marked all-day. Preserve its date semantics."
+    },
+    {
+      "file": "calendar/recurring-occurrence.html",
+      "name": "Recurring occurrence",
+      "when": "One occurrence that needs its series context.",
+      "requires": "The actual recurrence and any exception for this occurrence."
+    },
+    {
+      "file": "calendar/tentative-hold.html",
+      "name": "Tentative hold",
+      "when": "A tentative slot with one unresolved decision.",
+      "requires": "A real tentative hold. Keep proposed and saved state explicit."
+    },
+    {
+      "file": "calendar/cancelled-event.html",
+      "name": "Cancelled event",
+      "when": "A confirmed cancellation with useful next steps.",
+      "requires": "Verified cancellation. Never present the old event as upcoming."
+    }
+  ],
+  "weather": [
+    {
+      "file": "weather/current-conditions.html",
+      "name": "Current conditions",
+      "when": "A current observation for a place that matters now.",
+      "requires": "A current observation and its observation time, not a forecast high."
+    },
+    {
+      "file": "weather/hourly-outlook.html",
+      "name": "Hourly outlook",
+      "when": "A short forecast around a useful time window.",
+      "requires": "Actual hourly forecast values and matching condition symbols."
+    },
+    {
+      "file": "weather/daily-outlook.html",
+      "name": "Daily outlook",
+      "when": "Several days of forecast at a glance.",
+      "requires": ""
+    },
+    {
+      "file": "weather/weekend-window.html",
+      "name": "Weekend window",
+      "when": "Choosing a useful window across the weekend.",
+      "requires": "Forecast-backed windows and the user’s actual weekend days."
+    },
+    {
+      "file": "weather/outdoor-event.html",
+      "name": "Outdoor event",
+      "when": "Weather at the time and place of a real event.",
+      "requires": "Forecast coverage for the actual event location and time."
+    },
+    {
+      "file": "weather/departure-arrival.html",
+      "name": "Departure arrival",
+      "when": "Comparing origin and destination conditions.",
+      "requires": "Forecasts for each place at the relevant local time."
+    },
+    {
+      "file": "weather/multi-stop-trip.html",
+      "name": "Multi stop trip",
+      "when": "Different weather needs along a multi-stop trip.",
+      "requires": "Each stop, date and local forecast. Use an itinerary Space for the wider plan."
+    },
+    {
+      "file": "weather/rain-window.html",
+      "name": "Rain window",
+      "when": "Rain timing matters more than the daily high.",
+      "requires": "Hourly precipitation data. A chance of rain is not a rainfall amount."
+    },
+    {
+      "file": "weather/hot-day.html",
+      "name": "Hot day",
+      "when": "Heat changes the practical plan.",
+      "requires": "Relevant sourced heat measures. Avoid inventing heat alerts."
+    },
+    {
+      "file": "weather/cold-morning.html",
+      "name": "Cold morning",
+      "when": "A cold start followed by a different afternoon.",
+      "requires": "Forecast temperatures and conditions for both windows."
+    },
+    {
+      "file": "weather/snow-day.html",
+      "name": "Snow day",
+      "when": "Snow timing affects an actual plan.",
+      "requires": "Sourced snowfall amount and any claimed travel impact."
+    },
+    {
+      "file": "weather/wind-window.html",
+      "name": "Wind window",
+      "when": "Wind or gusts affect the activity.",
+      "requires": "Wind units, gusts and the forecast window."
+    },
+    {
+      "file": "weather/air-quality.html",
+      "name": "Air quality",
+      "when": "A sourced air-quality observation is relevant.",
+      "requires": "The named index scale, source category and observation time."
+    },
+    {
+      "file": "weather/uv-day.html",
+      "name": "UV day",
+      "when": "Sun exposure is relevant to an outdoor plan.",
+      "requires": "Actual forecast UV and the relevant hours."
+    },
+    {
+      "file": "weather/official-alert.html",
+      "name": "Official alert",
+      "when": "An official alert applies to the user’s place and time.",
+      "requires": "An actual official alert. Preserve its scope, severity and instruction."
+    },
+    {
+      "file": "weather/daylight-window.html",
+      "name": "Daylight window",
+      "when": "Daylight determines when an activity fits.",
+      "requires": "Sunrise and sunset for the location and date, with timezone."
+    },
+    {
+      "file": "weather/walking-window.html",
+      "name": "Walking window",
+      "when": "A few forecast windows offer a useful choice.",
+      "requires": "Actual forecast conditions for the suggested windows."
+    },
+    {
+      "file": "weather/packing-outlook.html",
+      "name": "Packing outlook",
+      "when": "A trip forecast has a few practical packing implications.",
+      "requires": "Ground each suggestion in the trip, conditions and what the user owns."
+    },
+    {
+      "file": "weather/coastal-day.html",
+      "name": "Coastal day",
+      "when": "Weather and sourced coastal conditions affect the outing.",
+      "requires": "Sourced marine or tide data. Ordinary weather is not proof of safe conditions."
+    },
+    {
+      "file": "weather/forecast-change.html",
+      "name": "Forecast change",
+      "when": "A meaningful forecast change affects an existing plan.",
+      "requires": "The earlier and latest source readings with their times."
+    }
+  ],
+  "flight": [
+    {
+      "file": "flight/pre-departure.html",
+      "name": "Pre departure",
+      "when": "A scheduled flight with route, duration and local times.",
+      "requires": ""
+    },
+    {
+      "file": "flight/checkin-window.html",
+      "name": "Checkin window",
+      "when": "A verified check-in window needs attention.",
+      "requires": "Airline-specific dates and deadlines. Do not claim the user is checked in."
+    },
+    {
+      "file": "flight/boarding-status.html",
+      "name": "Boarding status",
+      "when": "Verified boarding information is useful now.",
+      "requires": "Actual boarding state and gate information, not a guess from departure time."
+    },
+    {
+      "file": "flight/gate-change.html",
+      "name": "Gate change",
+      "when": "The airline changed the gate.",
+      "requires": "Both gate values and the source update time."
+    },
+    {
+      "file": "flight/terminal-transfer.html",
+      "name": "Terminal transfer",
+      "when": "A connection needs a terminal transfer.",
+      "requires": "Verified terminals and grounded transfer instructions."
+    },
+    {
+      "file": "flight/departure-delay.html",
+      "name": "Departure delay",
+      "when": "A confirmed delay changes the departure plan.",
+      "requires": "Scheduled and current estimated times with date and timezone."
+    },
+    {
+      "file": "flight/cancelled-flight.html",
+      "name": "Cancelled flight",
+      "when": "A flight has been confirmed cancelled.",
+      "requires": "Verified cancellation. Do not imply a replacement is booked."
+    },
+    {
+      "file": "flight/in-flight.html",
+      "name": "In flight",
+      "when": "Actual departure and an arrival estimate support progress.",
+      "requires": "Actual departure, expected arrival and labelled estimate basis. Never fake live location."
+    },
+    {
+      "file": "flight/arrival-update.html",
+      "name": "Arrival update",
+      "when": "An updated arrival estimate affects an onward plan.",
+      "requires": "Current arrival estimate and relevant onward context."
+    },
+    {
+      "file": "flight/landed.html",
+      "name": "Landed",
+      "when": "The flight has actually landed.",
+      "requires": "Confirmed landing. Landing does not prove arrival at gate."
+    },
+    {
+      "file": "flight/tight-connection.html",
+      "name": "Tight connection",
+      "when": "A connection window needs careful comparison.",
+      "requires": "Both flights, correct dates and airports, and a calculated connection window."
+    },
+    {
+      "file": "flight/missed-connection.html",
+      "name": "Missed connection",
+      "when": "A connection is confirmed missed.",
+      "requires": "Evidence the connection was missed and any actual airline arrangement."
+    },
+    {
+      "file": "flight/multi-leg-itinerary.html",
+      "name": "Multi leg itinerary",
+      "when": "Several booked legs should be read in order.",
+      "requires": "Every booked leg with local dates and timezones. Remove unused legs."
+    },
+    {
+      "file": "flight/overnight-flight.html",
+      "name": "Overnight flight",
+      "when": "Departure and arrival are on different local dates.",
+      "requires": "Correct date rollover, including international date-line crossings."
+    },
+    {
+      "file": "flight/timezone-comparison.html",
+      "name": "Timezone comparison",
+      "when": "Clock changes could make the timing confusing.",
+      "requires": "Date-specific offsets and a correctly calculated elapsed duration."
+    },
+    {
+      "file": "flight/codeshare.html",
+      "name": "Codeshare",
+      "when": "The booked and operating flight identities differ.",
+      "requires": "Both confirmed identifiers. Do not suggest these are different flights."
+    },
+    {
+      "file": "flight/diverted-flight.html",
+      "name": "Diverted flight",
+      "when": "A confirmed diversion changes the destination.",
+      "requires": "An actual diversion and verified destination, not a routing guess."
+    },
+    {
+      "file": "flight/rebooked-flight.html",
+      "name": "Rebooked flight",
+      "when": "A replacement flight has been confirmed booked.",
+      "requires": "A confirmed booking. Use `widget.create_list_widget` for unbooked flight offers."
+    },
+    {
+      "file": "flight/baggage-arrival.html",
+      "name": "Baggage arrival",
+      "when": "Verified baggage information helps after landing.",
+      "requires": "Actual claim or baggage status. Do not infer bags are ready from landing."
+    },
+    {
+      "file": "flight/pickup-coordination.html",
+      "name": "Pickup coordination",
+      "when": "Arrival information supports an agreed pickup.",
+      "requires": "A real pickup plan and current arrival information."
+    }
+  ],
+  "hotel": [
+    {
+      "file": "hotel/confirmed-reservation.html",
+      "name": "Confirmed reservation",
+      "when": "An existing hotel reservation, with its actual photo and dates.",
+      "requires": "Verified booking state and details. Use a stable official photo or omit the header image."
+    }
+  ],
+  "restaurant": [
+    {
+      "file": "restaurant/confirmed-reservation.html",
+      "name": "Confirmed reservation",
+      "when": "An existing restaurant reservation, with its actual photo and dates.",
+      "requires": "Verified booking state and details. Use a stable official photo or omit the header image."
+    }
+  ],
+  "event": [
+    {
+      "file": "event/outing.html",
+      "name": "Events and outings",
+      "when": "A useful event, performance or outing, with its date, venue and admission details.",
+      "requires": "Keep discovery, a possible plan and a confirmed ticket distinct. Never invent attendance, seats, a QR code, a barcode or a reservation. Use `widget.create_list_widget` for supported event comparisons, `widget.create_agenda_widget` for several events and `widget.create_map_widget` when location helps. A card is useful only when this event fits the user, not just because an event exists. Show a real poster or venue photo only when sourced and allowed by the HTML tool. Preserve ticket attachments separately."
+    }
+  ],
+  "delivery": [
+    {
+      "file": "delivery/order-status.html",
+      "name": "Deliveries and pickups",
+      "when": "An order whose current state, arrival or pickup details help the user.",
+      "requires": "Use `widget.create_html_widget` or `widget.create_html_file_widget` for the delivery timeline. Show only confirmed milestones and label estimates. Remove future steps when the delivery is complete. Separate an ordered item from one that shipped, arrived or is ready for pickup. Preserve split shipments and partial refunds. A new email is not by itself a reason to repeat an unchanged status. The card is a dated snapshot. An ongoing watch is separate and needs an actual authorized schedule."
+    }
+  ],
+  "payment": [
+    {
+      "file": "payment/payment-status.html",
+      "name": "Payments and renewals",
+      "when": "A bill, payment, refund or renewal where the state and next step matter.",
+      "requires": "Use `widget.create_html_widget` or `widget.create_html_file_widget` for this payment summary. Distinguish due, scheduled, pending, failed and paid. An authorized or scheduled payment is not a settled one. Show currency and the relevant date, mask account numbers, and omit unknown amounts. Keep the tone calm and give one useful implication. Do not create urgency from a generic deadline or turn a receipt into a new demand to pay. Use verified account destinations, not suspect email links. A preview does not execute a payment."
+    }
+  ],
+  "job": [
+    {
+      "file": "job/prepared-opportunity.html",
+      "name": "Job opportunities",
+      "when": "One relevant role with its verified terms and the application work already prepared.",
+      "requires": "Use `widget.create_list_widget` to compare roles when its schema fits the results. This card is for one role and the work prepared for it. Verify that the role is open, link to the employer where possible and distinguish advertised compensation from an offer. Keep hourly, annual and contract rates explicit. Do not claim an application was submitted unless it was. Deliver prepared résumés and letters through their actual attachment cards. Never invent qualifications or a claim of fit."
+    }
+  ],
+  "progress": [
+    {
+      "file": "progress/before-after.html",
+      "name": "Progress comparisons",
+      "when": "A meaningful change in a workout, project or personal goal.",
+      "requires": "Compare like with like and keep dates, units and the measured scope visible. Do not infer health improvement, causation or financial returns from a partial log. A comparison may be encouraging without assigning a score or creating a new obligation. State material gaps plainly. Use the user’s own goal and preferred tone. An unchanged or incomplete log is not a reason to ask again."
+    }
+  ],
+  "learning": [
+    {
+      "file": "learning/ready-exercise.html",
+      "name": "Learning and practice",
+      "when": "A short, complete activity that the user can enjoy or practice immediately.",
+      "requires": "Prepare the actual exercise and complete answer, grounded in the user’s interest and level. This is something to use, not a reminder to study. Keep the language familiar and the time estimate honest. The reveal is optional. Do not demand a score or completion report. When listening serves the task better, follow `Spoken Audio` at `/opt/muse/skills/spoken-audio/SKILL.md` or `Podcast Production` at `/opt/muse/skills/generate_podcast/SKILL.md`. Use `window.hatchWidget.getState` and `window.hatchWidget.setState` if you add saved answers or other persistent interactions."
+    }
+  ]
+}

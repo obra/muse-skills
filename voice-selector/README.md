@@ -37,8 +37,9 @@ allowlist (`KEPLER_VQ_V2_VOICES` in
 `hatch-engine/crates/hatch-realtime/src/cosmos_provider/voice_spec.rs`) entry, so
 stored selections still resolve.
 
-When expert review is available, an entry also carries `aesthetics_mean` and
-`adherence_mean`. These are ranking-only quality signals: the picker uses them
+An entry may carry `aesthetics_mean` and `adherence_mean` from expert review,
+replacement estimates, or an explicitly assigned editorial score. These are
+ranking-only quality signals: the picker uses them
 to settle otherwise close, non-contradictory matches. Missing scores are
 neutral and do not make an entry unavailable.
 
@@ -50,8 +51,30 @@ that score and an `aesthetics_mean_note` of `Andrew audit` in the catalog. The o
 the audit file records evidence and does not register or expose them.
 
 Live Round 12 prompt replacements invalidate previous audio ratings.
-Their catalog scores are cleared, except for the explicit Andrew audit
-override. The sheet and audit notes retain the prior prompt evidence.
+Their catalog scores were initially cleared, except for the explicit Andrew
+audit override. Subsequent score assignments follow the synchronization policy
+below; the prior ratings are not human ratings of the replacement audio.
+The sheet and audit notes retain the prior prompt evidence.
+
+## Score synchronization — November 10, 2026
+
+The [Master List](https://docs.google.com/spreadsheets/d/1aONGT0FSwTXmDQHpd2i7VUT77NECjJddqmZhTjNVobU/edit#gid=1342168201)
+records the current assigned scores. Synchronize nonblank values by canonical
+voice ID, preserving their precision and the explicit 0.55 Andrew audit
+aesthetics overrides. Score-only synchronization does not treat a blank cell
+as a deletion request; replacing audio still requires explicit invalidation
+of its previous ratings before reassessment.
+
+- Recovered campaign scores use matching human-review results for the prompt.
+- Live Round 12 replacements use estimates from the prior scored prompt:
+  aesthetics is `min(max(base score, 1.0) + 0.11, 2.0)` and adherence is
+  `min(base score + 0.11, 2.0)`. Missing base scores default to 1.0 and 1.67,
+  respectively. The explicit Andrew audit aesthetics overrides remain at 0.55.
+- The November 5 prompt audit assigned adherence 2.0 to the voices covered by
+  that audit. This is an editorial confirmation of prompt adherence, not a new
+  aggregate of campaign ratings. It supersedes their earlier adherence scores.
+- New Gritty Scarf scores of aesthetics 1.0 and adherence 2.0 are editorial
+  defaults supplied by Andrew, not new human-review means.
 
 ## VD3 additions — October 27, 2026
 
@@ -60,11 +83,13 @@ as new voices; their parent entries and persisted selections keep their
 existing identifiers. The parents are deprecated. Names, descriptions, and scores come from the
 [VD3 sheet](https://docs.google.com/spreadsheets/d/1aONGT0FSwTXmDQHpd2i7VUT77NECjJddqmZhTjNVobU/edit#gid=1732701027).
 
-Their quality scores are estimates, not human ratings of the new clips:
+Their initial quality scores were estimates, not human ratings of the new clips:
 aesthetics is `min(max(parent score, 1.0) + 0.11, 2.0)` and adherence is
 `min(parent score + 0.11, 2.0)`. Missing parent scores default to 1.0 and
 1.67 respectively. The catalog preserves the sheet's current score precision.
 The original voices' Andrew audit overrides remain at 0.55.
+Subsequent assignments, including the prompt-audit adherence scores, follow the
+score synchronization policy above.
 
 Conditioning generation used `tts:tts_rl_vd_trackb_b5g-c3q5cp6m@650` via
 `playai.mapper.custom_diffusion_decoder`. Normalized WAVs, VQ prompts, speaker
