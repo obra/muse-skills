@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Install, run and set up the Home Assistant that Muse ships.
 
-Usage: home-assistant {status|install|start|stop|setup|rollback}
+Usage: home-assistant {status|install|start|stop|setup|rollback|step-text}
 
 Every command prints one JSON object on stdout and exits 0 when "ok" is true.
+step-text reads a config flow reply on stdin and adds Home Assistant's own
+text for it, which the HTTP API leaves out.
 The install lives in ~/homeassistant (HOME_ASSISTANT_ROOT overrides it):
 venv/ (the pinned release), config/ (Home Assistant's configuration),
 install.json (what is installed), enabled (keep the service running),
@@ -18,6 +20,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import subprocess
@@ -696,6 +699,125 @@ async def _setup():
     return {"ok": True, "onboarded": True, "credentials": "valid", "credentials_file": str(CREDENTIALS)}
 
 
+# --- config flow step text ------------------------------------------------------------
+
+
+def flow_strings(handler):
+    """Home Assistant's English config-flow strings for one integration.
+
+    The flow API returns only a step's id, fields and placeholders; the words a
+    user would see (press the button on the bridge, enter the code on the TV)
+    live in the integration's translations. A custom integration replaces a
+    core one of the same domain, as Home Assistant's loader does.
+    """
+    if not PYTHON.exists():
+        raise Failure("Home Assistant is not installed.")
+    custom = CONFIG / "custom_components" / handler
+    base = custom if (custom / "manifest.json").is_file() else (
+        site_packages() / "homeassistant" / "components" / handler
+    )
+    strings = read_json(base / "translations" / "en.json")
+    return (strings.get("config") or {}) if isinstance(strings, dict) else {}
+
+
+def fill(text, placeholders):
+    return re.sub(
+        r"\{(\w+)\}",
+        lambda match: str(placeholders.get(match[1], match[0])),
+        text,
+    )
+
+
+def describe_fields(schema, data, help_texts, sections, placeholders):
+    fields = []
+    for field in schema or []:
+        if not isinstance(field, dict):
+            continue
+        name = field.get("name")
+        described = {
+            **{key: value for key, value in field.items() if key != "schema"},
+            "label": data.get(name, name),
+            "help": fill(help_texts.get(name, ""), placeholders),
+        }
+        if isinstance(field.get("schema"), list):
+            section = sections.get(name, {})
+            described["label"] = section.get("name", name)
+            described["fields"] = describe_fields(
+                field["schema"],
+                section.get("data", {}),
+                section.get("data_description", {}),
+                {},
+                placeholders,
+            )
+        fields.append(described)
+    return fields
+
+
+def step_text():
+    reply = read_stdin_json()
+    handler = reply.get("handler")
+    if not isinstance(handler, str) or not re.fullmatch(r"[a-z0-9_]+", handler):
+        # Home Assistant's own refusals ({"message": ...}) pass through.
+        raise Failure(reply.get("message") or "Not a config flow reply.")
+    strings = flow_strings(handler)
+    placeholders = reply.get("description_placeholders") or {}
+    kind = reply.get("type")
+    result = {
+        "ok": True,
+        "handler": handler,
+        "flow_id": reply.get("flow_id"),
+        "type": kind,
+        "text_found": bool(strings),
+    }
+    if kind == "abort":
+        reason = reply.get("reason") or ""
+        result["reason"] = fill(strings.get("abort", {}).get(reason, reason), placeholders)
+        return result
+    if kind == "create_entry":
+        result["title"] = reply.get("title")
+        return result
+    step_id = reply.get("step_id") or ""
+    step = strings.get("step", {}).get(step_id, {})
+    result["step_id"] = step_id
+    result["title"] = fill(step.get("title", ""), placeholders)
+    result["instructions"] = fill(step.get("description", ""), placeholders)
+    result["fields"] = describe_fields(
+        reply.get("data_schema"),
+        step.get("data", {}),
+        step.get("data_description", {}),
+        step.get("sections", {}),
+        placeholders,
+    )
+    result["errors"] = {
+        field: fill(strings.get("error", {}).get(code, code), placeholders)
+        for field, code in (reply.get("errors") or {}).items()
+    }
+    if kind == "menu":
+        offered = reply.get("menu_options") or []
+        labels = offered if isinstance(offered, dict) else {}
+        translated = step.get("menu_options", {})
+        result["menu"] = {
+            option: translated.get(option) or labels.get(option) or option for option in offered
+        }
+    if kind == "progress":
+        action = reply.get("progress_action") or ""
+        result["progress"] = fill(strings.get("progress", {}).get(action, ""), placeholders)
+    if kind == "external":
+        result["url"] = reply.get("url")
+    return result
+
+
+def read_stdin_json():
+    body = sys.stdin.read()
+    try:
+        reply = json.loads(body)
+    except ValueError:
+        reply = None
+    if not isinstance(reply, dict):
+        raise Failure(f"Not a config flow reply: {body.strip()[:300]}")
+    return reply
+
+
 COMMANDS = {
     "status": status,
     "install": install,
@@ -703,6 +825,7 @@ COMMANDS = {
     "stop": stop,
     "setup": setup,
     "rollback": rollback,
+    "step-text": step_text,
     "sync-adapter": sync_adapter,
 }
 

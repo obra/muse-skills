@@ -8,8 +8,8 @@ the user asks for it. The build installs them at
 to run which command and how to read its result.
 
 - `home-assistant` is the agent's interface: `status`, `install`, `start`,
-  `stop`, `setup` and `rollback`, each printing one JSON object. It keeps the
-  install in `~/homeassistant`:
+  `stop`, `setup`, `rollback` and `step-text`, each printing one JSON object.
+  It keeps the install in `~/homeassistant`:
   - `status` separates installed, running and ready; onboarded and
     credentials valid; each user-added integration's configured and connected
     state; whether the service routes through the Link; an update to the
@@ -29,6 +29,12 @@ to run which command and how to read its result.
     (`config/muse_owner.json`, mode 0600) before creating the owner, resumes
     an interrupted onboarding by signing in with it, and stores a long-lived
     token.
+  - `step-text` reads a config flow reply on stdin and adds the step's
+    title, instructions, field labels, error, abort, menu and progress text
+    from the integration's English translations (a custom integration's when
+    one replaces the core integration). The flow API returns only ids, so
+    without it the agent misses steps such as "press the button on the
+    bridge". Home Assistant's own refusals pass through as `error`.
   - `sync-adapter` runs before every service start and brings the routing
     module up to the shipped one.
 - When updates happen: a new routing module takes effect at the next service

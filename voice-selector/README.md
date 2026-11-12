@@ -9,6 +9,14 @@ has no workflow entry. The build installs it at `/opt/hatch/skills/voice-selecto
 where the loader reads it; the agent reads it at
 `/opt/muse/assets/voice-selector`.
 
+## Language metadata
+
+`language` records the conditioning prompt's language as an ISO 639-3 code.
+The existing English voices use `eng`; the French Canadian conversions use
+`fra`. This metadata is separate from the language used to display localized
+voice names and descriptions. The loader treats a missing field in an older
+catalog asset as `eng`. New catalog entries should record the field explicitly.
+
 ## Main, deprecated, and restricted voices
 
 - **Main library:** every catalog entry not on either list below. Ranking,
@@ -108,3 +116,18 @@ Andrew assigned all 12 catalog scores to aesthetics 1.0 and adherence 2.0;
 these values are editorial defaults, not new human annotations. Source audio,
 source metadata, generation model where supplied, encoding settings, and
 checksums are preserved in the [selection manifest](manifold://speech_training_v2/tree/users/rosenberg/persona_new_three_20261028/persona_onboarding_selection_20261028.json).
+
+## French Canadian conversions — November 11, 2026
+
+The 15 `avocado_v2:*_fr_ca` voices are new entries based on the reviewed
+French Canadian conversions in P2599542360. Their parent identities remain
+unchanged. Names and descriptions come from the
+[fr-CA sheet](https://docs.google.com/spreadsheets/d/1aONGT0FSwTXmDQHpd2i7VUT77NECjJddqmZhTjNVobU/edit#gid=227476259).
+All 15 use `language: "fra"`. Andrew assigned aesthetics 1.0 and adherence 2.0
+as editorial scores.
+
+Normalized `audio.wav`, `voice.json`, and `voice.pt` packages are published
+under their `_fr_ca` directories in `kepler_vq_v2`. Conversion provenance,
+parent prompt references, transcripts, review decisions, normalization and
+encoding settings, and verified checksums are in the
+[batch manifest](manifold://speech_training_v2/tree/users/rosenberg/fr_ca_onboarding_20261110/manifest.json).

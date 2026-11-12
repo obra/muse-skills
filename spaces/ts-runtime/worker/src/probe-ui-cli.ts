@@ -126,11 +126,11 @@ type Device = "desktop" | "mobile";
 type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 
 /**
- * Context options per device. A phone-first session's mobile is a touch
- * phone, as in the audit's mobile capture: it taps, cannot hover, and honours
- * the page's `<meta name="viewport">`. Its frames stay at 1x so each
- * screenshot the builder reads stays small. A live context cannot change
- * these, so a phone-first device switch opens a new context (switchDevice).
+ * Context options per device. A session's mobile is a touch phone, as in
+ * the audit's mobile capture: it taps, cannot hover, and honours the page's
+ * `<meta name="viewport">`. Its frames stay at 1x so each screenshot the
+ * builder reads stays small. A live context cannot change these, so a device
+ * switch opens a new context (switchDevice).
  */
 function deviceContextOptions(device: Device): {
   viewport: { width: number; height: number };
@@ -142,7 +142,7 @@ function deviceContextOptions(device: Device): {
     : { viewport: { ...DESKTOP_VIEWPORT } };
 }
 
-/** Sent with each phone-first device switch, which reloads the page. */
+/** Sent with each device switch, which reloads the page. */
 const DEVICE_SWITCH_NOTE =
   "the page reloaded as the other device: cookies and localStorage carried over, but state " +
   "held only in memory, such as an open tab or dialog, starts over";
@@ -319,11 +319,6 @@ interface SessionState {
   viewport: Device;
   /** Every viewport this session actually loaded, for the session record. */
   viewportsSeen: Set<string>;
-  /** The build's pinned `hatch_artifact_audit_phone_first` decision
-   *  (`--phone-first`): the session starts as a touch phone and switches
-   *  device by reopening the page. Otherwise it starts on desktop and
-   *  `viewport` resizes the live page. */
-  phoneFirst: boolean;
   /** Opens the artifact's context and page as `device` (see switchDevice). */
   openDevice: (
     device: Device,
@@ -756,7 +751,7 @@ async function doAct(
       error: `snapshot ${req.snapshot_id} is stale (current ${state.snapshotId}); observe again`,
     };
   }
-  const touch = state.phoneFirst && state.viewport === "mobile";
+  const touch = state.viewport === "mobile";
   if (touch && req.action === "hover") {
     return {
       ok: false,
@@ -850,18 +845,8 @@ async function doAct(
   };
 }
 
-async function applyViewport(state: SessionState, preset: string): Promise<void> {
-  const isMobile = preset === "mobile";
-  const viewport = isMobile ? MOBILE_VIEWPORT : DESKTOP_VIEWPORT;
-  await state.page.setViewportSize({ ...viewport });
-  state.viewport = isMobile ? "mobile" : "desktop";
-  state.viewportsSeen.add(state.viewport);
-  // The node list described the previous layout; refuse to act on it.
-  state.snapshotId = null;
-}
-
 /**
- * Make a phone-first session `device`. This reopens the artifact in a new
+ * Make the session `device`. This reopens the artifact in a new
  * context that carries the old one's cookies and localStorage, and replaces
  * the page only after the new one has loaded, so a failed load leaves the
  * session as it was.
@@ -920,12 +905,8 @@ async function handle(
       return doAct(state, req, auditDir);
     }
     case "viewport": {
-      if (!state.phoneFirst) {
-        await applyViewport(state, req.preset ?? "desktop");
-        return { ...(await doObserve(state, auditDir)), viewport_changed: state.viewport };
-      }
-      // A batch step can arrive without a preset (builders send widths); a
-      // phone-first session must not read that as a switch off the phone.
+      // A batch step can arrive without a preset (builders send widths); the
+      // session must not read that as a switch off the phone.
       if (req.preset !== "desktop" && req.preset !== "mobile") {
         return {
           ok: false,
@@ -1132,7 +1113,6 @@ async function serve(flags: Map<string, string>): Promise<number> {
     || (spaceDir ? join(spaceDir, PROBE_DIR, SOCKET_BASENAME) : "");
   const auditSessionId = (flags.get("audit-session") ?? flags.get("session") ?? "").trim() || null;
   const auditDir = (flags.get("audit-dir") ?? "").trim() || null;
-  const phoneFirst = flags.get("phone-first") === "true";
   const proxyServer = (flags.get("proxy-server") ?? "").trim() || null;
   const proxyAuthUsername = (flags.get("proxy-auth-username") ?? "").trim() || null;
   if (!slug || !routeSlug || !url || !socketPath) {
@@ -1279,9 +1259,9 @@ async function serve(flags: Map<string, string>): Promise<number> {
     );
     return { context, page, daemonOrigin };
   };
-  // Artifacts open on phones more than anywhere else, so a phone-first
-  // session starts as one; `viewport desktop` switches.
-  const startDevice: Device = phoneFirst ? "mobile" : "desktop";
+  // Artifacts open on phones more than anywhere else, so the session starts
+  // as one; `viewport desktop` switches.
+  const startDevice: Device = "mobile";
   const { context, page, daemonOrigin } = await openDevice(startDevice);
 
   // Frames land in the audit dir when the runner gave us one; otherwise the
@@ -1305,7 +1285,6 @@ async function serve(flags: Map<string, string>): Promise<number> {
     auditSessionId: auditSessionId ?? socketPath,
     viewport: startDevice,
     viewportsSeen: new Set([startDevice]),
-    phoneFirst,
     openDevice,
     snapshotId: null,
     consoleErrors,
@@ -1333,7 +1312,6 @@ async function serve(flags: Map<string, string>): Promise<number> {
         url,
         audit_session_id: auditSessionId,
         pid: process.pid,
-        ...(phoneFirst ? { phone_first: true } : {}),
       },
       null,
       2,
@@ -1623,8 +1601,8 @@ The harness owns settling — never write a wait or a timeout. Node numbers come
 from the latest observe; if the page moved, observe again.
 `;
 
-/** USAGE for a phone-first session (session.json `phone_first`). */
-const PHONE_FIRST_USAGE = USAGE.replace(
+/** USAGE for a live session, which starts as a touch phone. */
+const SESSION_USAGE = USAGE.replace(
   "  act --node <n> --click           click the node numbered by the last observe\n",
   "  act --node <n> --click           click the node numbered by the last observe\n" +
     "                                   (a tap on mobile)\n",
@@ -1649,15 +1627,14 @@ const PHONE_FIRST_USAGE = USAGE.replace(
 async function usageFor(flags: Map<string, string>): Promise<string> {
   const socket = (flags.get("socket") ?? "").trim() || (await discoverSocket());
   if (socket === null) return USAGE;
-  let raw: string;
   try {
-    raw = await readFile(join(dirname(socket), SESSION_BASENAME), "utf8");
+    await stat(join(dirname(socket), SESSION_BASENAME));
   } catch (err) {
     // No session at that path: nothing to describe but the CLI itself.
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return USAGE;
     throw err;
   }
-  return JSON.parse(raw).phone_first === true ? PHONE_FIRST_USAGE : USAGE;
+  return SESSION_USAGE;
 }
 
 async function readStdin(): Promise<string> {

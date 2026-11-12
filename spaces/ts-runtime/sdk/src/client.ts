@@ -18,7 +18,7 @@
 import "../styles.css";
 
 import { QueryClient } from "@tanstack/react-query";
-import type { ZodType } from "zod";
+import type { input as ZodInput, ZodType } from "zod";
 
 import { installSpaceThemeListener } from "./client/host-theme";
 import {
@@ -27,7 +27,7 @@ import {
   type SpaceViewer,
   type SpaceViewerEvent,
 } from "./client/viewer";
-import type { ActionRequest, ActionResponse } from "./index";
+import type { ActionResponse } from "./index";
 
 export { SafeAreaTopScrim } from "./client/safe-area";
 export type {
@@ -728,8 +728,10 @@ export type ApiResponse<
 // request/response schemas.
 type ClientActionShape = { request: ZodType; response: ZodType };
 
+// Callers pass the request schema's input: the action parses it, so fields
+// with a `.default()` may be omitted.
 export type ActionClient<A extends Record<string, ClientActionShape>> = {
-  [K in keyof A]: (args: ActionRequest<A[K]>) => Promise<ActionResponse<A[K]>>;
+  [K in keyof A]: (args: ZodInput<A[K]["request"]>) => Promise<ActionResponse<A[K]>>;
 };
 
 interface ClientOptions {
