@@ -7,11 +7,9 @@ export class ActionRequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
-export type SharedDataRequest = { kind: "shared_data"; operation: Record<string, unknown> };
-
 export async function readActionRequest(
   request: Request,
-): Promise<ActionRpcRequest | { kind: "catalog" } | SharedDataRequest> {
+): Promise<ActionRpcRequest | { kind: "catalog" }> {
   if (request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase() !== "application/json") {
     throw new ActionRequestError("Request body must be JSON", 415);
   }
@@ -45,10 +43,6 @@ export async function readActionRequest(
   const payload = body as Record<string, unknown>;
   if (payload.kind !== undefined) {
     if (payload.kind === "catalog" && Object.keys(payload).length === 1) return { kind: "catalog" };
-    if (payload.kind === "shared_data" && Object.keys(payload).length === 2 &&
-        payload.operation && typeof payload.operation === "object" && !Array.isArray(payload.operation)) {
-      return { kind: "shared_data", operation: payload.operation as Record<string, unknown> };
-    }
     throw new ActionRequestError("Invalid action request kind", 400);
   }
   if (typeof payload.action !== "string" || !payload.action.trim() || payload.action.length > 128) {

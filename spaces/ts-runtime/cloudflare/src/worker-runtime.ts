@@ -1,13 +1,13 @@
 import { drizzle } from "drizzle-orm/d1";
 import { ActionRequestError, readActionRequest } from "./action-request";
 import { admitSharedAction, sharedStateAvailable, SharedStateUnavailable, type SharedDatabase } from "./shared-state";
-import { runSharedDataOperation, SHARED_DATA_PROTOCOL } from "./shared-data";
 import {
   READ_ONLY_ACTIONS_PATH,
   READ_ONLY_DENIAL_MESSAGE,
   readOnlyBlobs,
   readOnlyDatabase,
 } from "./read-only-access";
+import { checkBlob, type UploadChecker } from "./upload-integrity";
 import {
   actionDescription,
   createPrivilegedExecutor,
@@ -77,7 +77,10 @@ type CloudflareEnv = {
   SPACE_VERSION?: string;
 };
 
-type WorkerExecutionContext = { waitUntil(promise: Promise<unknown>): void };
+type WorkerExecutionContext = {
+  waitUntil(promise: Promise<unknown>): void;
+  readonly props?: { readonly HATCH?: UploadChecker };
+};
 
 type WorkerModule = {
   fetch(request: Request, env: CloudflareEnv, execution: WorkerExecutionContext): Promise<Response>;
@@ -302,6 +305,7 @@ function createCtx(
   action: CloudflareActionDefinition,
   actionCallId: string | undefined,
   readOnly: boolean,
+  hatch: UploadChecker | undefined,
 ): Ctx {
   let db: SpaceDb | null = null;
   const viewer = viewerFromHeaders(request.headers);
@@ -315,7 +319,7 @@ function createCtx(
   const denyWrite = (): never => {
     throw new SpaceActionForbiddenError(READ_ONLY_DENIAL_MESSAGE, "view_only");
   };
-  const blobs = createBlobClient(env);
+  const blobs = createBlobClient(env, hatch);
   return {
     slug,
     invocationId,
@@ -392,7 +396,7 @@ function createAgentClient(): AgentClient {
 
 // --- Blob key/path helpers ---
 
-export function normalizeBlobKey(key: string): string {
+function normalizeBlobKey(key: string): string {
   const normalized = key.trim();
   if (normalized.length === 0) {
     throw new Error("Blob key must not be empty");
@@ -469,7 +473,7 @@ function decodeBlobKeyToken(encodedKey: string): string {
 
 type BlobVisibility = "public" | "private";
 
-export function r2Key(visibility: BlobVisibility, key: string): string {
+function r2Key(visibility: BlobVisibility, key: string): string {
   return `blobs/${visibility}/${key}`;
 }
 
@@ -504,7 +508,22 @@ function metadataFromR2Object(object: R2Object): BlobMetadata {
 
 // --- Blob client ---
 
-function createBlobClient(env: CloudflareEnv): BlobClient {
+export function createCheckedPut(bucket: R2Bucket, hatch: UploadChecker | undefined): BlobClient["put"] {
+  return async (key, data, options) => {
+    const normalizedKey = normalizeBlobKey(key);
+    const visibility = options?.public === true ? "public" : "private";
+    const releasedKey = r2Key(visibility, normalizedKey);
+    const checked = await checkBlob(data, options?.contentType, hatch, releasedKey);
+    const opposite = visibility === "public" ? "private" : "public";
+    await bucket.delete(r2Key(opposite, normalizedKey));
+    await bucket.put(releasedKey, checked.bytes, {
+      httpMetadata: { contentType: checked.contentType },
+      customMetadata: checked.customMetadata,
+    });
+  };
+}
+
+function createBlobClient(env: CloudflareEnv, hatch: UploadChecker | undefined): BlobClient {
   const bucket = env.BUCKET;
   let signingKeyPromise: Promise<CryptoKey> | null = null;
 
@@ -526,16 +545,7 @@ function createBlobClient(env: CloudflareEnv): BlobClient {
   }
 
   return {
-    async put(key, data, options) {
-      const normalizedKey = normalizeBlobKey(key);
-      const contentType = options?.contentType ?? defaultBlobContentType;
-      const visibility: BlobVisibility = options?.public === true ? "public" : "private";
-      const oldVisibility: BlobVisibility = visibility === "public" ? "private" : "public";
-      await bucket.delete(r2Key(oldVisibility, normalizedKey));
-      await bucket.put(r2Key(visibility, normalizedKey), data, {
-        httpMetadata: { contentType },
-      });
-    },
+    put: createCheckedPut(bucket, hatch),
     async getUrl(key, options) {
       const normalizedKey = normalizeBlobKey(key);
       const resolved = await resolveObject(normalizedKey);
@@ -672,16 +682,14 @@ async function handleBlobDownload(request: Request, env: CloudflareEnv): Promise
 
 // --- Worker entrypoint ---
 
-// `checkedPut` replaces file writes on integrity-checked builds, for the
-// owner VM's shared-data writes as it does inside actions.
-export function createWorker(
-  actionsExport: unknown,
-  slug: string,
-  checkedPut?: BlobClient["put"],
-): WorkerModule {
+export function createWorker(actionsExport: unknown, slug: string): WorkerModule {
   const actions = buildActionMap(actionsExport);
 
-  async function handleRequest(request: Request, env: CloudflareEnv): Promise<Response> {
+  async function handleRequest(
+    request: Request,
+    env: CloudflareEnv,
+    hatch: UploadChecker | undefined,
+  ): Promise<Response> {
     const url = new URL(request.url);
     let finish: (() => Promise<void>) | undefined;
     let viewer: Viewer | undefined;
@@ -726,30 +734,6 @@ export function createWorker(
       }
 
       const body = await readActionRequest(request);
-      if ("kind" in body && body.kind === "shared_data") {
-        // The owner's VM runs this app's actions locally and keeps the data
-        // here; nobody else may reach the database directly.
-        if (readOnly || viewer?.isOwner !== true) {
-          return jsonResponse({ error: "Only the app's owner can use its data directly" }, 403);
-        }
-        finish = await admitSharedAction(env.DB);
-        const blobs = createBlobClient(env);
-        if (checkedPut !== undefined) blobs.put = checkedPut;
-        try {
-          const data = await runSharedDataOperation(env.DB as never, blobs, body.operation);
-          return jsonResponse({ data, version: 1, protocol: SHARED_DATA_PROTOCOL });
-        } catch (error) {
-          // The file checker is down and nothing was written: a platform
-          // outage the VM may retry, not an unknown outcome or an app error.
-          if (error instanceof Error && error.message === "upload_integrity:unavailable") {
-            return jsonResponse(
-              { error: "File checks are temporarily unavailable.", code: "upload_check_unavailable", retrySafe: true },
-              503,
-            );
-          }
-          throw error;
-        }
-      }
       if ("kind" in body) {
         if (actions.size > 0 && !await sharedStateAvailable(env.DB)) throw new SharedStateUnavailable();
         const names = [...new Set([...actions.keys()].map(normalizeActionName))].sort();
@@ -803,6 +787,7 @@ export function createWorker(
           action,
           normalizeActionCallId(body.actionCallId),
           readOnly,
+          hatch,
         ),
         parsedArgs.data,
       );
@@ -840,7 +825,7 @@ export function createWorker(
 
   return {
     fetch(request, env, execution) {
-      const response = handleRequest(request, env);
+      const response = handleRequest(request, env, execution.props?.HATCH);
       // Retain admission, effects, and cleanup through client disconnects.
       // Cloudflare limits this grace period to 30 seconds; work terminated
       // before cleanup remains recorded and must never be expired by guess.

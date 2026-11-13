@@ -10,8 +10,6 @@
 //   HATCH_SPACE_SLUG            published slug
 //   HATCH_ACTION_PROTOCOL_FD    fd to write protocol frames to (typically 3)
 //   HATCH_SPACE_DB_PATH         optional override; defaults to <space>/app.db
-//   HATCH_SPACE_SHARED_DATA     "1": the app's data is on its Cloudflare share;
-//                               ctx.db goes there through the daemon
 //   HATCH_API_SOCKET            preferred daemon connect path (Unix socket)
 //   HATCH_API_URL               TCP fallback if no socket
 //   HATCH_SPACE_INFERENCE_SOCKET daemon-owned length-prefixed JSON RPC socket
@@ -47,7 +45,6 @@ import { openSpaceDb, type SpaceDb } from "./db";
 import { ViewOnlyError, VIEW_ONLY_CODE, isReadOnlyRefusal, readOnlyBlobs } from "./read_only";
 import { createAgentClient } from "./agent";
 import { createBlobClient } from "./blobs";
-import { createSharedBlobClient, createSharedDbAccessor } from "./shared_data";
 import { createInferenceClient } from "./inference";
 import { createPrivilegedTransport } from "./privileged";
 import { generateMedia } from "./space_media";
@@ -294,7 +291,7 @@ function buildCtx(args: {
   slug: string;
   spaceDir: string;
   blobDir?: string;
-  spaceDb: SpaceDb | null;
+  spaceDb: SpaceDb;
   invocationId: string;
   viewer?: LocalViewer | PeerViewer;
   requestId: string;
@@ -322,18 +319,10 @@ function buildCtx(args: {
     args.rootRequestId,
     args.timeoutMs,
   );
-  const sharedData = {
-    slug: args.slug,
-    action: args.action,
-    invocationId: args.invocationId,
-  };
-  const dataBlobs =
-    args.spaceDb === null
-      ? createSharedBlobClient(sharedData)
-      : createBlobClient({
-          spaceDir: args.spaceDir,
-          blobDir: args.blobDir,
-        });
+  const dataBlobs = createBlobClient({
+    spaceDir: args.spaceDir,
+    blobDir: args.blobDir,
+  });
   const blobs = args.readOnly ? readOnlyBlobs(dataBlobs) : dataBlobs;
   const privilegedExecutor = createPrivilegedExecutor(
     args.privileged,
@@ -363,10 +352,7 @@ function buildCtx(args: {
     slug: args.slug,
     invocationId: args.invocationId,
     spaceDir: args.spaceDir,
-    db:
-      args.spaceDb === null
-        ? createSharedDbAccessor(sharedData)
-        : (args.readOnlyDb ?? args.spaceDb.accessor),
+    db: args.readOnlyDb ?? args.spaceDb.accessor,
     ...(args.viewer !== undefined ? { viewer: args.viewer } : {}),
     agent,
     inference,
@@ -403,7 +389,7 @@ async function runInvocation(args: {
   slug: string;
   spaceDir: string;
   blobDir?: string;
-  spaceDb: SpaceDb | null;
+  spaceDb: SpaceDb;
 }): Promise<void> {
   const { command, actionsByName, slug, spaceDir, blobDir, spaceDb } = args;
   const normalized = slugifyActionName(command.action);
@@ -433,7 +419,7 @@ async function runInvocation(args: {
   };
   const readOnly = command.read_only === true;
   let readOnlyDb: SpaceDbAccessor | null = null;
-  if (readOnly && spaceDb !== null) {
+  if (readOnly) {
     try {
       readOnlyDb = await spaceDb.readOnlyAccessor();
     } catch (err) {
@@ -510,10 +496,8 @@ async function main(): Promise<number> {
   }
 
   // One libsql client for the whole worker lifetime. Per-invocation opens
-  // would leak FDs / WAL state across the worker's many invocations. A worker
-  // for a shared app's data opens no local database.
-  const spaceDb =
-    process.env.HATCH_SPACE_SHARED_DATA === "1" ? null : await openSpaceDb(dbPath);
+  // would leak FDs / WAL state across the worker's many invocations.
+  const spaceDb = await openSpaceDb(dbPath);
 
   emitReady(Array.from(actionsByName.keys()), buildActionMetadata(actionsByName));
 
@@ -566,7 +550,7 @@ async function main(): Promise<number> {
   markProtocolClosed();
 
   await Promise.allSettled(inFlight.values());
-  await spaceDb?.close();
+  await spaceDb.close();
   return 0;
 }
 

@@ -1,6 +1,6 @@
 import { expect, jest, mock, test } from "bun:test";
 import { checkBlob, type UploadChecker } from "./src/upload-integrity";
-import { createCheckedPut, createWorker } from "./src/checked-put";
+import { createCheckedPut, createWorker } from "./src/worker-runtime";
 import { defineAction, z } from "./src/sdk";
 
 const DATA = Uint8Array.of(0, 255, 128, 17);
@@ -182,7 +182,7 @@ test("a 30-second timeout never releases a late allow verdict", async () => {
   }
 });
 
-test("delete-before-put matches v1 even when the write fails", async () => {
+test("delete-before-put holds even when the write fails", async () => {
   for (const publicBlob of [false, true]) {
     const f = storage();
     const target = `blobs/${publicBlob ? "public" : "private"}/blob`;
@@ -241,7 +241,7 @@ test("concurrent puts cannot mix checker results, metadata or cleanup", async ()
     { httpMetadata: { contentType: "application/octet-stream" }, customMetadata: { check_id: "checked" } });
 });
 
-test("the adapter captures per-request HATCH and preserves original authentication and error responses", async () => {
+test("the worker captures per-request HATCH and keeps authentication and error responses", async () => {
   const f = storage();
   const started = Promise.withResolvers<void>();
   const verdict = Promise.withResolvers<unknown>();

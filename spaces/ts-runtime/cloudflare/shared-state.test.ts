@@ -205,7 +205,7 @@ test("a write followed by failure cannot authorize an automatic replay", async (
   }
 });
 
-test("viewer context omits identity while owner-only data access and VM denial remain enforced", async () => {
+test("viewer context omits identity while VM capability denial remains enforced", async () => {
   const f = fixture();
   const worker = createWorker({
     save: defineAction({ request: z.object({}), response: z.unknown(), async handler(ctx) {
@@ -228,11 +228,6 @@ test("viewer context omits identity while owner-only data access and VM denial r
       isOwner, tokenExpiresAt: 2000000000, tokenId: "test-jti",
     }, version: 1 });
     expect((await worker.fetch(request({ action: "weather", args: {} }, headers), f.env, f.execution)).status).toBe(403);
-    const direct = await worker.fetch(request({ kind: "shared_data", operation: {
-      type: "statement", method: "run", sql: "INSERT INTO entries VALUES ('owner')",
-    } }, headers), f.env, f.execution);
-    expect(direct.status).toBe(isOwner ? 200 : 403);
-    expect(f.sqlite.query("SELECT count(*) AS n FROM entries").get()).toEqual({ n: isOwner ? 1 : 0 });
   }
 });
 

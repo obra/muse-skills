@@ -74,75 +74,6 @@ export const entries = sqliteTable("entries", {
 });
 `;
 
-test("only the checked-put build switches uploads; HATCH alone and the manifest contract stay unchanged", async () => {
-  const spaceDir = await makeSpace({ actionsSource: `
-import { defineAction, z } from "@hatch/space-sdk";
-export const Actions = { upload: defineAction({ request: z.object({}), response: z.null(),
-  async handler(ctx) {
-    await ctx.blobs.put(" note.txt ", "original bytes", { public: true, contentType: "Text/Plain ; Charset=UTF-8" });
-    return null;
-  },
-}) };
-` });
-  await fs.writeFile(path.join(spaceDir, "space.json"), '{"anonymousAccess":true}');
-  const outDir = path.join(spaceDir, "cloudflare-dist");
-  const { workerPath, manifestPath } = await buildCloudflareArtifacts({ spaceDir, outDir });
-  const offBytes = await fs.readFile(workerPath);
-  const offManifestBytes = await fs.readFile(manifestPath);
-  const offManifest = JSON.parse(offManifestBytes);
-  const offWorker = (await import(pathToFileURL(workerPath).href)).default;
-  let checks = 0;
-  const mutations = [];
-  const env = {
-    DB: { prepare() { return { bind() { return this; }, async first() { return {}; }, async run() {} }; } },
-    BUCKET: {
-      async put(key, data, options) { mutations.push(["put", key, data, options]); },
-      async delete(key) { mutations.push(["delete", key]); },
-    },
-    SPACE_SHORTCODE: "daily-journal-123", ASSETS: { async fetch() { return new Response(); } },
-  };
-  const request = () => new Request("https://daily-journal-123.example/actions", {
-    method: "POST", body: '{"action":"upload","args":{}}',
-    headers: { "content-type": "application/json", "x-cloudflare-spaces-viewer-authenticated": "1",
-      "x-cloudflare-spaces-share-id": "share", "x-cloudflare-spaces-space-slug": "daily-journal", "x-cloudflare-spaces-space-id": "123",
-      "x-cloudflare-spaces-viewer-fbid": "owner", "x-cloudflare-spaces-owner-fbid": "owner", "x-cloudflare-spaces-is-owner": "true",
-      "x-cloudflare-spaces-token-exp": "2000000000", "x-cloudflare-spaces-token-jti": "test" },
-  });
-  const execution = { props: { HATCH: { async checkUpload(input) {
-    checks++;
-    assert.deepEqual(input, { bytes: new TextEncoder().encode("original bytes"), contentType: "text/plain", key: "blobs/public/note.txt" });
-    return { verdict: "allow", checkId: "checked", receipt: "not-for-storage" };
-  } } }, waitUntil() {} };
-  assert.equal((await offWorker.fetch(request(), env, execution)).status, 200);
-  assert.equal(checks, 0);
-  assert.deepEqual(mutations, [
-    ["delete", "blobs/private/note.txt"],
-    ["put", "blobs/public/note.txt", "original bytes", { httpMetadata: { contentType: "Text/Plain ; Charset=UTF-8" } }],
-  ]);
-  await buildCloudflareArtifacts({ spaceDir, outDir, checkedPut: true });
-  const onManifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  assert.equal(onManifest.runtime, "hatch-ts-cloudflare-v1");
-  assert.deepEqual({ ...onManifest, workerJs: "" }, { ...offManifest, workerJs: "" });
-  const onPath = path.join(outDir, "checked-worker.js");
-  await fs.copyFile(workerPath, onPath);
-  const onWorker = (await import(pathToFileURL(onPath).href)).default;
-  mutations.length = 0;
-  assert.equal((await onWorker.fetch(request(), env, execution)).status, 200);
-  assert.equal(checks, 1);
-  assert.deepEqual(mutations, [
-    ["delete", "blobs/private/note.txt"],
-    ["put", "blobs/public/note.txt", new TextEncoder().encode("original bytes"), { httpMetadata: { contentType: "Text/Plain ; Charset=UTF-8" }, customMetadata: { check_id: "checked" } }],
-  ]);
-  mutations.length = 0;
-  const unavailable = await onWorker.fetch(request(), env, { waitUntil() {} });
-  assert.equal(unavailable.status, 409);
-  assert.equal((await unavailable.json()).code, "action_outcome_unknown");
-  assert.deepEqual(mutations, []);
-  await buildCloudflareArtifacts({ spaceDir, outDir, checkedPut: false });
-  assert.deepEqual(await fs.readFile(workerPath), offBytes);
-  assert.deepEqual(await fs.readFile(manifestPath), offManifestBytes);
-}, 30_000);
-
 test("built Cloudflare worker refuses VM-backed ctx capabilities without calling the VM", async () => {
   const spaceDir = await makeSpace({
     actionsSource: `
@@ -272,7 +203,7 @@ export const Actions = {
   assert.deepEqual(outboundRequests, []);
 });
 
-test.each([false, true])("view-only recipients run actions read-only (checkedPut=%s)", async (checkedPut) => {
+test("view-only recipients run actions read-only on the read-only action path", async () => {
   const spaceDir = await makeSpace({
     actionsSource: `
 import { eq, sql } from "drizzle-orm";
@@ -336,7 +267,6 @@ export const Actions = {
   const { workerPath } = await buildCloudflareArtifacts({
     spaceDir,
     outDir: path.join(spaceDir, "cloudflare-dist"),
-    checkedPut,
   });
   const workerModule = await import(
     `${pathToFileURL(workerPath).href}?read-only-test=${Date.now()}`
@@ -443,7 +373,7 @@ export const Actions = {
     assert.deepEqual(titles(), ["eggs", "milk"]);
     const saved = await call("/actions", "saveBlob", {});
     assert.equal(saved.status, 200, await saved.clone().text());
-    assert.equal(checks.length, checkedPut ? 1 : 0);
+    assert.equal(checks.length, 1);
     assert.deepEqual(mutations.map(([method, key]) => [method, key]).sort(), [
       ["delete", "blobs/public/note.txt"], ["put", "blobs/private/note.txt"],
     ]);

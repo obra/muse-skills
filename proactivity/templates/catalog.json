@@ -548,7 +548,7 @@
       "file": "learning/ready-exercise.html",
       "name": "Learning and practice",
       "when": "A short, complete activity that the user can enjoy or practice immediately.",
-      "requires": "Prepare the actual exercise and complete answer, grounded in the user’s interest and level. This is something to use, not a reminder to study. Keep the language familiar and the time estimate honest. The reveal is optional. Do not demand a score or completion report. When listening serves the task better, follow `Spoken Audio` at `/opt/muse/skills/spoken-audio/SKILL.md` or `Podcast Production` at `/opt/muse/skills/generate_podcast/SKILL.md`. Use `window.hatchWidget.getState` and `window.hatchWidget.setState` if you add saved answers or other persistent interactions."
+      "requires": "Prepare the actual exercise and complete answer, grounded in the user’s interest and level. This is something to use, not a reminder to study. Keep the language familiar and the time estimate honest. The reveal is optional. Do not demand a score or completion report. When listening serves the task better, follow `Spoken Audio` at `/opt/muse/skills/spoken-audio/SKILL.md` or `Podcast Production` at `/opt/muse/skills/generate_podcast/SKILL.md`."
     }
   ]
 }

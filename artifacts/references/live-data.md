@@ -21,7 +21,7 @@ builders: web
 
 - Work down this list inside a server action and take the first channel that fits.
 
-- Once an artifact is shared, its page cannot reach `ctx.inference`, `ctx.agent` or `ctx.tool`; scheduled actions still can. So a shared artifact's page reads saved data, and a schedule or the user's agent refreshes it.
+- Publishing a web artifact makes a copy that keeps its own data and cannot reach `ctx.inference`, `ctx.agent` or `ctx.tool`; schedules and the user's agent refresh only the artifact itself.
 
 - Every `ctx.tool` call returns `{ content }`, and the fields below live on `content`: `(await ctx.tool.weather(q)).content.conditions`. Its options are only `since`, `until`, `language_code`, `location`, `timeout_secs` and the per-tool ones named below.
 

@@ -1,6 +1,6 @@
 # Email draft
 
-Tools: `widget.create_html_widget` or `widget.create_html_file_widget`. Use `muse.create_options` outside the card for real send or edit choices.
+Tools: `widget.create_html_widget` or `widget.create_html_file_widget`. Use `muse.create_options` for useful send or edit replies outside the card. Follow **Offer useful replies** and **Deliver the finished work** in `/opt/muse/assets/proactivity/presentation.md`.
 
 A compact compose sheet. Show visible address chips in labelled From, To, Cc and Bcc rows, followed by a distinct subject field and scrollable message body. To, Cc and Bcc are optional. Omit each entire row when it has no recipients. Keep the subject at a compact reading size, distinct from the body without treating it as a headline. Repeat chips for multiple recipients and keep the exact address readable. Address rows wrap and scroll when needed. Long subjects wrap without hiding words. The status must describe what actually exists, such as a draft prepared in Muse, a saved mailbox draft or a sent message. Do not draw pretend send buttons.
 

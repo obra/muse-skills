@@ -24,7 +24,7 @@ Use the current files under `/opt/muse/assets/proactivity/templates/calendar/`. 
 | [Preparation checklist](preparation-checklist.html) | An event with a few useful things to prepare. | Useful preparation, not a decorative or invented checklist. |
 | [Event materials](event-materials.html) | A meeting with relevant prepared documents. | Actual materials. Share their real attachments separately. |
 | [Changed event](changed-event.html) | A verified change to an existing event. | Both versions. Keep the main event details current. |
-| [Reschedule options](reschedule-options.html) | A few viable alternative times to choose between. | Verified availability. Use `muse.create_options` for the actual choice. |
+| [Reschedule options](reschedule-options.html) | A few viable alternative times to choose between. | Verified availability. Use `muse.create_options` for the actual choice outside the card. Follow **Offer useful replies** and **Deliver the finished work** in `/opt/muse/assets/proactivity/presentation.md`. |
 | [Overlap comparison](overlap-comparison.html) | Two events whose times genuinely conflict. | Actual event times and overlap, including timezone. |
 | [Travel buffer](travel-buffer.html) | An event whose travel time affects the plan. | Grounded travel time and the intended arrival buffer. |
 | [Timezones](timezones.html) | An event involving people in different timezones. | The same instant converted with the correct dates and offsets. |

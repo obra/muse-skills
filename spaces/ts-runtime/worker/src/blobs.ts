@@ -137,6 +137,9 @@ async function openIndex(root: string): Promise<Client> {
   if (!hasObjectId) {
     await client.execute("ALTER TABLE blobs ADD COLUMN object_id TEXT");
   }
+  await client.execute(
+    "CREATE INDEX IF NOT EXISTS blobs_key_prefix ON blobs(key COLLATE NOCASE)",
+  );
   return client;
 }
 

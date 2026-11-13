@@ -52,10 +52,6 @@ function parseArgs(argv) {
       index += 1;
       continue;
     }
-    if (argument === "--checked-put") {
-      parsed.checkedPut = true;
-      continue;
-    }
     throw new Error(`Unknown argument: ${argument}`);
   }
 
@@ -273,14 +269,12 @@ async function collectMigrations(spaceDir) {
   );
 }
 
-async function writeEntrypoint(entryDir, spaceDir, checkedPut) {
+async function writeEntrypoint(entryDir, spaceDir) {
   await fs.mkdir(entryDir, { recursive: true });
   const entryPath = path.join(entryDir, "entry.ts");
   const packageJson = await readJsonIfExists(path.join(spaceDir, "package.json"));
   const slug = packageJson.hatch?.slug ?? path.basename(spaceDir);
-  const runtimeImport = toImportSpecifier(entryDir, checkedPut === true
-    ? path.join(__dirname, "src", "checked-put.ts")
-    : workerRuntimePath);
+  const runtimeImport = toImportSpecifier(entryDir, workerRuntimePath);
   const actionsPath = path.join(spaceDir, "server", "src", "actions.ts");
   const actionsImport = toImportSpecifier(entryDir, actionsPath);
   await fs.writeFile(
@@ -427,7 +421,7 @@ async function writeDeployManifest({ spaceDir, outDir, workerPath }) {
   return manifestPath;
 }
 
-export async function buildCloudflareArtifacts({ spaceDir, outDir, checkedPut = false }) {
+export async function buildCloudflareArtifacts({ spaceDir, outDir }) {
   const resolvedSpaceDir = path.resolve(spaceDir);
   const resolvedOutDir = path.resolve(outDir);
   const actionsPath = path.join(resolvedSpaceDir, "server", "src", "actions.ts");
@@ -439,7 +433,7 @@ export async function buildCloudflareArtifacts({ spaceDir, outDir, checkedPut = 
   await fs.mkdir(resolvedOutDir, { recursive: true });
   const aliases = dependencyAliases(resolvedSpaceDir);
   const entryDir = path.join(resolvedOutDir, ".entry");
-  const entryPath = await writeEntrypoint(entryDir, resolvedSpaceDir, checkedPut);
+  const entryPath = await writeEntrypoint(entryDir, resolvedSpaceDir);
   const configPath = await writeTypecheckConfig(
     entryDir,
     entryPath,

@@ -1,6 +1,6 @@
 # HTML widget inspiration
 
-Use a native widget when its purpose, source data and supported actions fit the task. Use this library for HTML cards that need a bespoke presentation. Use `widget.create_list_widget` for flight offers and `travel.create_hotel_results_widget` for hotel offers to compare or select bookings. A booked flight’s status, a restaurant reservation and an existing hotel stay need a summary of the arrangement, not a new booking flow.
+This library supplies starting points after you have chosen an HTML card for a useful outcome. Adapt a reference to that work and the user. Use `widget.create_list_widget` for flight offers and `travel.create_hotel_results_widget` for hotel offers to compare or select bookings. A booked flight’s status, a restaurant reservation and an existing hotel stay need a summary of the arrangement, not a new booking flow.
 
 Tools: `widget.create_html_widget` and `widget.create_html_file_widget`.
 
@@ -8,22 +8,26 @@ Tools: `widget.create_html_widget` and `widget.create_html_file_widget`.
 
 Read the relevant index and the closest HTML reference. Borrow its useful structure and adapt it freely to the user and the work. If nothing fits, read a few examples for inspiration and make a bespoke widget. The catalog is not a limit on what Muse can prepare.
 
-| Category | References | What they help present |
+| Category and reference count | Absolute index path | What they help present |
 | --- | --- | --- |
-| [Email](email/README.md) | 20 variants | Replies, introductions, attachments, translations and recipient review |
-| [Calendar](calendar/README.md) | 20 variants | Events, guests, preparation, changed plans and timezones |
-| [Weather](weather/README.md) | 20 variants | Current conditions, hourly outlooks and weather that affects a plan |
-| [Flight status](flight/README.md) | 20 variants | Booked flights, delays, connections, arrivals and pickup timing |
-| [Hotel](hotel/README.md) | Reservation | Property photo, stay dates, room and arrival details |
-| [Restaurant](restaurant/README.md) | Reservation | Venue photo, date, time, party size and arrival details |
-| [Events and outings](event/README.md) | Outing | A fitting event, its venue, admission and arrival details |
-| [Deliveries and pickups](delivery/README.md) | Order status | Confirmed milestones, arrival estimates and pickup details |
-| [Payments and renewals](payment/README.md) | Payment status | Amount, date and the distinction between due, scheduled and paid |
-| [Job opportunities](job/README.md) | Prepared opportunity | Role, terms, fit and application material ready to use |
-| [Progress](progress/README.md) | Before and after | Comparable measurements with dates and units |
-| [Learning](learning/README.md) | Ready exercise | A complete practice activity, hint and answer |
+| Email (20 variants) | `/opt/muse/assets/proactivity/templates/email/README.md` | Replies, introductions, attachments, translations and recipient review |
+| Calendar (20 variants) | `/opt/muse/assets/proactivity/templates/calendar/README.md` | Events, guests, preparation, changed plans and timezones |
+| Weather (20 variants) | `/opt/muse/assets/proactivity/templates/weather/README.md` | Current conditions, hourly outlooks and weather that affects a plan |
+| Flight status (20 variants) | `/opt/muse/assets/proactivity/templates/flight/README.md` | Booked flights, delays, connections, arrivals and pickup timing |
+| Hotel (Reservation) | `/opt/muse/assets/proactivity/templates/hotel/README.md` | Property photo, stay dates, room and arrival details |
+| Restaurant (Reservation) | `/opt/muse/assets/proactivity/templates/restaurant/README.md` | Venue photo, date, time, party size and arrival details |
+| Events and outings (Outing) | `/opt/muse/assets/proactivity/templates/event/README.md` | A fitting event, its venue, admission and arrival details |
+| Deliveries and pickups (Order status) | `/opt/muse/assets/proactivity/templates/delivery/README.md` | Confirmed milestones, arrival estimates and pickup details |
+| Payments and renewals (Payment status) | `/opt/muse/assets/proactivity/templates/payment/README.md` | Amount, date and the distinction between due, scheduled and paid |
+| Job opportunities (Prepared opportunity) | `/opt/muse/assets/proactivity/templates/job/README.md` | Role, terms, fit and application material ready to use |
+| Progress (Before and after) | `/opt/muse/assets/proactivity/templates/progress/README.md` | Comparable measurements with dates and units |
+| Learning (Ready exercise) | `/opt/muse/assets/proactivity/templates/learning/README.md` | A complete practice activity, hint and answer |
 
-`catalog.json` lists each reference and when it fits. The original [email](email.md), [calendar](calendar.md), [weather](weather.md) and [flight](travel.md) guides explain the foundation of those designs.
+`/opt/muse/assets/proactivity/templates/catalog.json` lists each reference and when it fits. The original [email](email.md), [calendar](calendar.md), [weather](weather.md) and [flight](travel.md) guides explain the foundation of those designs.
+
+## Reply choices
+
+Use `muse.create_options` for useful replies outside the HTML card. Keep the card for displaying the result, without action buttons. Read **Offer useful replies** and **Deliver the finished work** in `/opt/muse/assets/proactivity/presentation.md`. The brief introduction and optional choices precede the standalone card. Keep the result useful without requiring a reply.
 
 ## Make it fit
 
