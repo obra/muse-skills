@@ -28,6 +28,8 @@ export async function fulfillLocalAuditRequest(
       (relative === "" ||
         relative === "icon.jpg" ||
         relative === "icon.png" ||
+        relative === "_viewer" ||
+        relative.startsWith("_viewer/") ||
         relative.startsWith("assets/") ||
         relative.startsWith("blobs/"));
     const action =

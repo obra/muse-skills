@@ -17,10 +17,13 @@
 // the compiled `dist/client.js` to the SDK package root's `styles.css`.
 import "../styles.css";
 
-import { QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryClient } from "@tanstack/react-query";
 import type { input as ZodInput, ZodType } from "zod";
 
+import { showFailureNotice } from "./client/failure-notice";
+export { setFailureNoticeText, type FailureNoticeText } from "./client/failure-notice";
 import { installSpaceThemeListener } from "./client/host-theme";
+import { requestSchemaIssues, requestSchemaMessage, type SpaceActionIssue } from "./client/request-issues";
 import {
   createSpaceViewerStore,
   useSpaceViewerFrom,
@@ -36,6 +39,7 @@ export type {
 } from "./client/safe-area";
 
 export { bytesToBase64, fileToBase64 } from "./client/file-encoding";
+export type { SpaceActionIssue } from "./client/request-issues";
 export type {
   SpacePerson,
   SpacePresentPerson,
@@ -50,7 +54,11 @@ export type {
  * permanent client error (4xx) apart from retryable backpressure/transient
  * failures, and the server's `Retry-After` (when present) as `retryAfterMs` so
  * the backoff honors it, and the server's error `code` (when present) so a
- * page can tell refusals with the same status apart.
+ * page can tell refusals with the same status apart. From platformVersion 29,
+ * `message` is always readable, so a page shows it as is: each rejected field's
+ * label with the request schema's message (also listed in `issues`), the
+ * action's own error, or a plain retry or reload message; `detail` keeps the
+ * action, status and response body for logs. Below 29 `message` is `detail`.
  */
 export class SpaceActionError extends Error {
   constructor(
@@ -59,6 +67,8 @@ export class SpaceActionError extends Error {
     readonly retryAfterMs?: number,
     readonly retrySafe = false,
     readonly code?: string,
+    readonly issues: readonly SpaceActionIssue[] = [],
+    readonly detail: string = message,
   ) {
     super(message);
     this.name = "SpaceActionError";
@@ -73,6 +83,16 @@ export const PERMANENT_ACTION_STATUSES = new Set([400, 401, 403, 404, 409, 413, 
 export const MAX_ACTION_RETRIES = 3;
 const RETRY_BASE_MS = 1_000;
 const RETRY_CAP_MS = 30_000;
+
+declare const __HATCH_SPACE_PLATFORM_VERSION__: number | undefined;
+
+/**
+ * The failure notice and readable action errors start at platformVersion 29,
+ * which a space reaches only with hatch_spaces_schema_input_limits on. The client
+ * build compiles the version in; a bundle built without it keeps the old behavior.
+ */
+const READABLE_FAILURES =
+  typeof __HATCH_SPACE_PLATFORM_VERSION__ === "number" && __HATCH_SPACE_PLATFORM_VERSION__ >= 29;
 
 /**
  * Default retry predicate for Space action queries, used by
@@ -126,8 +146,19 @@ export function actionRetryDelay(failureCount: number, error: unknown): number {
  *   <QueryClientProvider client={spaceQueryClient}>
  *     <App />
  *   </QueryClientProvider>
+ *
+ * From platformVersion 29, a mutation with no `onError` or `onSettled` of its own
+ * shows its failure as a short notice at the bottom of the page, so a save with no
+ * handler is never silent.
  */
 export const spaceQueryClient = new QueryClient({
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      if (READABLE_FAILURES && mutation.options.onError === undefined && mutation.options.onSettled === undefined) {
+        showFailureNotice(error);
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: shouldRetryAction,
@@ -803,7 +834,7 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
       if (name === "then" || name === "catch" || name === "finally") {
         return undefined;
       }
-      return async (args: unknown) => {
+      const invokeAction = async (args: unknown): Promise<unknown> => {
         throwIfSpaceUnavailable();
         const actionCallId = createActionCallId();
         rememberLocalActionCall(actionCallId);
@@ -858,64 +889,116 @@ export function createActionClient<A extends Record<string, ClientActionShape>>(
                 markSpaceUnavailable(actionCallId);
                 throwIfSpaceUnavailable();
               }
-              throw new SpaceActionError(
-                actionFailureMessage(
-                  name,
-                  "failed after auth refresh",
-                  retryResponse.status,
-                  retryBody,
-                ),
-                retryResponse.status,
-                parseRetryAfterMs(retryResponse),
-                isActionRetrySafe(retryBody),
-                actionErrorCode(retryBody),
-              );
+              throw failedActionError(name, "failed after auth refresh", retryResponse, retryBody);
             }
             return readActionData(retryResponse, name);
           }
-          throw new SpaceActionError(
-            actionFailureMessage(name, "failed", response.status, body),
-            response.status,
-            parseRetryAfterMs(response),
-            isActionRetrySafe(body),
-            actionErrorCode(body),
-          );
+          throw failedActionError(name, "failed", response, body);
         }
         return readActionData(response, name);
       };
+      // A network drop or failed auth refresh arrives as a plain error. The request may
+      // already have run, so it reads like any outcome we can't confirm; `detail` keeps
+      // the original text.
+      return (args: unknown) =>
+        invokeAction(args).catch((error: unknown) => {
+          if (!READABLE_FAILURES || error instanceof SpaceActionError) throw error;
+          throw new SpaceActionError(OUTCOME_UNKNOWN_MESSAGE, 0, undefined, false, undefined, [], String(error));
+        });
     },
   });
+}
+
+function failedActionError(
+  name: string,
+  failure: string,
+  response: Response,
+  body: unknown,
+): SpaceActionError {
+  const issues = requestSchemaIssues(body);
+  const detail = actionFailureDetail(name, failure, response.status, body);
+  return new SpaceActionError(
+    !READABLE_FAILURES
+      ? legacyFailureMessage(body, detail)
+      : issues.length > 0
+        ? requestSchemaMessage(issues)
+        : actionFailureMessage(response.status, body),
+    response.status,
+    parseRetryAfterMs(response),
+    isActionRetrySafe(body),
+    actionErrorCode(body),
+    issues,
+    detail,
+  );
 }
 
 function isActionRetrySafe(body: unknown): boolean {
   return body !== null && typeof body === "object" && "retrySafe" in body && body.retrySafe === true;
 }
 
+const RETRY_MESSAGE = "Something went wrong. Please try again.";
+const BUSY_MESSAGE = "The app is busy right now. Please try again in a moment.";
+// The same sentence the Cloudflare runtime sends with `action_outcome_unknown`.
+const OUTCOME_UNKNOWN_MESSAGE = "The app could not confirm the result. Reload to check your changes before trying again.";
+
 const SHOWN_REFUSAL_CODES = new Set([
   "view_only",
   "peer_artifact_view_only",
 ]);
 
-/**
- * A shown refusal, such as a view-only viewer's, keeps the host's own
- * sentence, so an app that shows the error tells the person why; any other
- * failure names the action, status, and body.
- */
-function actionFailureMessage(name: string, failure: string, status: number, body: unknown): string {
-  const error = body !== null && typeof body === "object" && "error" in body ? body.error : undefined;
+/** Before platformVersion 29: a shown refusal keeps the host's sentence; anything else is the detail. */
+function legacyFailureMessage(body: unknown, detail: string): string {
+  const text = actionErrorText(body);
   const code = actionErrorCode(body);
-  const message =
-    typeof error === "string" ? error : (error as { message?: unknown } | null | undefined)?.message;
-  if (
-    code !== undefined &&
-    SHOWN_REFUSAL_CODES.has(code) &&
-    typeof message === "string" &&
-    message.length > 0
-  ) {
-    return message;
+  return code !== undefined && SHOWN_REFUSAL_CODES.has(code) && text !== undefined && text.length > 0 ? text : detail;
+}
+
+/**
+ * A shown refusal, such as a view-only viewer's, keeps the host's own sentence,
+ * and so does the action's own error ("That slot is already booked at 10:30").
+ * A crash or database error, which the worker names by its type ("TypeError: …"),
+ * or a server that can't be reached becomes a plain retry message; a result the
+ * server could not confirm asks the person to reload before trying again.
+ */
+function actionFailureMessage(status: number, body: unknown): string {
+  const text = actionErrorText(body);
+  const code = actionErrorCode(body);
+  if (code !== undefined && SHOWN_REFUSAL_CODES.has(code) && text !== undefined && text.length > 0) {
+    return text;
   }
+  if (code === "shared_artifact_vm_capability_unavailable") {
+    return "This isn't available while the app is shared.";
+  }
+  if (code === "action_outcome_unknown") {
+    return OUTCOME_UNKNOWN_MESSAGE;
+  }
+  // The VM runs the handler before it validates the response, so the write may have happened.
+  if (text !== undefined && /^response validation failed\b/.test(text)) {
+    return OUTCOME_UNKNOWN_MESSAGE;
+  }
+  if (status < 502 && text !== undefined && isActionsOwnMessage(text)) {
+    return text;
+  }
+  return status === 429 || status >= 502 ? BUSY_MESSAGE : RETRY_MESSAGE;
+}
+
+function actionFailureDetail(name: string, failure: string, status: number, body: unknown): string {
   const text = typeof body === "string" ? body : JSON.stringify(body ?? null);
   return `action ${name} ${failure}: ${status} ${text}`;
+}
+
+function actionErrorText(body: unknown): string | undefined {
+  const error = body !== null && typeof body === "object" && "error" in body ? body.error : undefined;
+  const message =
+    typeof error === "string" ? error : (error as { message?: unknown } | null | undefined)?.message;
+  return typeof message === "string" ? message.replace(/^Error: /, "").trim() : undefined;
+}
+
+// What the worker sends for a crash, a rejected request or a database failure.
+const CRASH_TEXT = /^[A-Za-z]*(?:Error|Exception)\b|^invalid args\b|^Failed query\b|^\s*[{[]|\bat \S+:\d+:\d+/;
+
+function isActionsOwnMessage(text: string): boolean {
+  return text.length > 0 && text.length <= 500 && !text.includes("\n") && !CRASH_TEXT.test(text);
 }
 
 function actionErrorCode(body: unknown): string | undefined {

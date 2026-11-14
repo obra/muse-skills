@@ -41,6 +41,7 @@ import {
   type SpaceToolClient,
 } from "@hatch/space-sdk";
 
+import { requestIssueMessage } from "../../sdk/src/request-messages";
 import { openSpaceDb, type SpaceDb } from "./db";
 import { ViewOnlyError, VIEW_ONLY_CODE, isReadOnlyRefusal, readOnlyBlobs } from "./read_only";
 import { createAgentClient } from "./agent";
@@ -117,6 +118,22 @@ function emitData(requestId: string, data: unknown): void {
 
 function emitEnd(requestId: string): void {
   writeFrame({ kind: "end", request_id: requestId });
+}
+
+const RUNTIME_ERROR_TYPES = [TypeError, RangeError, ReferenceError, SyntaxError, EvalError, URIError];
+
+/**
+ * An action's own `throw new Error("That name is taken")` keeps its message as written; a crash
+ * or database error is named by its type ("TypeError: …", "LibsqlError: …"), so the page shows a
+ * plain retry message for it instead of the crash text.
+ */
+function actionErrorText(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const crashed =
+    RUNTIME_ERROR_TYPES.some((type) => err instanceof type) ||
+    /libsql|sqlite|drizzle|zod/i.test(err.name) ||
+    /^SQLITE_/.test(String((err as { code?: unknown }).code ?? ""));
+  return crashed ? `${err.name}: ${err.message}` : err.message;
 }
 
 function emitError(requestId: string, error: string, code?: "view_only"): void {
@@ -402,7 +419,7 @@ async function runInvocation(args: {
 
   let parsedArgs: unknown;
   try {
-    parsedArgs = definition.request.parse(command.args ?? {});
+    parsedArgs = definition.request.parse(command.args ?? {}, { error: requestIssueMessage });
   } catch (err) {
     if (err instanceof z.ZodError) {
       emitError(command.request_id, `invalid args: ${err.message}`);
@@ -470,10 +487,7 @@ async function runInvocation(args: {
     } else if (readOnly && isReadOnlyRefusal(err)) {
       emitError(command.request_id, new ViewOnlyError().message, VIEW_ONLY_CODE);
     } else {
-      emitError(
-        command.request_id,
-        err instanceof Error ? err.message : String(err),
-      );
+      emitError(command.request_id, actionErrorText(err));
     }
     emitEnd(command.request_id);
   }

@@ -755,6 +755,8 @@ test("local capture confines UDS requests to its audit and fails closed", async 
           headers: () => ({
             authorization: "secret",
             "x-hatch-verified-uid": "spoof",
+            "x-hatch-peer-space-id": "another-space",
+            "x-hatch-peer-audit-route": "another-route",
           }),
         }),
         abort: async () => {
@@ -771,7 +773,14 @@ test("local capture confines UDS requests to its audit and fails closed", async 
       await handler(route as never);
       return outcome;
     };
-    for (const path of ["", "assets/client.js", "blobs/key", "icon.png"]) {
+    for (const path of [
+      "",
+      "assets/client.js",
+      "blobs/key",
+      "icon.png",
+      "_viewer",
+      "_viewer/cursor",
+    ]) {
       expect(await dispatch(`/spaces/v2/${ROUTE_SLUG}/${path}`)).toBe("200");
     }
     expect(await dispatch(`/spaces/v2/${ROUTE_SLUG}/actions`, "POST")).toBe(
@@ -786,6 +795,7 @@ test("local capture confines UDS requests to its audit and fails closed", async 
     for (const path of [
       "/spaces/v2/another-space/blobs/key",
       `/spaces/v2/${ROUTE_SLUG}/spaces/v2/another-space/blobs/key`,
+      `/spaces/v2/${SLUG}/_viewer`,
     ]) {
       expect(await dispatch(path)).toBe("aborted");
     }
@@ -801,11 +811,13 @@ test("local capture confines UDS requests to its audit and fails closed", async 
     expect(await dispatch(`/spaces/v2/${ROUTE_SLUG}/`, "DELETE")).toBe(
       "aborted",
     );
-    expect(seen).toHaveLength(6);
+    expect(seen).toHaveLength(8);
     for (const request of seen) {
       expect(request.get("x-hatch-audit-session")).toBe("local-session");
       expect(request.has("authorization")).toBe(false);
       expect(request.has("x-hatch-verified-uid")).toBe(false);
+      expect(request.has("x-hatch-peer-space-id")).toBe(false);
+      expect(request.has("x-hatch-peer-audit-route")).toBe(false);
     }
     await server.stop(true);
     expect(await dispatch(`/spaces/v2/${ROUTE_SLUG}/`)).toBe("aborted");

@@ -1,0 +1,137 @@
+.connection-card, .connection-card * { box-sizing: border-box; }
+.connection-card {
+  --card-paper: #fffefa;
+  --card-ink: #292e29;
+  --card-muted: #656e62;
+  --card-line: #e1e5da;
+  --card-well: #f0f3ea;
+  --card-accent: #50674f;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--card-line);
+  border-radius: 22px;
+  background: var(--card-paper);
+  color: var(--card-ink);
+  font-family: var(--font-optimistic, "Optimistic Text", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--text-body, 16px);
+  line-height: var(--text-response--line-height, 26px);
+  overflow-wrap: anywhere;
+  text-align: start;
+}
+html[data-theme="dark"] .connection-card {
+  --card-paper: #242922;
+  --card-ink: #f0f1e9;
+  --card-muted: #b4bdad;
+  --card-line: #424d3c;
+  --card-well: #30392b;
+  --card-accent: #bfd1b2;
+}
+.connection-card :is(h3, h4, p) { margin: 0; }
+.connection-card .connection-header { display: flex; align-items: center; gap: 18px; padding: 24px; }
+.connection-card .muse-pair { display: flex; flex: none; align-items: center; gap: 8px; }
+.connection-card .muse-portrait {
+  display: block;
+  width: 48px;
+  height: 48px;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--card-line);
+  border-radius: 50%;
+  background: var(--card-well);
+}
+.connection-card .muse-portrait img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.connection-card .connection-person { min-width: 0; flex: 1; }
+.connection-card .connection-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--card-muted); font-size: 12px; line-height: 18px; }
+.connection-card .connection-state { padding: 2px 8px; border-radius: 20px; background: var(--card-well); font-size: 11px; line-height: 18px; }
+.connection-card .connection-name { margin-top: 3px; font-size: 18px; line-height: 25px; font-weight: 600; letter-spacing: -.02em; }
+.connection-card .connection-route { display: flex; align-items: baseline; flex-wrap: wrap; gap: 3px 6px; margin-top: 4px; color: var(--card-muted); font-size: 12px; line-height: 18px; }
+.connection-card .connection-arrow { font-family: system-ui, sans-serif; }
+.connection-card .connection-content { padding: 22px 24px 26px; border-top: 1px solid var(--card-line); }
+.connection-card .connection-topic { margin-bottom: 14px; color: var(--card-accent); font-size: 14px; line-height: 21px; font-weight: 600; }
+.connection-card .connection-message {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--card-line) transparent;
+  white-space: pre-wrap;
+}
+.connection-card .connection-message:focus-visible { outline: 2px solid var(--card-accent); outline-offset: 4px; border-radius: 3px; }
+
+.connection-card.invitation { --card-paper: #fcf5ee; --card-ink: #492e27; --card-muted: #805f51; --card-line: #e9d6c8; --card-well: #f0e2d5; --card-accent: #91533c; border-radius: 100px 100px 20px 20px; }
+.invitation .connection-header { flex-direction: column; gap: 18px; padding: 30px 28px 22px; }
+.invitation .connection-person { width: 100%; text-align: center; }
+.invitation .connection-label { justify-content: center; }
+.invitation .connection-route { justify-content: center; }
+.invitation .connection-content { margin: 0 26px; padding: 25px 0 30px; text-align: center; }
+.invitation .connection-topic { font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 400; line-height: 30px; letter-spacing: -.025em; }
+
+.connection-card.itinerary { --card-paper: #f5f9fb; --card-ink: #253c47; --card-muted: #596f7b; --card-line: #cedde4; --card-well: #e5eef2; --card-accent: #365f73; border-radius: 18px; }
+.itinerary .connection-header { background: var(--card-well); }
+.itinerary .connection-content { border-top-style: dashed; padding: 26px; }
+.itinerary .connection-topic { font-size: 22px; line-height: 28px; font-weight: 400; letter-spacing: -.025em; }
+.itinerary .connection-message { padding-inline-start: 16px; border-inline-start: 2px solid var(--card-line); }
+
+.connection-card.editorial { --card-paper: #fbfaf7; --card-ink: #34332f; --card-muted: #6b695e; --card-line: #dedbd2; --card-well: #efece4; --card-accent: #5a5b42; border-radius: 3px; border-top: 3px solid var(--card-accent); }
+.editorial .connection-header { flex-direction: row-reverse; align-items: flex-start; }
+.editorial .connection-label { justify-content: flex-start; }
+.editorial .connection-content { margin: 0 24px; padding: 24px 0 28px; }
+.editorial .connection-topic { font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 400; line-height: 30px; letter-spacing: -.025em; }
+
+.connection-card.note { border-radius: 16px; }
+.note .connection-header { padding: 20px 22px 0; }
+.note .muse-portrait { width: 38px; height: 38px; }
+.note .muse-pair { gap: 6px; }
+.note .connection-content { border: 0; padding: 20px 22px 23px; }
+.note .connection-topic { margin-bottom: 7px; font-size: 12px; color: var(--card-muted); font-weight: 400; }
+.note .connection-message { font-size: 19px; line-height: 29px; letter-spacing: -.018em; }
+
+.connection-card.folio { --card-paper: #f8f8f6; --card-ink: #303630; --card-muted: #647063; --card-line: #d9e0d5; --card-well: #e9eee5; --card-accent: #476044; border-radius: 10px; }
+.folio .connection-header { padding: 22px 24px; }
+.folio .connection-content { margin: 0 12px 12px; border: 1px solid var(--card-line); border-radius: 5px; padding: 22px 20px; background: var(--card-well); }
+.folio .connection-topic { padding-bottom: 14px; border-bottom: 1px solid var(--card-line); font-size: 19px; line-height: 25px; letter-spacing: -.015em; }
+
+.connection-card.postcard { --card-paper: #fff9e9; --card-ink: #463b28; --card-muted: #786844; --card-line: #e6d9b4; --card-well: #f5eccf; --card-accent: #826532; border-radius: 6px; padding: 9px; }
+.postcard .connection-header { padding: 19px 16px; border: 1px solid var(--card-line); border-bottom: 0; }
+.postcard .connection-content { padding: 22px 20px 25px; border: 1px solid var(--card-line); border-top-style: dashed; }
+.postcard .connection-topic { font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-style: italic; font-weight: 400; line-height: 29px; letter-spacing: -.025em; }
+
+.connection-card.evening { --card-paper: #f5f0f6; --card-ink: #49384c; --card-muted: #79617c; --card-line: #dfd2e1; --card-well: #ece2ed; --card-accent: #77537e; border-radius: 24px; }
+.evening .connection-header { padding: 28px 26px 23px; }
+.evening .connection-content { margin: 0 26px; padding: 25px 0 30px; border-top: 1px solid var(--card-accent); }
+.evening .connection-topic { font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 400; line-height: 30px; letter-spacing: -.025em; }
+
+.connection-card.margin { --card-paper: #fcfaf8; --card-ink: #3c3733; --card-muted: #73675e; --card-line: #e4ddd5; --card-well: #f0eae3; --card-accent: #7a6250; border-radius: 18px; }
+.margin .connection-header { padding-bottom: 18px; }
+.margin .connection-content { border-top: 0; padding-top: 5px; }
+.margin .connection-topic { padding: 11px 14px; margin-bottom: 18px; border-inline-start: 2px solid var(--card-accent); background: var(--card-well); font-weight: 400; }
+
+.connection-card.dispatch { --card-paper: #f6f8fa; --card-ink: #2d3e4e; --card-muted: #5f7184; --card-line: #d6dfe8; --card-well: #e9eef4; --card-accent: #476888; border-radius: 18px; }
+.dispatch .connection-header { border-top: 5px solid var(--card-accent); padding: 20px 24px 22px; }
+.dispatch .connection-content { padding: 22px 24px 25px; background: var(--card-well); }
+.dispatch .connection-topic { font-size: 21px; font-weight: 400; line-height: 27px; letter-spacing: -.025em; }
+
+html[data-theme="dark"] .invitation { --card-paper: #30241f; --card-ink: #f7eadd; --card-muted: #d1b6a2; --card-line: #5a4438; --card-well: #423026; --card-accent: #e9b39a; }
+html[data-theme="dark"] .itinerary { --card-paper: #1f2c34; --card-ink: #e7f0f6; --card-muted: #b0c3d0; --card-line: #415763; --card-well: #293d47; --card-accent: #a9cddb; }
+html[data-theme="dark"] .editorial { --card-paper: #292925; --card-ink: #efeee5; --card-muted: #bfbdac; --card-line: #4f4f43; --card-well: #36372e; --card-accent: #cdcfb0; }
+html[data-theme="dark"] .folio { --card-paper: #242b26; --card-ink: #edf1e9; --card-muted: #b1bfae; --card-line: #455541; --card-well: #303c2e; --card-accent: #bbd2af; }
+html[data-theme="dark"] .postcard { --card-paper: #302c22; --card-ink: #f7eed8; --card-muted: #d0c099; --card-line: #615539; --card-well: #403828; --card-accent: #e8ce95; }
+html[data-theme="dark"] .evening { --card-paper: #302535; --card-ink: #f2e9f5; --card-muted: #c8b3ce; --card-line: #59435f; --card-well: #423049; --card-accent: #d9b6e3; }
+html[data-theme="dark"] .margin { --card-paper: #2d2825; --card-ink: #f2ece5; --card-muted: #c9baac; --card-line: #564a40; --card-well: #3b322c; --card-accent: #d6b89e; }
+html[data-theme="dark"] .dispatch { --card-paper: #202b39; --card-ink: #e9f0f9; --card-muted: #b3c3d8; --card-line: #405571; --card-well: #2c3b50; --card-accent: #aac8ed; }
+
+@media (max-width: 600px) {
+  .connection-card .connection-message { max-height: 220px; }
+}
+@media (max-width: 380px) {
+  .connection-card .connection-header { gap: 12px; padding-inline: 20px; }
+  .connection-card .muse-portrait { width: 38px; height: 38px; }
+  .connection-card .muse-pair { gap: 6px; }
+  .connection-card .connection-name { font-size: 17px; line-height: 24px; }
+  .connection-card .connection-content { padding-inline: 20px; }
+  .invitation .connection-content, .editorial .connection-content, .evening .connection-content { padding-inline: 0; margin-inline: 20px; }
+  .postcard .connection-header { padding-inline: 12px; }
+  .postcard .connection-content { padding-inline: 14px; }
+  .connection-card .connection-state { padding-inline: 6px; }
+}

@@ -1,4 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
+import { requestIssueMessage } from "../../sdk/src/request-messages";
 import { ActionRequestError, readActionRequest } from "./action-request";
 import { admitSharedAction, sharedStateAvailable, SharedStateUnavailable, type SharedDatabase } from "./shared-state";
 import {
@@ -765,7 +766,7 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
         return jsonResponse({ error: `Unknown action: ${body.action}` }, 404);
       }
 
-      const parsedArgs = action.request.safeParse(body.args);
+      const parsedArgs = action.request.safeParse(body.args, { error: requestIssueMessage });
       if (!parsedArgs.success) {
         return jsonResponse(
           {

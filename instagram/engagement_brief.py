@@ -1,4 +1,4 @@
-import datetime, json, os, re, subprocess, sys, urllib.request
+import datetime, json, os, re, subprocess, sys, threading, urllib.request
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor as Pool
 from zoneinfo import ZoneInfo
@@ -9,9 +9,19 @@ STATE = os.path.expanduser("~/workspace/instagram-daily/state.json")
 MEDIA = os.path.expanduser("~/workspace/instagram-daily/media")
 UTC = datetime.timezone.utc
 day = lambda n: str(datetime.date.today() - datetime.timedelta(days=n))
+# The deletion ids each CLI response carries in `_meta`, printed as one `_meta` with the brief.
+deletion_ids, deletion_lock = {"fbids": {}, "message_ids": {}}, threading.Lock()
 def cli(base, *args):
-    try: return json.loads(subprocess.run(base + list(args), capture_output=True, text=True).stdout)
+    try: r = json.loads(subprocess.run(base + list(args), capture_output=True, text=True).stdout)
     except ValueError: return {}
+    data = ((r.pop("_meta", None) if isinstance(r, dict) else None) or {}).get("data") or {}
+    with deletion_lock:
+        for k, ids in deletion_ids.items(): ids.update(dict.fromkeys(data.get(k) or []))
+    return r
+def emit(out):
+    if any(deletion_ids.values()):
+        out["_meta"] = {"tool_call_id": os.environ.get("JARVIS_TOOL_CALL_ID", "").strip() or None, "data": {k: list(v) for k, v in deletion_ids.items()}}
+    print(json.dumps(out, ensure_ascii=False))
 ig = lambda *a: cli(IG, *a)
 fb = lambda *a: cli(FB, *a)
 def run_all(*calls):
@@ -73,7 +83,7 @@ def summarize(base, found, said):
            "recent_captions": [p["caption"] for p in found if p["caption"]][:5], "top_posts": ranked[:3], "weakest_posts": ranked[3:][-2:], "posts": found}
     if not out["too_little_to_compare"]:
         out.update(by_format=by(found, lambda p: p["format"]), by_time_of_day=by(found, lambda p: p["daypart"]),
-                   by_caption=by(found, lambda p: "asks a question" if "?" in p["caption"] else "no question"))
+                   by_caption=by(found, lambda p: "asks a question" if re.search(r"[?？]", p["caption"]) else "no question"))
     return out
 def ig_comments(a):
     def said(top):
@@ -196,7 +206,7 @@ igs, me, pages = run_all(lambda: ig("accounts").get("accounts") or [], lambda: f
 cands = ([(a["user_fbid"], a.get("username"), f"@{a.get('username')}", lambda a=a: read_ig(a)) for a in igs]
          + ([(f"fb:{me['fb_user_id']}", "facebook", "my Facebook profile", lambda: read_fb(me))] if me.get("fb_user_id") else [])
          + [(f"page:{p['page_id']}", f"page:{p['page_id']}", p.get("name") or "Facebook", lambda p=p: read_page(p)) for p in (pages.get("data") or [])[:3]])
-if not cands: sys.exit(print(json.dumps({"connected": False})))
+if not cands: sys.exit(emit({"connected": False}))
 state = json.load(open(STATE)) if os.path.exists(STATE) else {}
 want = sys.argv[sys.argv.index("--account") + 1].lstrip("@").lower() if "--account" in sys.argv else None
 saved = None if "--new" in sys.argv else state.get("account_id")
@@ -239,9 +249,15 @@ named = (out.get("top_posts") or [])[:3] + (out.get("stories") or {}).get("recen
         + [t for t in (out.get("insights_28_days") or {}).get("top_content_by_views") or [] if "format" in t][:3] \
         + (out.get("since_last_report") or {}).get("new_posts", [])[:1]
 key = lambda x: str(x.get("id") or x.get("media_id") or "")
+# Facebook timelines and Page lists carry no pictures, so each named Facebook post is read for its photo.
+if pick["platform"] != "instagram":
+    ids = list(dict.fromkeys(key(x) for x in named if key(x) and key(x) not in pictures))
+    for i, got in zip(ids, run_all(*[lambda i=i: fb("post", "read", "--post-id", i) for i in ids])):
+        url = ((got.get("posts") or [{}])[0]).get("thumbnail_url")
+        if url: pictures[i] = url
 saved_pictures = set(run_all(*[lambda i=i: save_picture(i) for i in {key(x) for x in named} & set(pictures)]))
 for x in named:
     if key(x) in saved_pictures: x["image"] = f"sandbox://workspace/instagram-daily/media/{key(x)}.jpg"
 os.makedirs(os.path.dirname(STATE), exist_ok=True)
 json.dump({"account_id": pick["account_id"], "follower_count": pick["followers"], "newest_post_id": (pick["posts"] or [{}])[0].get("id"), "date": day(0)}, open(STATE, "w"))
-print(json.dumps(out, ensure_ascii=False))
+emit(out)

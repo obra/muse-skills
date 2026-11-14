@@ -1,5 +1,5 @@
 {
-  "currentVersion": 28,
+  "currentVersion": 29,
   "versionField": "platformVersion",
   "upgrades": [
     {
@@ -537,6 +537,24 @@
       "verification": [
         "The artifact builds and typechecks without the removed Cloudflare fields; existing owner-only checks remain enforced.",
         "Use available sandbox checks and record authenticated owner/nonowner paths as unverified when they cannot be exercised. Do not fabricate a viewer to pass a check."
+      ]
+    },
+    {
+      "version": 29,
+      "id": "2026-11-07-schema-derived-input-limits",
+      "title": "Form inputs take their limits from the request schema",
+      "runtime": "typescript",
+      "summary": "`actionFields` from `@hatch/space-sdk/fields` (imported with { type: \"macro\" }) reads each action's request schema at build time. Once a Space is at platformVersion 29, client validation rejects a form input that feeds a limited request field without its FIELDS spread, any hand-written limit beside a FIELDS spread, and a submit handler that skips its save on blank text without showing why (`if (title.trim()) add.mutate()`, `if (!name.trim()) return;`). From version 29 the SDK also shows a failed mutation that has no `onError` or `onSettled` on `useMutation` as a notice at the bottom of the page, and `SpaceActionError.message` is readable as is.",
+      "applicability": "TypeScript web artifacts whose forms submit to server actions. Artifacts without form inputs need no source change.",
+      "instructions": [
+        "Add `const FIELDS = actionFields<typeof Actions>();` with `import { actionFields } from \"@hatch/space-sdk/fields\" with { type: \"macro\" }` and `import type { Actions } from \"../../server/src/actions\"`.",
+        "For each form input whose request field the schema limits, spread that field, `<input {...FIELDS.addTask.title} />` (`FIELDS.logWorkout.sets.rpe` inside a list or object), and delete the input's hand-written maxLength, minLength, min and max.",
+        "Leave inputs whose request field the schema does not limit unchanged: no FIELDS spread, existing attributes kept. Do not change the request schemas for this upgrade, so what the actions accept stays exactly the same (a limit change the person asked for in this edit still goes in the schema), and do not preemptively modify other Spaces.",
+    "Find every submit handler that skips its save on blank text without a message (`if (x.trim()) save.mutate()`, `if (!x.trim()) return;`), and make it show a short reason next to that field instead of returning silently, in this shape before the unchanged save: `if (!title.trim()) { setTitleError(\"…\"); return; }` (or an `else` that sets the error), with the error rendered beside the field. Keep the action unchanged.",
+    "Where the page shows a save's error itself through a `try/catch` around `mutateAsync`, a per-call `mutate(x, { onError })`, or by rendering `mutation.error`, move that handling into an `onError` passed to `useMutation(...)`, so the new notice doesn't show the same error a second time, and show `error.message` as is in place of any text the page built from the raw error."
+      ],
+      "verification": [
+        "The artifact builds and typechecks. Client validation does not check input limits during this upgrade build (the Space is still below version 29), so inspect every <input> and <textarea> that feeds a limited request field for its FIELDS spread and for leftover hand-written limits, and every blank-text check in a submit handler for a visible reason, before reporting the upgrade complete."
       ]
     }
   ]

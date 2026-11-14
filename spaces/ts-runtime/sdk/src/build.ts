@@ -9,9 +9,11 @@
 //
 // Bundles `client/index.html` to `client/dist/`. Asset naming matches the
 // daemon's `/spaces/v2/<slug>/assets/*` route. NODE_ENV is forced to
-// "production" so React's dev-only paths are tree-shaken out.
+// "production" so React's dev-only paths are tree-shaken out, and the space's
+// `platformVersion` (or the one an upgrading edit adopts) is compiled in as
+// `__HATCH_SPACE_PLATFORM_VERSION__`.
 
-import { cp, rm } from "node:fs/promises";
+import { cp, readFile, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import tailwindPlugin from "bun-plugin-tailwind";
 
@@ -58,6 +60,14 @@ export async function buildClient(_options: BuildClientOptions = {}): Promise<vo
   }
 
   await rm(OUTDIR, { force: true, recursive: true });
+  // An edit adopting managed upgrades ships this bundle before the platform writes the new
+  // version to space.json, so the build driver passes the version being adopted.
+  const adopted = Number(process.env.HATCH_SPACE_CLIENT_PLATFORM_VERSION);
+  const platformVersion = Number.isInteger(adopted) && adopted > 0
+    ? adopted
+    : await readFile("./space.json", "utf8")
+        .then((text) => (JSON.parse(text) as { platformVersion?: unknown }).platformVersion)
+        .catch(() => undefined);
 
   const result = await Bun.build({
     entrypoints: [ENTRY],
@@ -65,6 +75,7 @@ export async function buildClient(_options: BuildClientOptions = {}): Promise<vo
     minify: true,
     define: {
       "process.env.NODE_ENV": JSON.stringify("production"),
+      __HATCH_SPACE_PLATFORM_VERSION__: JSON.stringify(typeof platformVersion === "number" ? platformVersion : 0),
     },
     naming: {
       asset: "assets/[name]-[hash].[ext]",
