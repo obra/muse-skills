@@ -49,9 +49,7 @@ export type SearchRequest = {
   tool_method?: string;
   action_name?: string;
   root_request_id?: string;
-  builder_probe_authority?: {
-    runtime_context_token: string;
-  };
+  builder_probe_authority?: Record<string, never>;
 };
 
 type RawResponse =
@@ -79,7 +77,7 @@ type ToolContext = {
   toolMethod?: string;
   actionName?: string;
   rootRequestId?: string;
-  builderProbeRuntimeContextToken?: string;
+  builderProbe?: boolean;
 };
 
 function normalizeSearchRequest(
@@ -108,10 +106,8 @@ function normalizeSearchRequest(
   if (ctx?.toolMethod !== undefined) request.tool_method = ctx.toolMethod;
   if (ctx?.actionName !== undefined) request.action_name = ctx.actionName;
   if (ctx?.rootRequestId !== undefined) request.root_request_id = ctx.rootRequestId;
-  if (ctx?.builderProbeRuntimeContextToken !== undefined) {
-    request.builder_probe_authority = {
-      runtime_context_token: ctx.builderProbeRuntimeContextToken,
-    };
+  if (ctx?.builderProbe) {
+    request.builder_probe_authority = {};
   }
   return request;
 }
@@ -260,17 +256,17 @@ export function createToolClient(
 const BUILDER_PROBE_ACTION = "__builder_probe__";
 
 /**
- * Build the local-only probe client without teaching ordinary Space actions
- * to read an ambient runtime credential. The daemon and Sentinel validate the
- * opaque token; the fixed action and invocation id are correlation labels.
+ * Build the local-only probe client. The probe carries no credential: the
+ * daemon resolves the registered builder exec context from the connecting
+ * process itself, so the fixed action and invocation id are correlation
+ * labels, never identity.
  */
 export function createBuilderProbeToolClient(
   invocationId: string,
-  runtimeContextToken: string,
 ): Omit<SpaceToolClient, "generate_media"> {
   return createToolClientWithContext({
     actionInvocationId: invocationId,
     actionName: BUILDER_PROBE_ACTION,
-    builderProbeRuntimeContextToken: runtimeContextToken,
+    builderProbe: true,
   });
 }

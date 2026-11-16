@@ -114,7 +114,6 @@ function emitInvokedToolSchemas(invoked: Set<string>): void {
 const DEFAULT_INFERENCE_SOCKET = "/run/hatch/sandbox/space-inference.sock";
 const DEFAULT_WEB_SEARCH_SOCKET = "/run/hatch/sandbox/space-web-search.sock";
 const DEFAULT_SLUG = "__probe__";
-const RUNTIME_CONTEXT_TOKEN_ENV = "JARVIS_RUNTIME_CONTEXT_TOKEN";
 
 function ensureEnv(name: string, fallback: string): void {
   if (!process.env[name]?.trim()) {
@@ -122,20 +121,11 @@ function ensureEnv(name: string, fallback: string): void {
   }
 }
 
-function requireEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`missing required builder probe environment variable ${name}`);
-  }
-  return value;
-}
-
 export function buildProbeCtx(invokedTools: Set<string>): Ctx {
   ensureEnv("HATCH_SPACE_INFERENCE_SOCKET", DEFAULT_INFERENCE_SOCKET);
   ensureEnv("HATCH_SPACE_WEB_SEARCH_SOCKET", DEFAULT_WEB_SEARCH_SOCKET);
   ensureEnv("HATCH_SPACE_SLUG", DEFAULT_SLUG);
   const invocationId = `probe-${randomUUID()}`;
-  const runtimeContextToken = requireEnv(RUNTIME_CONTEXT_TOKEN_ENV);
 
   const db: SpaceDbAccessor = () => {
     throw new Error(
@@ -175,7 +165,7 @@ export function buildProbeCtx(invokedTools: Set<string>): Ctx {
   };
 
   const tool: SpaceToolClient = {
-    ...createBuilderProbeToolClient(invocationId, runtimeContextToken),
+    ...createBuilderProbeToolClient(invocationId),
     generate_media() {
       throw new Error(
         "ctx.tool.generate_media is not available in probe mode — requires a built web artifact",

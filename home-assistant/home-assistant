@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install, run and set up the Home Assistant that Muse ships.
 
-Usage: home-assistant {status|install|start|stop|setup|rollback|step-text}
+Usage: home-assistant {status|install|start|stop|setup|rollback|step-text|put-file config/<path>}
 
 Every command prints one JSON object on stdout and exits 0 when "ok" is true.
 step-text reads a config flow reply on stdin and adds Home Assistant's own
@@ -13,16 +13,29 @@ installing (held while install or rollback changes venv/; the service and
 its ensure timer stay off), previous/ (the last release and a copy of its
 database, for rollback). Muse provides home-assistant.service; never write
 or edit unit files.
+
+Home Assistant runs as its own unprivileged user and sees only
+~/homeassistant. Run as root, this command hands the tree to that user and
+runs the command as that user in a child that sees only ~/homeassistant, so
+code Home Assistant could have changed never runs as root. Root's own work
+(systemctl and journalctl for the service, the scan for other installs)
+happens before the child starts or after it exits, chosen by the command's
+name and a few checked fields of its result; the child never asks root for
+anything.
 """
 
+import errno
 import fcntl
 import hashlib
 import json
 import os
 import platform
+import pwd
 import re
+import select
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -59,6 +72,16 @@ CHANGE_LOCK = ROOT / ".lock"
 STAGED = ROOT / "previous.new"
 UNDO = ROOT / "rollback.undo"
 DATABASE_FILES = ("home-assistant_v2.db", "home-assistant_v2.db-wal", "home-assistant_v2.db-shm")
+
+# Fixed, so files on the persistent home keep their owner when the runtime
+# cell's root filesystem is rebuilt. Any uid in the cell's window maps to an
+# unused host uid.
+HA_USER = "homeassistant"
+HA_UID = 8123
+SYSUSERS_LINE = f'u {HA_USER} {HA_UID} "Home Assistant" {ROOT} /usr/sbin/nologin'
+CHILD_FLAG = "--as-home-assistant"
+# The systemd facts `status` needs, which root gathers for the child.
+FACTS_ENV = "HOME_ASSISTANT_SYSTEMD_FACTS"
 
 
 class Failure(Exception):
@@ -134,6 +157,46 @@ def recovery_mode_in_journal():
 def service_routes_link():
     env = systemctl("show", "-p", "Environment", SERVICE).stdout
     return "MUSE_LINK_PROXY=" in env
+
+
+def systemd_facts():
+    """What `status` needs from systemd. The journal is read only while the
+    service is active, the one case `status` consults it in."""
+    service = service_state()
+    active = service == "active"
+    return {
+        "service": service,
+        "routes_link": active and service_routes_link(),
+        "recovery_mode": active and recovery_mode_in_journal(),
+    }
+
+
+def facts_from_environment():
+    try:
+        facts = json.loads(os.environ.get(FACTS_ENV) or "null")
+    except ValueError:
+        return None
+    if (
+        not isinstance(facts, dict)
+        or not isinstance(facts.get("service"), str)
+        or not all(isinstance(facts.get(key), bool) for key in ("routes_link", "recovery_mode"))
+    ):
+        return None
+    return facts
+
+
+FACTS = None
+# Whether the service was running when `before` stopped it for a change.
+RUNNING_BEFORE = False
+# Root's hold over a change: while a process holds this lock, the ensure timer
+# leaves the service alone. The kernel drops it when root and the child it is
+# passed to are gone, so a change killed with its activity never leaves the
+# service or the timer stopped.
+HOLD_LOCK = Path(os.environ.get("HOME_ASSISTANT_HOLD_LOCK") or "/run/home-assistant-command/hold.lock")
+HOLD_FD = None
+# Set by root's SIGTERM handler for the whole command, so a stop that arrives
+# before the child exists still keeps the change from starting.
+CANCELLED = []
 
 
 # --- Home Assistant's HTTP API ---------------------------------------------------
@@ -267,6 +330,7 @@ def install_interrupted():
 
 
 def status():
+    facts = FACTS if FACTS is not None else systemd_facts()
     manifest = read_json(MANIFEST)
     pins = pinned()
     installed = HASS.exists() and os.access(HASS, os.X_OK)
@@ -274,7 +338,7 @@ def status():
     if installed and PYTHON.exists():
         installed_adapter = site_packages() / "muse_link_route.py"
         adapter_current = installed_adapter.exists() and sha256(installed_adapter) == pins["adapter_sha256"]
-    service = service_state()
+    service = facts["service"]
     answering = service == "active" and http_up()
     token = stored_token()
     creds = credentials_state(token) if answering else ("missing" if not token else "unknown")
@@ -283,9 +347,9 @@ def status():
         # Home Assistant falls back to recovery mode when its first-start
         # downloads fail, e.g. before the user approved them.
         try:
-            recovery = bool(api("/api/config", token).get("recovery_mode")) if creds == "valid" else recovery_mode_in_journal()
+            recovery = bool(api("/api/config", token).get("recovery_mode")) if creds == "valid" else facts["recovery_mode"]
         except (OSError, ValueError, urllib.error.URLError):
-            recovery = recovery_mode_in_journal()
+            recovery = facts["recovery_mode"]
     ready = answering and not recovery
     steps = onboarding_steps() if ready else None
     report = {
@@ -309,10 +373,12 @@ def status():
         "recovery_mode": recovery,
         "onboarded": all(steps.values()) if steps else None,
         "credentials": creds,
-        "link_routing": bool(installed and service == "active" and adapter_current and service_routes_link()),
+        "link_routing": bool(installed and service == "active" and adapter_current and facts["routes_link"]),
         "rollback_available": (PREVIOUS / "install.json").exists(),
         "integrations": None,
-        "other_installs": [] if installed else other_installs(),
+        # Root fills this in after the command (`after`): the scan reads the
+        # whole home and other users' processes, which the child cannot see.
+        "other_installs": [] if installed else None,
     }
     if creds == "valid":
         try:
@@ -326,11 +392,10 @@ def status():
 
 
 def site_packages():
-    out = subprocess.run(
-        [str(PYTHON), "-c", "import sysconfig; print(sysconfig.get_paths()['purelib'])"],
-        capture_output=True, text=True, check=True,
-    )
-    return Path(out.stdout.strip())
+    found = sorted(VENV.glob("lib/python3.*/site-packages"))
+    if not found:
+        raise Failure("The Home Assistant environment has no site-packages.")
+    return found[-1]
 
 
 def install_adapter():
@@ -341,7 +406,9 @@ def install_adapter():
 
 class Hold:
     """Exclusive change to ~/homeassistant: the installing marker keeps the
-    service and its ensure timer off while held.
+    service and its ensure timer off while held. Root stops both before an
+    install or rollback starts and starts them after it ends (`before`,
+    `after`), so nothing restarts the service before the marker exists.
 
     A change records its phase in transaction.json. Leaving the hold with an
     exception, or taking over a hold whose process died, first finishes a
@@ -360,7 +427,6 @@ class Hold:
             raise Failure("Another install or rollback is running.") from None
         try:
             INSTALLING.write_text(str(os.getpid()))
-            systemctl("stop", SERVICE)
             settle_transaction()
         except BaseException:
             os.close(self.lock)
@@ -378,8 +444,6 @@ class Hold:
             INSTALLING.unlink(missing_ok=True)
         finally:
             os.close(self.lock)
-        if exc_type is not None and ENABLED.exists():
-            systemctl("start", "--no-block", SERVICE)
         return False
 
 
@@ -502,15 +566,7 @@ def copy_database(src, dest):
         shutil.copytree(src / ".storage", dest / ".storage")
 
 
-def start_service():
-    ENABLED.touch()
-    systemctl("reset-failed", SERVICE)
-    systemctl("start", "--no-block", SERVICE, check=True)
-    systemctl("start", TIMER)
-
-
 def install():
-    require_unit()
     recover_interrupted()
     pins = pinned()
     manifest = read_json(MANIFEST)
@@ -523,7 +579,7 @@ def install():
         install_adapter()
         write_json(MANIFEST, {**manifest, "adapter_sha256": pins["adapter_sha256"]})
         CONFIG.mkdir(exist_ok=True)
-        start_service()
+        ENABLED.touch()
         return {"ok": True, "changed": False, "installed": pins, "service": "starting"}
 
     with Hold():
@@ -558,7 +614,7 @@ def install():
         else:
             shutil.rmtree(STAGED, ignore_errors=True)
             JOURNAL.unlink(missing_ok=True)
-    start_service()
+    ENABLED.touch()
     return {
         "ok": True,
         "changed": True,
@@ -569,7 +625,6 @@ def install():
 
 
 def rollback():
-    require_unit()
     recover_interrupted()
     previous_manifest = read_json(PREVIOUS / "install.json")
     if not previous_manifest or not (PREVIOUS / "venv").is_dir():
@@ -588,7 +643,7 @@ def rollback():
         write_json(MANIFEST, previous_manifest)
         begin("rollback", "committed", started=started)
         settle_transaction()
-    start_service()
+    ENABLED.touch()
     kept = sorted(ROOT.glob(f"replaced-{started}*"), key=lambda p: p.stat().st_mtime)
     return {
         "ok": True,
@@ -613,18 +668,16 @@ def sync_adapter():
 
 
 def start():
-    require_unit()
     recover_interrupted()
     if not HASS.exists():
         raise Failure("Home Assistant is not installed; run `home-assistant install`.")
-    start_service()
+    ENABLED.touch()
     return {"ok": True, "service": "starting"}
 
 
 def stop():
     ENABLED.unlink(missing_ok=True)
-    systemctl("stop", SERVICE)
-    return {"ok": True, "service": service_state()}
+    return {"ok": True}
 
 
 # --- setup (onboarding) -------------------------------------------------------------
@@ -634,7 +687,9 @@ def setup():
     if not PYTHON.exists():
         raise Failure("Home Assistant is not installed; run `home-assistant install`.")
     if Path(sys.prefix).resolve() != VENV.resolve():
-        os.execv(str(PYTHON), [str(PYTHON), str(Path(__file__).resolve()), "setup"])
+        if RESULT_FD is not None:
+            os.dup2(RESULT_FD, 1)  # the exec'd command writes the result
+        os.execv(str(PYTHON), [str(PYTHON), "-I", str(Path(__file__).resolve()), *sys.argv[1:]])
     import asyncio
 
     return asyncio.run(_setup())
@@ -807,8 +862,20 @@ def step_text():
     return result
 
 
+# Input for `step-text` and `put-file`, from the caller's stdin (run as root,
+# the child's stdin is the caller's).
+MAX_INPUT_BYTES = 4 << 20
+
+
+def read_input():
+    data = sys.stdin.buffer.read(MAX_INPUT_BYTES + 1)
+    if len(data) > MAX_INPUT_BYTES:
+        raise Failure(f"Input is larger than {MAX_INPUT_BYTES} bytes.")
+    return data
+
+
 def read_stdin_json():
-    body = sys.stdin.read()
+    body = read_input().decode("utf-8", "replace")
     try:
         reply = json.loads(body)
     except ValueError:
@@ -816,6 +883,348 @@ def read_stdin_json():
     if not isinstance(reply, dict):
         raise Failure(f"Not a config flow reply: {body.strip()[:300]}")
     return reply
+
+
+# --- running as root: the parent ------------------------------------------------------
+
+
+def put_file(target):
+    """Write stdin to config/<path> as Home Assistant's user.
+
+    Every directory is opened relative to the last without following a link, so
+    a tree Home Assistant can change cannot redirect the write; run as root, it
+    runs in the child, which sees no other home anyway."""
+    parts = target.split("/")
+    if len(parts) < 2 or parts[0] != "config" or any(part in ("", ".", "..") for part in parts):
+        raise Failure("put-file takes a relative path under config/, such as config/blueprints/x.yaml.")
+    data = read_input()
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        dir_fd = os.open(CONFIG, flags)
+    except FileNotFoundError:
+        raise Failure("Home Assistant is not set up yet (no config/).") from None
+    except OSError as err:
+        raise Failure(f"config/ is not a plain directory: {err.strerror}") from None
+    try:
+        for part in parts[1:-1]:
+            try:
+                os.mkdir(part, 0o770, dir_fd=dir_fd)
+            except FileExistsError:
+                pass
+            try:
+                next_fd = os.open(part, flags, dir_fd=dir_fd)
+            except OSError as err:
+                raise Failure(f"{part} is not a plain directory: {err.strerror}") from None
+            os.close(dir_fd)
+            dir_fd = next_fd
+        name = parts[-1]
+        try:
+            if stat.S_ISLNK(os.stat(name, dir_fd=dir_fd, follow_symlinks=False).st_mode):
+                raise Failure(f"{target} is a link; refusing to write through it.")
+        except FileNotFoundError:
+            pass
+        temp = f".{name}.{os.urandom(4).hex()}.new"
+        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o660, dir_fd=dir_fd)
+        try:
+            try:
+                view = memoryview(data)
+                while view:
+                    view = view[os.write(fd, view):]
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.rename(temp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        except BaseException:
+            try:
+                os.unlink(temp, dir_fd=dir_fd)
+            except OSError:
+                pass
+            raise
+    finally:
+        os.close(dir_fd)
+    return {"ok": True, "path": target, "bytes": len(data)}
+
+
+def ensure_user():
+    """Create Home Assistant's user and hand it ~/homeassistant.
+
+    Ownership is re-asserted on every run, so files the agent wrote there as
+    root stay usable. The walk holds directory descriptors and never follows a
+    symlink, so a tree Home Assistant can change cannot redirect it. Returns
+    the user's ids and the paths it could not hand over."""
+    try:
+        pwd.getpwnam(HA_USER)
+    except KeyError:
+        subprocess.run(["systemd-sysusers", "--inline", SYSUSERS_LINE], check=True, capture_output=True)
+    entry = pwd.getpwnam(HA_USER)
+    uid, gid = entry.pw_uid, entry.pw_gid
+    try:
+        os.mkdir(ROOT, 0o750)
+    except FileExistsError:
+        pass
+    if not os.path.isdir(ROOT) or os.path.islink(ROOT):
+        raise Failure(f"{ROOT} is not a directory.")
+    skipped = []
+    hand_over(ROOT, uid, gid, None, skipped, ".")
+    for here, dirnames, filenames, dirfd in os.fwalk(ROOT, follow_symlinks=False):
+        relative = os.path.relpath(here, ROOT)
+        for name in filenames:
+            if name.endswith(HANDOVER_SUFFIX):
+                remove_stale_copy(name, uid, dirfd)
+        for name in dirnames + filenames:
+            hand_over(name, uid, gid, dirfd, skipped, os.path.normpath(os.path.join(relative, name)))
+    return uid, gid, skipped
+
+
+HANDOVER_SUFFIX = ".ha-handover"
+# `.<name>.<16 hex>.ha-handover`, the name copy_in_place gives its copy.
+HANDOVER_COPY = re.compile(r"\.(?P<name>.+)\.[0-9a-f]{16}\.ha-handover")
+
+
+def hand_over(name, uid, gid, dir_fd, skipped, relative):
+    try:
+        st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        if (st.st_uid, st.st_gid) == (uid, gid):
+            return
+        # A file with another link outside this tree (uv links packages
+        # from its cache) would change owner there too: give the tree its
+        # own copy instead.
+        if relative != "." and stat.S_ISREG(st.st_mode) and st.st_nlink > 1:
+            copy_in_place(name, st, uid, gid, dir_fd)
+            return
+        # Home files can carry a host group the cell does not map, which keeps
+        # even the cell's root from chown-ing them. As their owner it may still
+        # move them to its own group first.
+        if st.st_uid == os.geteuid() and st.st_gid != os.getegid():
+            os.chown(name, -1, os.getegid(), dir_fd=dir_fd, follow_symlinks=False)
+        os.chown(name, uid, gid, dir_fd=dir_fd, follow_symlinks=False)
+    except FileNotFoundError:
+        pass  # removed while we walked
+    except OSError as err:
+        skipped.append(f"{relative}: {err.strerror}")
+
+
+def copy_in_place(name, st, uid, gid, dir_fd):
+    src = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=dir_fd)
+    try:
+        opened = os.fstat(src)
+        if not stat.S_ISREG(opened.st_mode) or (opened.st_dev, opened.st_ino) != (st.st_dev, st.st_ino):
+            raise OSError(errno.EAGAIN, "changed while handing it over")
+        temp = f".{name}.{os.urandom(8).hex()}{HANDOVER_SUFFIX}"
+        dst = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=dir_fd)
+        try:
+            try:
+                while chunk := os.read(src, 1 << 20):
+                    view = memoryview(chunk)
+                    while view:
+                        view = view[os.write(dst, view):]
+                os.fchown(dst, uid, gid)
+                os.fchmod(dst, stat.S_IMODE(st.st_mode))
+                os.utime(dst, ns=(st.st_atime_ns, st.st_mtime_ns))
+            finally:
+                os.close(dst)
+            os.rename(temp, name, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        except BaseException:
+            try:
+                os.unlink(temp, dir_fd=dir_fd)
+            except OSError:
+                pass
+            raise
+    finally:
+        os.close(src)
+
+
+def remove_stale_copy(name, uid, dir_fd):
+    """A copy left by an interrupted hand-over. Only a name copy_in_place
+    makes, beside the file it copied, still root's, single-linked and private
+    (0600, as created) counts; anything else is left alone."""
+    match = HANDOVER_COPY.fullmatch(name)
+    if not match:
+        return
+    try:
+        st = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        os.stat(match["name"], dir_fd=dir_fd, follow_symlinks=False)
+        if (
+            stat.S_ISREG(st.st_mode)
+            and st.st_uid == os.geteuid()
+            and st.st_uid != uid
+            and st.st_nlink == 1
+            and stat.S_IMODE(st.st_mode) == 0o600
+        ):
+            os.unlink(name, dir_fd=dir_fd)
+    except OSError:
+        pass
+
+
+# Run by the root parent in a private mount namespace: hide every home and the
+# cell's host sockets, put back only ~/homeassistant and the egress CA, then
+# become Home Assistant's user with no capabilities.
+CHILD_NAMESPACE = r"""
+set -eu
+root=$1; uid=$2; gid=$3; shift 3
+stage=/run/home-assistant-command
+mount -t tmpfs -o mode=0700 tmpfs "$stage"
+mkdir "$stage/root" "$stage/tls"
+mount --bind "$root" "$stage/root"
+if [ -d /run/hatch/egress-tls ]; then mount --bind /run/hatch/egress-tls "$stage/tls"; fi
+mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /home
+# The caller's umask (the agent's is 0007) must not make the path down to
+# $root untraversable for Home Assistant's user.
+(umask 022 && mkdir -p "$root")
+mount --move "$stage/root" "$root"
+if [ -d /run/hatch ]; then
+  mount -t tmpfs -o mode=0755,nosuid,nodev tmpfs /run/hatch
+  (umask 022 && mkdir /run/hatch/egress-tls)
+  mount --move "$stage/tls" /run/hatch/egress-tls
+fi
+mount -t proc -o hidepid=invisible,nosuid,nodev,noexec proc /proc
+for scratch in /tmp /var/tmp /dev/shm; do
+  if [ -d "$scratch" ]; then mount -t tmpfs -o mode=1777,size=2G,nosuid,nodev "tmpfs" "$scratch"; fi
+done
+cd "$root"
+exec setpriv --reuid="$uid" --regid="$gid" --clear-groups --no-new-privs \
+  --inh-caps=-all --ambient-caps=-all --bounding-set=-all -- "$@"
+"""
+
+
+# What the child keeps of the caller's environment: egress settings and the
+# locale. Everything else (the caller's XDG and cache dirs under the guest home,
+# PYTHON*) points outside what the child can see.
+CHILD_ENV_KEEP = (
+    "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+    "ALL_PROXY", "all_proxy", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE",
+    "LANG", "LC_ALL", "TZ",
+)
+
+
+def child_environment():
+    env = {key: os.environ[key] for key in CHILD_ENV_KEEP if key in os.environ}
+    cache = ROOT / ".cache"
+    env.update(
+        PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+        HOME=str(ROOT),
+        HOME_ASSISTANT_ROOT=str(ROOT),
+        XDG_CACHE_HOME=str(cache),
+        XDG_CONFIG_HOME=str(ROOT / ".config"),
+        XDG_DATA_HOME=str(ROOT / ".local" / "share"),
+        XDG_STATE_HOME=str(ROOT / ".local" / "state"),
+        UV_CACHE_DIR=str(cache / "uv"),
+        TMPDIR="/tmp",
+    )
+    return env
+
+
+def run_as_home_assistant(command, args, facts):
+    """Run the command as Home Assistant's user and return its result.
+
+    The child's stdin is the caller's for the commands that read input, and its
+    stdout carries only its one JSON result."""
+    uid, gid, skipped = ensure_user()
+    if CANCELLED:
+        return failure_result(Failure("Interrupted; the previous release is kept."))
+    os.makedirs("/run/home-assistant-command", mode=0o700, exist_ok=True)
+    env = child_environment()
+    # The child holds root's change lock too, so a parent killed alone does not
+    # free the ensure timer while the child is still changing the tree.
+    pass_fds = (HOLD_FD,) if HOLD_FD is not None else ()
+    if facts is not None:
+        env[FACTS_ENV] = json.dumps(facts)
+    # Stopping the activity: let the child settle its change rather than kill
+    # it mid-way. The child has its own process group, so this forward is the
+    # only SIGTERM it gets.
+    child = None
+
+    def forward(*_):
+        CANCELLED.append(True)
+        if child is not None:
+            child.send_signal(signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, forward)
+    child = subprocess.Popen(
+        ["unshare", "--mount", "--propagation", "private", "--", "/bin/sh", "-c", CHILD_NAMESPACE,
+         "home-assistant", str(ROOT), str(uid), str(gid),
+         "/usr/bin/python3", "-I", str(Path(__file__).resolve()), CHILD_FLAG, command, *args],
+        stdin=None if command in READS_STDIN else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        env=env,
+        process_group=0,
+        pass_fds=pass_fds,
+    )
+    if CANCELLED:  # stopped while the child was being started
+        child.send_signal(signal.SIGTERM)
+    try:
+        output = read_result(child)
+    finally:
+        child.stdout.close()
+        try:
+            child.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            child.wait()
+    try:
+        result = json.loads(output)
+    except ValueError:
+        result = None
+    if not isinstance(result, dict):
+        result = {"ok": False, "error": f"The command stopped without a result (exit {child.returncode})."}
+    if skipped:
+        result["not_handed_over"] = skipped[:20]
+    return result
+
+
+def read_result(child):
+    """The child's stdout until it closes, or until the child has exited and the
+    pipe has gone quiet: a process the child left behind holding the pipe (pip,
+    uv) must not keep root waiting."""
+    fd = child.stdout.fileno()
+    chunks = []
+    while True:
+        ready, _, _ = select.select([fd], [], [], 1.0)
+        if ready:
+            data = os.read(fd, 65536)
+            if not data:
+                break
+            chunks.append(data)
+        elif child.poll() is not None:
+            break
+    return b"".join(chunks)
+
+
+def ensure():
+    """Run as root by home-assistant-ensure.service each minute: start an
+    enabled, installed Home Assistant that is plainly inactive.
+
+    It holds the change lock from its checks until the start is queued, so a
+    change either finds the lock taken (and waits it out) or takes it first and
+    is skipped here; a change that takes it afterwards stops what this queued."""
+    HOLD_LOCK.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    fd = os.open(HOLD_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return {"ok": True, "started": False, "reason": "an install or rollback holds the lock"}
+        if not ENABLED.exists() or INSTALLING.exists():
+            return {"ok": True, "started": False}
+        if service_state() != "inactive":
+            return {"ok": True, "started": False}
+        try:
+            systemctl("start", "--no-block", SERVICE, check=True)
+        except Failure as err:
+            # The unit discards stdout so quiet ticks log nothing; say why on
+            # stderr, which goes to the journal.
+            print(f"home-assistant ensure: {err}", file=sys.stderr)
+            raise
+        return {"ok": True, "started": True}
+    finally:
+        os.close(fd)
+
+
+def prepare():
+    """Run as root by home-assistant-prepare.service before each start."""
+    signal.signal(signal.SIGTERM, signal.SIG_IGN)  # never leave a copy half done
+    _, _, skipped = ensure_user()
+    return {"ok": True, "not_handed_over": skipped[:20]}
 
 
 COMMANDS = {
@@ -826,7 +1235,10 @@ COMMANDS = {
     "setup": setup,
     "rollback": rollback,
     "step-text": step_text,
+    "put-file": put_file,
     "sync-adapter": sync_adapter,
+    "prepare": prepare,
+    "ensure": ensure,
 }
 
 
@@ -834,19 +1246,191 @@ def _interrupted(*_):
     raise Failure("Interrupted; the previous release is kept.")
 
 
-def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
-        print(json.dumps({"ok": False, "error": f"usage: home-assistant {{{'|'.join(c for c in COMMANDS if c != 'sync-adapter')}}}"}))
-        return 2
-    # Stopping the activity sends SIGTERM; turn it into an exception so an
-    # unfinished install restores the previous release and releases its hold.
-    signal.signal(signal.SIGTERM, _interrupted)
+# `prepare` is the root step that hands the tree over, and `ensure` only checks
+# markers and starts the unit, so both run in-process.
+UNSANDBOXED = ("prepare", "ensure")
+# Commands whose child gets the caller's stdin.
+READS_STDIN = ("step-text", "put-file")
+# Positional arguments per command; every other command takes none.
+ARGUMENTS = {"put-file": 1}
+# Commands that change the environment under the Hold.
+HOLD_COMMANDS = ("install", "rollback")
+# Commands that need the service's unit to exist.
+UNIT_COMMANDS = ("install", "rollback", "start")
+# Set in the child: the duplicate of its stdout that carries the result.
+RESULT_FD = None
+
+
+def failure_result(err):
+    if isinstance(err, Failure):
+        return {"ok": False, "error": str(err), **err.fields}
+    if isinstance(err, subprocess.CalledProcessError):
+        return {"ok": False, "error": f"{err.cmd[0]} failed with exit code {err.returncode}"}
+    return {"ok": False, "error": f"{type(err).__name__}: {err}"}
+
+
+def execute(command, args):
+    """Run the command in this process; every outcome becomes a result."""
     try:
-        result = COMMANDS[sys.argv[1]]()
+        result = COMMANDS[command](*args)
+    except Exception as err:
+        result = failure_result(err)
+    if command in HOLD_COMMANDS:
+        # Whether a failed change should leave the service running (`after`).
+        result["enabled"] = ENABLED.exists()
+    return result
+
+
+def before(command):
+    """Root's systemd work before the command, chosen by its name alone.
+
+    Returns the systemd facts `status` needs, or None."""
+    if command in UNIT_COMMANDS:
+        require_unit()
+    if command in HOLD_COMMANDS:
+        # Nothing may start the service while the change writes its marker and
+        # replaces the environment: hold the lock the ensure timer checks, then
+        # stop the service. The timer itself keeps running, so if this process
+        # and the child are killed, the lock goes with them and the timer
+        # brings back an enabled Home Assistant that has no change marker. What
+        # was running is remembered for a change that fails without saying.
+        global RUNNING_BEFORE, HOLD_FD
+        HOLD_LOCK.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        fd = os.open(HOLD_LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+        # The ensure timer's own check takes the lock for an instant each
+        # minute; only a lock held for seconds is another change.
+        for attempt in range(40):
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if attempt == 39:
+                    os.close(fd)
+                    raise Failure("Another install or rollback is running.") from None
+                time.sleep(0.05)
+        HOLD_FD = fd
+        RUNNING_BEFORE = service_state() == "active"
+        systemctl("stop", SERVICE)
+    if command == "status":
+        return systemd_facts()
+    return None
+
+
+def after(command, result):
+    """Root's systemd work after the command, chosen by its name and only the
+    result's boolean `ok`, `enabled` and `installed` fields."""
+    ok = result.get("ok") is True
+    if command in HOLD_COMMANDS:
+        enabled = result.get("enabled")
+        try:
+            if ok:
+                systemctl("reset-failed", SERVICE)
+                systemctl("start", "--no-block", SERVICE, check=True)
+            elif enabled is True or (not isinstance(enabled, bool) and RUNNING_BEFORE):
+                # The change failed and was undone, or it never reported back
+                # (cancelled): bring back what was running. A change cut off
+                # mid-way leaves its installing marker, so the unit's condition
+                # keeps the half-changed release from starting.
+                systemctl("start", "--no-block", SERVICE)
+        finally:
+            release_hold()
+    elif command == "start" and ok:
+        systemctl("reset-failed", SERVICE)
+        systemctl("start", "--no-block", SERVICE, check=True)
+        systemctl("start", TIMER)
+    elif command == "stop" and ok:
+        systemctl("stop", SERVICE)
+        result["service"] = service_state()
+    elif command == "status" and ok and result.get("installed") is False and result.get("other_installs") is None:
+        result["other_installs"] = other_installs()
+    return result
+
+
+def release_hold():
+    global HOLD_FD
+    if HOLD_FD is not None:
+        os.close(HOLD_FD)
+        HOLD_FD = None
+
+
+def sandboxed(command):
+    # With nothing installed there is no tree Home Assistant could have
+    # changed, so `status` runs here and creates nothing.
+    return (
+        os.geteuid() == 0
+        and command not in UNSANDBOXED
+        and not (command == "status" and not ROOT.exists())
+    )
+
+
+def run(command, args):
+    """One command: root's work before it, the command itself (as Home
+    Assistant's user when root runs it), root's work after it. Once `before`
+    has stopped anything, `after` runs whatever the command did."""
+    global FACTS
+    CANCELLED.clear()
+    signal.signal(signal.SIGTERM, lambda *_: CANCELLED.append(True))
+    try:
+        facts = before(command)
     except Failure as failure:
-        result = {"ok": False, "error": str(failure), **failure.fields}
-    except subprocess.CalledProcessError as err:
-        result = {"ok": False, "error": f"{err.cmd[0]} failed with exit code {err.returncode}"}
+        return failure_result(failure)
+    if CANCELLED:
+        result = failure_result(Failure("Interrupted; the previous release is kept."))
+    elif sandboxed(command):
+        try:
+            result = run_as_home_assistant(command, args, facts)
+        except Exception as err:
+            result = failure_result(err)
+    else:
+        FACTS = facts
+        signal.signal(signal.SIGTERM, _interrupted)
+        result = execute(command, args)
+    signal.signal(signal.SIGTERM, lambda *_: None)  # let root finish its own work
+    try:
+        return after(command, result)
+    except Failure as failure:
+        return {**result, **failure_result(failure)}
+
+
+def parse(args):
+    command, rest = (args[0], args[1:]) if args else (None, [])
+    if command not in COMMANDS or len(rest) != ARGUMENTS.get(command, 0):
+        return None
+    return command, rest
+
+
+def usage():
+    hidden = ("sync-adapter", "prepare", "ensure")
+    return {"ok": False, "error": f"usage: home-assistant {{{'|'.join(c for c in COMMANDS if c not in hidden)}}} (put-file config/<path>, content on stdin)"}
+
+
+def child_main(args):
+    """The sandboxed child: the command's file work, one JSON result."""
+    global FACTS, RESULT_FD
+    RESULT_FD = os.dup(1)
+    os.dup2(2, 1)  # stray output goes to stderr, not into the result
+    FACTS = facts_from_environment()
+    parsed = parse(args)
+    if parsed is None:
+        result = usage()
+    else:
+        # Stopping the activity: settle an unfinished change and report.
+        signal.signal(signal.SIGTERM, _interrupted)
+        result = execute(*parsed)
+    with os.fdopen(RESULT_FD, "w") as out:
+        json.dump(result, out)
+    return 0 if result.get("ok") else 1
+
+
+def main():
+    args = sys.argv[1:]
+    if args and args[0] == CHILD_FLAG:
+        return child_main(args[1:])
+    parsed = parse(args)
+    if parsed is None:
+        print(json.dumps(usage()))
+        return 2
+    result = run(*parsed)
     print(json.dumps(result, indent=2))
     return 0 if result.get("ok") else 1
 

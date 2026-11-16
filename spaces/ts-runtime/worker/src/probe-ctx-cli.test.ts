@@ -12,7 +12,6 @@ const ENV_NAMES = [
   "HATCH_SPACE_INFERENCE_SOCKET",
   "HATCH_SPACE_WEB_SEARCH_SOCKET",
   "HATCH_SPACE_SLUG",
-  "JARVIS_RUNTIME_CONTEXT_TOKEN",
 ] as const;
 
 const originalEnv = Object.fromEntries(
@@ -95,24 +94,11 @@ async function startMockServer(): Promise<MockServer> {
 }
 
 describe("builder probe web search authority", () => {
-  test("requires a daemon-minted runtime context token", () => {
-    delete process.env.JARVIS_RUNTIME_CONTEXT_TOKEN;
-    expect(() => buildProbeCtx(new Set())).toThrow(
-      "missing required builder probe environment variable JARVIS_RUNTIME_CONTEXT_TOKEN",
-    );
-
-    process.env.JARVIS_RUNTIME_CONTEXT_TOKEN = "   ";
-    expect(() => buildProbeCtx(new Set())).toThrow(
-      "missing required builder probe environment variable JARVIS_RUNTIME_CONTEXT_TOKEN",
-    );
-  });
-
-  test("forwards the exact token with one shared probe invocation id", async () => {
+  test("sends the credential-free probe marker with one shared probe invocation id", async () => {
     const mock = await startMockServer();
     try {
       process.env.HATCH_SPACE_WEB_SEARCH_SOCKET = mock.socketPath;
       process.env.HATCH_SPACE_SLUG = "news-space";
-      process.env.JARVIS_RUNTIME_CONTEXT_TOKEN = "synthetic-runtime-token";
       const ctx = buildProbeCtx(new Set());
 
       const result = await ctx.tool.web_search("latest AI news");
@@ -122,9 +108,7 @@ describe("builder probe web search authority", () => {
       expect(request.action_invocation_id).toBe(ctx.invocationId);
       expect(request.action_invocation_id?.startsWith("probe-")).toBe(true);
       expect(request.action_name).toBe("__builder_probe__");
-      expect(request.builder_probe_authority).toEqual({
-        runtime_context_token: "synthetic-runtime-token",
-      });
+      expect(request.builder_probe_authority).toEqual({});
       expect(request.tool_method).toBe("web_search");
       expect(request.primary_query.query).toBe("latest AI news");
       expect(result.search_engines).toEqual(["perplexity"]);
@@ -134,12 +118,11 @@ describe("builder probe web search authority", () => {
     }
   });
 
-  test("ordinary actions never copy an ambient probe token", async () => {
+  test("ordinary actions never carry the probe authority marker", async () => {
     const mock = await startMockServer();
     try {
       process.env.HATCH_SPACE_WEB_SEARCH_SOCKET = mock.socketPath;
       process.env.HATCH_SPACE_SLUG = "news-space";
-      process.env.JARVIS_RUNTIME_CONTEXT_TOKEN = "ambient-token-must-not-cross";
 
       await createToolClient("action-1", "refresh", "root-1").web_search(
         "latest AI news",
