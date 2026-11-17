@@ -8,6 +8,8 @@ SHORTCODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 STATE = os.path.expanduser("~/workspace/instagram-daily/state.json")
 MEDIA = os.path.expanduser("~/workspace/instagram-daily/media")
 UTC = datetime.timezone.utc
+# Fewer posts than this give too little to compare, so a recent window this thin falls back to older posts.
+MIN_POSTS = 5
 day = lambda n: str(datetime.date.today() - datetime.timedelta(days=n))
 # The deletion ids each CLI response carries in `_meta`, printed as one `_meta` with the brief.
 deletion_ids, deletion_lock = {"fbids": {}, "message_ids": {}}, threading.Lock()
@@ -27,6 +29,18 @@ fb = lambda *a: cli(FB, *a)
 def run_all(*calls):
     if not calls: return []
     with Pool(min(len(calls), 12)) as pool: return list(pool.map(lambda f: f(), calls))
+# A Facebook list read page by page, since each call returns only one page, until it is `enough` or `pages` calls.
+def paged(args, rows, cursor, pages, keep=lambda r: True, enough=lambda got: len(got) >= 30):
+    got, cur = [], None
+    for _ in range(pages):
+        page = fb(*args, *(["--after", cur] if cur else []))
+        got += [r for r in page.get(rows) or [] if keep(r)]
+        cur = page.get(cursor)
+        if not cur or enough(got): break
+    return got
+def fb_comments(top):
+    got = run_all(*[lambda p=p: fb("post", "comments", "read", "--post-id", p["id"], "--limit", "10").get("data") or [] for p in top])
+    return {p["id"]: [(x.get("text") or "")[:150] for x in c if x.get("text")] for p, c in zip(top, got)}
 def media_id(p):
     i = p.get("post_id") or (p.get("media") or {}).get("media_id")
     if i: return str(i).split("_")[0]
@@ -34,7 +48,7 @@ def media_id(p):
     if not code or set(code) - set(SHORTCODE_ALPHABET): return None
     for c in code: n = n * 64 + SHORTCODE_ALPHABET.index(c)
     return str(n)
-def posts(a, days=None): return ig("posts", "--account-id", a, "--limit", "50", *(["--since", day(days)] if days else [])).get("posts") or []
+def posts(a, days=None): return ig("posts", "--account-id", a, "--limit", "50", "--post-types", "POST,REEL", *(["--since", day(days)] if days else [])).get("posts") or []
 def score(p): return (p["likes"] or 0) + (p["comments"] or 0)
 def avg(ps): return round(sum(map(score, ps)) / len(ps)) if ps else None
 def kind(r):
@@ -78,8 +92,9 @@ def summarize(base, found, said):
     said = said(ranked[:3]) if callable(said) else said
     for p in ranked[:3]: p["what_commenters_said"] = said.get(p["id"], [])
     newest = next((p["date"] for p in found if p["date"]), None)
-    out = {**base, "posts_analyzed": len(found), "avg_likes_and_comments": avg(found), "too_little_to_compare": len(found) < 5 or (avg(found) or 0) < 10,
-           "days_since_last_post": (datetime.date.today() - datetime.date.fromisoformat(newest)).days if newest else None,
+    oldest = next((p["date"] for p in reversed(found) if p["date"]), None)
+    out = {**base, "posts_analyzed": len(found), "avg_likes_and_comments": avg(found), "too_little_to_compare": len(found) < MIN_POSTS or (avg(found) or 0) < 10,
+           "days_since_last_post": (datetime.date.today() - datetime.date.fromisoformat(newest)).days if newest else None, "posts_since": oldest,
            "recent_captions": [p["caption"] for p in found if p["caption"]][:5], "top_posts": ranked[:3], "weakest_posts": ranked[3:][-2:], "posts": found}
     if not out["too_little_to_compare"]:
         out.update(by_format=by(found, lambda p: p["format"]), by_time_of_day=by(found, lambda p: p["daypart"]),
@@ -101,7 +116,7 @@ def read_ig(acct):
     tz = zone((prof.get("retrieved_at") or {}).get("user_timezone"))
     prof = (prof.get("profiles") or [{}])[0]
     recs = {}
-    for p in (d30 if len(d30) >= 3 else posts(a))[:30]:
+    for p in (d30 if len(d30) >= MIN_POSTS else posts(a))[:30]:
         i = media_id(p)
         if i: recs[i] = {"created_at": p.get("created_at"), "caption": p.get("post_caption"), "likes": p.get("likes"),
                          "comments": p.get("comments"), "media_type": p.get("media_type"), "picture": p.get("thumbnail_url")}
@@ -131,22 +146,22 @@ def read_ig(acct):
     found = [post(i, local(r.get("created_at"), tz), kind(r), r.get("caption"), r.get("likes"), r.get("comments"), r.get("shows")) for i, r in recs.items()]
     base = {"platform": "instagram", "username": name, "label": f"@{name}", "account": name, "account_id": a, "user_id": acct.get("user_igid"),
             "professional": acct.get("is_professional"), "bio": prof.get("bio"), "followers": prof.get("follower_count"), "post_count": prof.get("post_count"),
-            "posts_last_30_days": len(d30), "posts_last_7_days": len(d7), "posts_read": "last_30_days" if len(d30) >= 3 else "newest"}
+            "posts_last_30_days": len(d30), "posts_last_7_days": len(d7), "posts_read": "last_30_days" if len(d30) >= MIN_POSTS else "newest"}
     out = summarize(base, found, ig_comments(a))
     out["stories"] = {"last_30_days": len(stories), "recent": told}
     out["_pictures"] = pictures
     if acct.get("is_professional"):
-        ins, cards = run_all(lambda: ig("analytics-account-insights", "--account-id", a, "--time-range", "LAST_28D", "--include-top-content"),
-                             lambda: ig("analytics-metric-cards", "--account-id", a, "--username", name, "--timezone", str(tz)))
+        ins, cards = run_all(lambda: ig("analytics-account-insights", "--account-id", a, "--time-range", "LAST_90D", "--include-top-content"),
+                             lambda: ig("analytics-metric-cards", "--account-id", a, "--username", name, "--timezone", str(tz), "--days", "90"))
         acc = (ins.get("accounts") or [{}])[0]
-        out["insights_28_days"] = {k: acc.get(k) for k in ("metrics", "prior_period_comparison", "follower_active_times", "views_by_follow_type",
+        out["insights_90_days"] = {k: acc.get(k) for k in ("metrics", "prior_period_comparison", "follower_active_times", "views_by_follow_type",
                                                             "views_by_content_type", "follower_growth_delta", "top_content_by_views") if acc.get(k)}
-        split = out["insights_28_days"].get("views_by_follow_type") or {}
+        split = out["insights_90_days"].get("views_by_follow_type") or {}
         f, nf = split.get("followers"), split.get("non_followers")
         if isinstance(f, (int, float)) and isinstance(nf, (int, float)) and f + nf > 0:
-            out["insights_28_days"]["views_from_non_followers_pct"] = round(100 * nf / (f + nf))
+            out["insights_90_days"]["views_from_non_followers_pct"] = round(100 * nf / (f + nf))
         mine = {p["id"]: p for p in found}
-        top = out["insights_28_days"].get("top_content_by_views") or []
+        top = out["insights_90_days"].get("top_content_by_views") or []
         for t in top:
             p = mine.get(str(t.get("media_id")))
             if p: t.update(format=p["format"], date=p["date"], shows=p["shows"], likes=p["likes"], comments=p["comments"])
@@ -164,44 +179,45 @@ def read_ig(acct):
     return out
 def read_fb(me):
     pid, name = str(me["fb_user_id"]), me.get("name")
-    rows = [p for p in fb("timeline", "fetch", "--profile-id", pid, "--limit", "40").get("posts") or [] if p.get("author_id") == p.get("owner_id")]
+    cutoff = datetime.datetime.now(UTC) - datetime.timedelta(days=30)
+    def enough(got):  # 30 posts, or the whole last 30 days when it holds enough posts to read only those
+        recent = sum((when(p.get("created_at")) or cutoff) > cutoff for p in got)
+        return len(got) >= 30 or MIN_POSTS <= recent < len(got)
+    rows = paged(("timeline", "fetch", "--profile-id", pid, "--limit", "20"), "posts", "next_cursor", 3, lambda p: p.get("author_id") == p.get("owner_id"), enough)
     tz = zone(((rows or [{}])[0].get("post_created_at") or {}).get("user_timezone"))
     now = datetime.datetime.now(UTC)
     def since(d): return [p for p in rows if (local(p.get("created_at"), tz) or now - datetime.timedelta(days=999)) >= now - datetime.timedelta(days=d)]
     d30, d7 = since(30), since(7)
-    pool = (d30 if len(d30) >= 3 else rows)[:15]
+    pool = (d30 if len(d30) >= MIN_POSTS else rows)[:30]
+    # Timeline rows carry no counts: reactions come from the reactions read, and comments (with the photo) from `post read`.
     def stats(p):
-        r, c = run_all(lambda: fb("post", "reactions", "read", "--post-id", p["post_id"]), lambda: fb("post", "comments", "read", "--post-id", p["post_id"], "--limit", "25"))
-        texts = [(x.get("text") or "")[:150] for x in c.get("data") or []]
-        return sum(x.get("count") or 0 for x in (r.get("summary") or {}).get("reaction_counts") or []), texts
-    found, said = [], {}
-    for p, (likes, texts) in zip(pool, run_all(*[lambda p=p: stats(p) for p in pool])):
-        found.append(post(p["post_id"], local(p.get("created_at"), tz), fb_kind(p.get("media_type")), p.get("post_caption"), likes, len(texts), (p.get("media_summary") or "")[:220] or None))
-        said[p["post_id"]] = [t for t in texts if t][:10]
+        r, got = run_all(lambda: fb("post", "reactions", "read", "--post-id", p["post_id"]), lambda: fb("post", "read", "--post-id", p["post_id"]))
+        return sum(x.get("count") or 0 for x in (r.get("summary") or {}).get("reaction_counts") or []), (got.get("posts") or [{}])[0]
+    found, pictures = [], {}
+    for p, (likes, got) in zip(pool, run_all(*[lambda p=p: stats(p) for p in pool])):
+        found.append(post(p["post_id"], local(p.get("created_at"), tz), fb_kind(p.get("media_type")), p.get("post_caption"), likes, got.get("comments"), (p.get("media_summary") or "")[:220] or None))
+        if got.get("thumbnail_url"): pictures[p["post_id"]] = got["thumbnail_url"]
     base = {"platform": "facebook", "username": name, "label": f"Facebook: {name}", "account": "facebook", "account_id": f"fb:{pid}",
             "professional": None, "bio": None, "followers": None, "posts_last_30_days": len(d30), "posts_last_7_days": len(d7),
-            "posts_read": "last_30_days" if len(d30) >= 3 else "newest"}
-    return summarize(base, found, said)
+            "posts_read": "last_30_days" if len(d30) >= MIN_POSTS else "newest"}
+    return {**summarize(base, found, fb_comments), "_pictures": pictures}
 def read_page(pg):
     i, name = str(pg["page_id"]), pg.get("name")
-    lst = lambda r: fb("pages", "posts", "list", "--page-id", i, "--fields", "engagements,saves", "--limit", "25", "--time-range", r).get("results") or []
-    rows, ins = run_all(lambda: lst("LAST_28D"), lambda: fb("pages", "account-insights", "--page-id", i, "--metrics", "follower_count,new_followers", "--time-range", "LAST_28D"))
+    lst = lambda r: paged(("pages", "posts", "list", "--page-id", i, "--fields", "engagements,saves", "--limit", "10", "--time-range", r), "results", "cursor", 3)
+    rows, ins = run_all(lambda: lst("LAST_28D"), lambda: fb("pages", "account-insights", "--page-id", i, "--metrics", "follower_count,new_followers", "--time-range", "LAST_90D"))
     d28 = len(rows)
-    if d28 < 3: rows = lst("LAST_90D")
+    if d28 < MIN_POSTS: rows = lst("LAST_90D")
     found = []
     for r in rows:
         meta = r.get("metadata") or {}
         p = post(str(r.get("object_id")), None, None, meta.get("caption_excerpt"), field(r.get("activity"), "reactions"), field(r.get("activity"), "comment_count"), None)
         p.update(posted_at=meta.get("metadata_text"), saves=field(r.get("metrics"), "saves"))
         found.append(p)
-    def said(top):
-        got = run_all(*[lambda p=p: fb("post", "comments", "read", "--post-id", p["id"], "--limit", "10").get("data") or [] for p in top])
-        return {p["id"]: [(x.get("text") or "")[:150] for x in c if x.get("text")] for p, c in zip(top, got)}
     acc = ((ins.get("results") or [{}])[0]).get("metrics")
     base = {"platform": "facebook_page", "username": name, "label": f"Facebook Page: {name}", "account": f"page:{i}", "account_id": f"page:{i}",
-            "professional": True, "bio": None, "followers": field(acc, "follower_count"), "new_followers_28_days": field(acc, "new_followers"),
-            "posts_last_30_days": d28, "posts_last_7_days": None, "posts_read": "last_28_days" if d28 >= 3 else "last_90_days"}
-    return summarize(base, found, said)
+            "professional": True, "bio": None, "followers": field(acc, "follower_count"), "new_followers_90_days": field(acc, "new_followers"),
+            "posts_last_30_days": d28, "posts_last_7_days": None, "posts_read": "last_28_days" if d28 >= MIN_POSTS else "last_90_days"}
+    return summarize(base, found, fb_comments)
 igs, me, pages = run_all(lambda: ig("accounts").get("accounts") or [], lambda: fb("me"), lambda: fb("pages", "list"))
 cands = ([(a["user_fbid"], a.get("username"), f"@{a.get('username')}", lambda a=a: read_ig(a)) for a in igs]
          + ([(f"fb:{me['fb_user_id']}", "facebook", "my Facebook profile", lambda: read_fb(me))] if me.get("fb_user_id") else [])
@@ -246,7 +262,7 @@ def save_picture(i):
 # Pictures of the posts and Stories the messages can name, linked as `image` for the chat to show.
 pictures = out.pop("_pictures", None) or {}
 named = (out.get("top_posts") or [])[:3] + (out.get("stories") or {}).get("recent", []) \
-        + [t for t in (out.get("insights_28_days") or {}).get("top_content_by_views") or [] if "format" in t][:3] \
+        + [t for t in (out.get("insights_90_days") or {}).get("top_content_by_views") or [] if "format" in t][:3] \
         + (out.get("since_last_report") or {}).get("new_posts", [])[:1]
 key = lambda x: str(x.get("id") or x.get("media_id") or "")
 # Facebook timelines and Page lists carry no pictures, so each named Facebook post is read for its photo.

@@ -22,21 +22,23 @@
 
 - Ask in chat for a document or membership number only when the connector doc for this booking asks for it and the booking needs it. Use it only in that booking request, and never repeat it.
 
-- A card the user sends in chat is welcome, and it goes to the browser task as text for that booking with `wallet: null`. The user still approves the payment in the payment approval. Keep passport, traveler-security and membership numbers out of browser task text, keep them and any card out of notes, memory and files, and never claim to remember them.
+- Do not request, repeat, store or forward card numbers or CVVs from chat. Use Wallet or browser takeover for payment details. Keep passport, traveler-security and membership numbers out of browser task text, notes, memory and files.
 
 - If a secure password-entry flow fails or cannot be shown, leave the option prepared and explain what is needed to continue. Never type a password the user sent in chat into a website.
 
-- For a website purchase paid through Link or Shop Pay, follow `~/docs/chat/payments-and-purchases.md` for the wallet choice and the final purchase approval.
+- For website purchases, follow `~/docs/chat/payments-and-purchases.md` for payment choice, cart review and approval.
 
 ## Approve once
 
-- Use the trusted approval that the connector or browser checkout presents for the exact item, total and terms. Do not add a chat confirmation for terms the approval already shows.
+- For direct checkout, use the connector's trusted approval for the exact item, total and terms. Do not add a chat confirmation for terms that approval already shows.
 
 - When a route shows no trusted approval, such as a website reservation without a payment step, show the final review and ask the user to confirm it. Continue only after they agree.
 
-- A change to the item, date, travelers, services or total needs fresh approval. An earlier "book it" never covers a changed or newly disclosed term.
+- Follow the route's approval rules for changes to the item, date, travelers, services or total. Do not accept terms outside the approved request.
 
-- Ask for separate, explicit approval before you transfer or buy points, use a certificate, pay for an upgrade or switch the payment method. Never infer a points balance from status.
+- Before transferring or buying points or using a certificate, get separate explicit user approval of the programs involved, points amount or certificate, and terms. A booking request or later checkout approval does not provide that consent.
+
+- Get explicit approval for paid upgrades outside the approved request. Follow the route's rules for payment changes. Do not infer a points balance from status.
 
 ## Recover an uncertain result
 

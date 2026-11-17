@@ -16,9 +16,10 @@ builders: web, file
 - Pick what to show from the surface and the data:
   - A live web page showing places with trusted coordinates shows an interactive vector map. Where the control cannot run, it shows a static map image of the same places that the build stored, with the place list beside it, as [Interactive maps](#interactive-maps) describes. The owner's view of a page on muse.ai web runs in a sandbox that blocks workers, so this fallback is what they see there.
   - A fixed-layout export or headless rasterization with trusted coordinates shows a stored static map image with the place list beside it. On a confidential VM this case changes, as [Exports on a confidential VM](#exports-on-a-confidential-vm) describes.
+  - A downloadable HTML file with trusted coordinates shows a stored static map image with the place list beside it, as [Downloadable HTML files](#downloadable-html-files) describes.
   - Places without trusted coordinates get a place list with maps search links and no map.
 
-- A live page's primary view is a vector map. When it cannot render, a place map shows the static image the build stored for the same places with the place list, and a data map shows its values as a table or chart. Missing coordinates never justify a different renderer or invented location data.
+- A live page is a hosted web artifact the user opens by link. Its primary view is a vector map. When it cannot render, a place map shows the static image the build stored for the same places with the place list, and a data map shows its values as a table or chart. Missing coordinates never justify a different renderer or invented location data.
 
 - Static maps take `[lat, lng]` and GeoJSON `[lng, lat]`; the interactive control takes `{lat, lng}`. Keep latitude and longitude named and convert at the boundary.
 
@@ -86,6 +87,16 @@ builders: web, file
 
 - Keep the baked-in credit and add the notices link described in [Attribution](#attribution).
 
+## Downloadable HTML files
+
+- A downloadable HTML file is a page the user wants as one file to download, email or keep, rather than a page they open by link. It is saved with `artifact.export` and opens in the file preview, which blocks workers and outside requests. Do not mount the interactive map in it, because it needs a worker, and do not load any remote image or script.
+
+- Fetch the static map image at build time as [Static maps](#static-maps) describes, save it under the page's `assets/`, and reference it by relative path. `artifact.export` inlines every `assets/` file, so the exported file renders alone.
+
+- Keep the place list beside each image. If the fetch fails, ship the place list without a map, or the table or chart for a data map.
+
+- On a confidential VM, draw the map in the guest as [Exports on a confidential VM](#exports-on-a-confidential-vm) describes, and save it under `assets/` the same way.
+
 ## Exports on a confidential VM
 
 - A static map request carries its markers in the URL, so asking for the image tells the service where the reader's places are. On a confidential VM that service is the one recipient the VM exists to keep this data from, and an attested transport would not change that, so never call the static endpoint there.
@@ -123,7 +134,7 @@ builders: web, file
 
 ## Data maps
 
-- Build data maps from GeoJSON sources with layer specifications passed through `overlays` on the vector map, using the [data overlay helpers](maps-recipes.md#data-overlays). The static tier supports only markers, circles and paths, so fixed-layout maps choose from those.
+- Build data maps from GeoJSON sources with layer specifications passed through `overlays` on the vector map, using the [data overlay helpers](maps-recipes.md#data-overlays). The static tier supports only markers, circles and paths, so fixed-layout maps and downloadable HTML files choose from those.
 
 - Match the encoding to the data:
   - A choropleth (`fill` layer) shows rates or ratios for enumeration units, where the value is meaningful across the whole area.
@@ -197,6 +208,8 @@ builders: web, file
 - For static maps, inspect the stored image, the required caller parameters, the task-supplied locale values, the uncropped credit and the notices link, and confirm no image `src` is remote.
 
 - For a live place map with trusted coordinates outside a confidential VM, confirm the stored fallback image ships with the build, stays hidden while the control renders, and appears with the place list when `onUnavailable` runs.
+
+- For a downloadable HTML file, confirm every map image is a relative `assets/` reference and the page loads no script, worker, frame, image or fetch from outside.
 
 - On a confidential VM, confirm the export drew its own map and the build made no static-endpoint, tile or basemap request at all.
 

@@ -17,6 +17,17 @@ html,
   min-height: 100%;
 }
 
+/* The Muse apps inject an unlayered `img, video, canvas { height: auto }`,
+ * which beats every Tailwind height utility because those live in a cascade
+ * layer. `revert-layer` hands the height back to the layers. `html img`
+ * (0,0,2) outranks the apps' `img` (0,0,1) wherever it is injected, and still
+ * loses to a Space's own unlayered class rules (0,1,0). */
+html img,
+html video,
+html canvas {
+  height: revert-layer;
+}
+
 [data-generated-space-root] {
   inset: 0;
   overflow: auto;
