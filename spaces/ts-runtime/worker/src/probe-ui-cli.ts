@@ -71,6 +71,13 @@ import {
   settlePage,
   unnamedInteractiveNodes,
 } from "./probe-ui-observe";
+import {
+  TARGET_VIEW_NAMES,
+  paintHostBackdrop,
+  targetViewLabel,
+  targetViewSpec,
+  type TargetViewName,
+} from "./target-views";
 
 const SESSION_SCHEMA_VERSION = "hatch.probe_ui_session.v1";
 const SOCKET_BASENAME = "sock";
@@ -163,6 +170,10 @@ export interface ProbeRequest {
   key?: string;
   dy?: number;
   preset?: string;
+  /** For `viewport` with a widget view: which declared widget to load. */
+  widget?: string;
+  /** For `viewport` with a widget view: show it in dark mode. */
+  dark?: boolean;
   severity?: string;
   what?: string;
   /** For `observe`: return only nodes whose accessible name contains this text,
@@ -215,7 +226,7 @@ export function parseProbeArgv(argv: string[]): {
 const KNOWN_FLAGS: Record<string, string[]> = {
   observe: ["socket", "find"],
   act: ["socket", "node", "name", "snapshot", "action", "text", "key", "dy", "click", "double_click", "fill", "select", "hover", "press", "scroll"],
-  viewport: ["socket", "preset", "_positional"],
+  viewport: ["socket", "preset", "widget", "dark", "_positional"],
   key: ["socket", "key", "_positional"],
   reload: ["socket"],
   flag: ["socket", "severity", "what"],
@@ -281,10 +292,13 @@ export function requestFromArgv(
   }
   if (op === "viewport") {
     const preset = (flags.get("preset") ?? flags.get("_positional") ?? "").trim();
-    if (preset !== "desktop" && preset !== "mobile") {
-      return "viewport requires desktop or mobile";
+    if (preset !== "desktop" && preset !== "mobile" && !isTargetViewName(preset)) {
+      return `viewport requires desktop or mobile, or a target view: ${TARGET_VIEW_NAMES.join(", ")}`;
     }
-    return { op, preset };
+    const widget = flags.get("widget")?.trim();
+    const req: ProbeRequest = widget ? { op, preset, widget } : { op, preset };
+    if (flags.has("dark") && flags.get("dark") !== "false") req.dark = true;
+    return req;
   }
   if (op === "key") {
     const key = (flags.get("key") ?? flags.get("_positional") ?? "").trim();
@@ -317,6 +331,11 @@ interface SessionState {
   /** Unique per audit; mixed into snapshot ids so they cannot collide. */
   auditSessionId: string;
   viewport: Device;
+  /** The target view the page shows (`viewport tv`, `viewport widget-small`, …),
+   *  or null on the plain desktop or phone page. */
+  targetView: TargetViewName | null;
+  /** The host surface painted behind the current widget view, repainted on reload. */
+  targetBackdrop: string | null;
   /** Every viewport this session actually loaded, for the session record. */
   viewportsSeen: Set<string>;
   /** Opens the artifact's context and page as `device` (see switchDevice). */
@@ -845,6 +864,58 @@ async function doAct(
   };
 }
 
+function isTargetViewName(value: string | undefined): value is TargetViewName {
+  return (TARGET_VIEW_NAMES as readonly string[]).includes(value ?? "");
+}
+
+/**
+ * Show a target view: the page as a host loads it for that device, with the
+ * host's URL fragment, size and color scheme. Reloads the page, so state held
+ * only in memory starts over.
+ */
+async function applyTargetView(
+  state: SessionState,
+  name: TargetViewName,
+  widgetId: string | undefined,
+  dark: boolean,
+): Promise<string> {
+  const spec = targetViewSpec(name, widgetId ?? "default", dark ? "dark" : "light");
+  // Target views are not touch phones: reopen as desktop first, then size it.
+  await switchDevice(state, "desktop");
+  await state.page.setViewportSize({ ...spec.viewport });
+  await state.page.emulateMedia({ colorScheme: spec.colorScheme });
+  const entry = new URL(state.url);
+  entry.hash = spec.hash;
+  // A fragment-only change is a same-document navigation, and the page reads
+  // its target once at load; leave the document so the next load is real.
+  await state.page.goto("about:blank");
+  state.navStatus = await navigateAndSettle(state.page, entry.href);
+  if (spec.backdrop !== null) await state.page.evaluate(paintHostBackdrop, spec.backdrop);
+  state.targetView = name;
+  state.targetBackdrop = spec.backdrop;
+  const label = targetViewLabel(spec);
+  state.viewportsSeen.add(label);
+  state.snapshotId = null;
+  state.lastShotHash = null;
+  state.lastSurfacedShot = null;
+  return label;
+}
+
+/** Leave a target view for the plain page at the session's current device. */
+async function leaveTargetView(state: SessionState): Promise<void> {
+  if (state.targetView === null) return;
+  const device = state.viewport === "mobile" ? MOBILE_VIEWPORT : DESKTOP_VIEWPORT;
+  await state.page.setViewportSize({ ...device });
+  await state.page.emulateMedia({ colorScheme: null });
+  await state.page.goto("about:blank");
+  state.navStatus = await navigateAndSettle(state.page, state.url);
+  state.targetView = null;
+  state.targetBackdrop = null;
+  state.snapshotId = null;
+  state.lastShotHash = null;
+  state.lastSurfacedShot = null;
+}
+
 /**
  * Make the session `device`. This reopens the artifact in a new
  * context that carries the old one's cookies and localStorage, and replaces
@@ -905,6 +976,11 @@ async function handle(
       return doAct(state, req, auditDir);
     }
     case "viewport": {
+      if (isTargetViewName(req.preset)) {
+        const label = await applyTargetView(state, req.preset, req.widget, req.dark === true);
+        return { ...(await doObserve(state, auditDir)), viewport_changed: label };
+      }
+      await leaveTargetView(state);
       // A batch step can arrive without a preset (builders send widths); the
       // session must not read that as a switch off the phone.
       if (req.preset !== "desktop" && req.preset !== "mobile") {
@@ -938,7 +1014,14 @@ async function handle(
       // The session's page is navigated once at startup, so after a rebuild it
       // shows the previous bundle. The tool restarts the probe per audit, but a
       // builder that rebuilt mid-session needs this to see its own change.
-      state.navStatus = await navigateAndSettle(state.page, state.url);
+      // A target view keeps its fragment across the reload; leaving the
+      // document first makes the load real rather than a fragment change.
+      const reloadUrl = state.targetView === null ? state.url : state.page.url();
+      if (state.targetView !== null) await state.page.goto("about:blank");
+      state.navStatus = await navigateAndSettle(state.page, reloadUrl);
+      if (state.targetBackdrop !== null) {
+        await state.page.evaluate(paintHostBackdrop, state.targetBackdrop);
+      }
       state.snapshotId = null;
       state.lastShotHash = null;
       state.lastSurfacedShot = null;
@@ -1284,6 +1367,8 @@ async function serve(flags: Map<string, string>): Promise<number> {
     daemonOrigin,
     auditSessionId: auditSessionId ?? socketPath,
     viewport: startDevice,
+    targetView: null,
+    targetBackdrop: null,
     viewportsSeen: new Set([startDevice]),
     openDevice,
     snapshotId: null,

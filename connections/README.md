@@ -1,25 +1,50 @@
 # Connection cards
 
-Make relationship exchanges delightful and easy to follow without overwhelming
-the user with messages or detail. When an outgoing decision or incoming update
-belongs in the main chat, default to an HTML widget inspired by this library.
-A very short confirmation or acknowledgment can simply be plain text; do not
-build a card for it. Follow the existing selection, Writing Style and Final
-Response Brevity instructions first; a beautiful card is not a reason to
-interrupt. Keep the accompanying message short, warm and useful. Let the card
-carry the detail rather than repeating it in prose.
+What comes from a connection reaches the user as a card: a result, a relayed
+message, a shared item, a question for them, a draft awaiting their approval.
+Build it as an HTML widget. Only a one-line acknowledgment goes as plain text.
+Your other instructions decide whether to tell the user at all, and a beautiful
+card is not a reason to interrupt. Keep the words around the card short, warm
+and useful, and let the card carry the detail.
 
-Start from the card below and give it the design in the index that suits the
-message. These are inspiration, not fixed forms to fill. Design on top of the
-most appropriate design for the content, the user's taste, and their
-relationship with this person, group or Muse. Change the layout when that makes
-the message clearer or more personal; never invent intimacy or details to suit
-a design. Use considered type, generous space and restrained color. Keep
-headings modest; use spacing and weight for hierarchy rather than oversized
-type. The two Muse portraits sit side by side, sender first, and do not
-overlap.
+The goal is delight. The user sees at once that the card was made for them and
+finds what they want to know first, without scrolling a long screen or reading
+a wall of text. Give a small update the same care as a big one.
 
-| Choose it for | Design |
+## The designs are inspiration
+
+The base card and the designs below are inspiration, not templates to copy.
+Know the design language and the components. Then make the card this message
+and this user call for.
+
+The language is quiet and personal: paper, ink and one accent color, considered
+type and generous space. The components are the two Muse portraits side by
+side, a short label and state, the person's name, who is writing to whom, a
+topic line and the message. The portraits are a delight in themselves. The user
+sees their own Muse beside the other person's, so show them.
+
+The stylesheet at `/opt/muse/assets/connections/cards.css` shows how each
+design is drawn. Read it for reference. This guide and the stylesheet are
+shared and read-only. Never edit them. What you change and what you add goes
+in a `<style>` inside your own card.
+
+- Shape the card around the content. Pull out what matters and show it: the
+  date and place of a plan, the options of a choice side by side, the legs of
+  a trip in a row, who brings what as a short list.
+- Add elements the designs do not have when the content asks for them. Build
+  them from the card's own colors and type, so the card stays one piece.
+- Make it personal. This user's taste, their relationship with this person,
+  group or Muse, and the occasion decide the colors, the type and the layout.
+- Keep it to one screen. Turn a long account into its point and a few facts
+  the eye can pick out, and leave out what the user does not need. Text that
+  must appear in full, such as a draft awaiting approval or a verbatim relay,
+  scrolls inside the message area and is never cut.
+
+Never invent intimacy or details to suit a design. Keep headings modest, with
+spacing and weight for hierarchy instead of oversized type. The two Muse
+portraits sit side by side, sender first, and do not overlap.
+
+| Closest for | Design |
 | --- | --- |
 | A personal note; the quiet default | `letter` |
 | A meal or warm invitation | `invitation` |
@@ -31,6 +56,8 @@ overlap.
 | A celebration or special occasion | `evening` |
 | A changed plan or delicate detail | `margin` |
 | A covering message for files or a Space | `dispatch` |
+
+The base card, in the `letter` design:
 
 ```html
 <link rel="stylesheet" href="/opt/muse/assets/connections/cards.css">
@@ -83,10 +110,12 @@ proposed text with its meaningful line breaks; a draft is not a sent message.
 Keep internal review details out of the card. Put the short decision and your
 recommendation in the accompanying message.
 
-Keep the stylesheet link as the card's first line; the runtime replaces it with
-the shared CSS when the widget is created. Add your own `<style>` after it when
-a design needs changing. Use `widget.create_html_widget` with `fallback_text` of
-at most 120 characters. Preserve light/dark themes, readable contrast,
+Keep the stylesheet link as the card's first line. The runtime replaces it with
+the shared CSS when the widget is created. Add your own `<style>` after it for
+what you change and what you add. Use the card's color variables,
+`--card-paper`, `--card-ink`, `--card-muted`, `--card-line`, `--card-well` and
+`--card-accent`, so new elements hold in light and dark themes. Use
+`widget.create_html_widget` with `fallback_text` of at most 120 characters. Preserve light/dark themes, readable contrast,
 phone-width wrapping and the scrollable full message. Cap the message area's
 height (280px here, 220px on phones) so long content scrolls within the card
 while the header stays visible.

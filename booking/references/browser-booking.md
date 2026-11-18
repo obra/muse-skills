@@ -4,6 +4,8 @@
 
 - Use an existing authorized session when one is available. Offer sign-in when it can unlock or verify member pricing, credits, points or saved details. Continue as a guest when that meets the need, and never require a new account.
 
+- On an airline's website, a flight booked while signed in to the traveler's account carries their loyalty number. Sign in when they have an account with that airline and a saved sign-in exists or they agree to sign in. A traveler who books as a guest can type their number into the traveler details during a takeover, since membership numbers stay out of task text.
+
 - When a task may sign in to an airline, hotel, car rental or travel booking site, ask it to keep the session by ticking "Keep me signed in" or "Stay signed in" when the sign-in form offers it.
 
 - "Remember this device" and "Trust this browser" also let a site skip its one-time code next time, which changes the account's security settings. When you offer a sign-in to one of these travel sites, ask in the same message whether it may remember Muse's browser, and tell the task to tick these options only on sites the user agreed to.

@@ -301,6 +301,10 @@ async function writeTypecheckConfig(entryDir, entryPath, spaceDir, aliases) {
     compilerOptions: {
       baseUrl: ".",
       ignoreDeprecations: "5.0",
+      // The VM build passes a typecheck whose only errors are unused code
+      // (`typecheck` in hatch-spaces build.rs), so the same source must pass here.
+      noUnusedLocals: false,
+      noUnusedParameters: false,
       paths: {
         "@hatch/space-sdk": [relativeShim],
         zod: [relativeZod],

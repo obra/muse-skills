@@ -13,6 +13,7 @@ import {
   type JsonValue,
   type PortableCtx,
 } from "../../sdk/src/server-contract";
+import type { GeneratedMedia, GenerateMediaOptions } from "../../sdk/src/verticals";
 
 export {
   INFERENCE_SCHEMA_ERROR_BRAND,
@@ -147,6 +148,23 @@ export type ToolFinanceResult = JsonValue;
 export type ToolFinanceTickerResult = JsonValue;
 export type ToolWebSearchResult = JsonValue;
 
+export {
+  TOOL_FINANCE_RESULT_SCHEMA,
+  TOOL_FINANCE_SCHEMA,
+  TOOL_FINANCE_TICKER_RESULT_SCHEMA,
+  TOOL_FINANCE_TICKER_SCHEMA,
+  TOOL_SPORTS_DATA_RESULT_SCHEMA,
+  TOOL_SPORTS_DATA_SCHEMA,
+  TOOL_WEATHER_RESULT_SCHEMA,
+  TOOL_WEATHER_SCHEMA,
+  TOOL_WEB_SEARCH_RESULT_SCHEMA,
+  TOOL_WEB_SEARCH_SCHEMA,
+  type GeneratedMedia,
+  type GenerateMediaOptions,
+  type GenerateMediaOrientation,
+  type ToolFinanceInterval,
+} from "../../sdk/src/verticals";
+
 export interface SpaceToolClient {
   weather(
     query: string,
@@ -177,6 +195,7 @@ export interface SpaceToolClient {
     query: string,
     options?: ToolSearchOptions,
   ): Promise<ToolSearchResponse<ToolWebSearchResult>>;
+  generate_media(prompt: string, options?: GenerateMediaOptions): Promise<GeneratedMedia>;
 }
 
 export interface AgentSendOptions {

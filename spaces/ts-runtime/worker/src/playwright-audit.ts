@@ -39,7 +39,17 @@ import { fulfillLocalAuditRequest } from "./local-audit-transport";
 //                            ledger (audit caller only; preview/inspection
 //                            captures observe-and-forward)
 //   --capture=<mode>         "full" captures desktop+mobile (default);
-//                            "desktop-only" skips the mobile screenshot.
+//                            "desktop-only" skips the mobile screenshot;
+//                            "blueprint" captures the first screen of each
+//                            top-level route for a template upload and
+//                            writes a BlueprintReport instead (see
+//                            runBlueprintCapture).
+//   --targets=<list>         comma-separated device targets the Space declares
+//                            beyond phone and desktop (`tv`, `widget`); each
+//                            adds target-view captures (`targets` below).
+//                            Absent: no extra captures.
+//   --widget-id=<id>         which declared widget the widget views load
+//                            (defaults to `default`).
 //
 // Output: `<output_dir>/report.json`, whose JSON matches the shape:
 //   {
@@ -77,6 +87,16 @@ import { fulfillLocalAuditRequest } from "./local-audit-transport";
 //     "color_scheme": { "declared": "..."|null, "media_dependent": bool|null, "dark_frame": bool }|null,
 //                         // desktop pass; media_dependent null = unknown; dark_frame: screenshot-dark.png written (fold under prefers-color-scheme: dark, only when media_dependent)
 //                               // the scheme the images were taken under.
+//     "targets": [ { "name": "tv"|"widget-small"|"widget-medium"|"widget-large",
+//                    "color_scheme": "light"|"dark",  // widgets: each size in both
+//                    "width": N, "height": N, "screenshot_path": "..."|null,
+//                    "scroll_x_px": N, "scroll_y_px": N,
+//                    "outside": [{ "selector": "...", "text": "..." }],
+//                    "focused": "..."|null,
+//                    "low_contrast": [{ "selector": "...", "text": "...", "ratio": N }],
+//                    "opaque_background": "<selector> #rrggbb"|null,
+//                    "clipped": [...], "error": "..."|null } ]
+//                 | null,     // only with --targets; null otherwise
 //     "error":           "<populated when ok=false>"
 //   }
 // Stdout carries only `report-sha256:<hex>` followed by the report path (last
@@ -117,6 +137,28 @@ import { connect as tlsConnect } from "node:tls";
 import type { Duplex } from "node:stream";
 import type { Browser, Page } from "playwright";
 
+import {
+  navTargets,
+  openNavTarget,
+  readReplacements,
+  replacePageText,
+  routeSlug,
+  unreplacedOn,
+  type BlueprintReport,
+  type BlueprintRoute,
+  type NavTarget,
+  type Replacement,
+} from "./blueprint-capture";
+import {
+  OUTSIDE_LIMIT,
+  measureTargetView,
+  normalizeWidgetId,
+  paintHostBackdrop,
+  targetViewLabel,
+  targetViewSpecs,
+  type TargetViewReport,
+  type TargetViewSpec,
+} from "./target-views";
 import {
   SCENARIO_CLOCK_OFFSET_MS,
   ariaSnapshot,
@@ -175,8 +217,12 @@ const MOBILE_SCREENSHOT_FILENAME = "screenshot-mobile.png";
 const FULLPAGE_SCREENSHOT_FILENAME = "screenshot-full.png";
 const CAPTURE_MODE_FULL = "full";
 const CAPTURE_MODE_DESKTOP_ONLY = "desktop-only";
+const CAPTURE_MODE_BLUEPRINT = "blueprint";
 
-type CaptureMode = typeof CAPTURE_MODE_FULL | typeof CAPTURE_MODE_DESKTOP_ONLY;
+type CaptureMode =
+  | typeof CAPTURE_MODE_FULL
+  | typeof CAPTURE_MODE_DESKTOP_ONLY
+  | typeof CAPTURE_MODE_BLUEPRINT;
 
 // Chromium "phone home" suppression. The audit's Chromium is fronted by the
 // transport ledger's egress lockdown (only the daemon origin tunnels out), so
@@ -319,6 +365,9 @@ interface CliArgs {
   url: string;
   skipInstall: boolean;
   captureMode: CaptureMode;
+  // Target views to capture after desktop and mobile (`--targets`); [] for a
+  // Space with only the default targets.
+  targetViews: TargetViewSpec[];
   // Route-alias-scoped notary endorsement token minted via STEFI by the
   // Rust runner. The route handler attaches it as
   // `Authorization: <token>` ONLY on requests whose origin matches
@@ -668,6 +717,9 @@ interface AuditReport {
   // null when the navigation produced no response object.
   nav_status: number | null;
   viewports: { desktop: ViewportReport; mobile: ViewportReport };
+  // Target-view captures (`--targets`); null when the Space declares none or
+  // the desktop pass failed.
+  targets?: TargetViewReport[] | null;
   // Page-level horizontal-overflow audit from the mobile pass. null when the
   // mobile capture was skipped (desktop-only mode) or failed.
   mobile_layout: MobileLayoutAudit | null;
@@ -1440,6 +1492,11 @@ function parseArgs(argv: string[]): CliArgs {
   const proxyAuthUsername =
     proxyAuthUserRaw && proxyAuthUserRaw.length > 0 ? proxyAuthUserRaw : null;
   const captureMode = parseCaptureMode(args.get("capture"));
+  const targets = (args.get("targets") ?? "")
+    .split(",")
+    .map((target) => target.trim())
+    .filter((target) => target.length > 0);
+  const targetViews = targetViewSpecs(targets, normalizeWidgetId(args.get("widget-id")));
   return {
     slug,
     routeSlug,
@@ -1449,6 +1506,7 @@ function parseArgs(argv: string[]): CliArgs {
     url,
     skipInstall,
     captureMode,
+    targetViews,
     notaryToken: null,
     auditSessionId,
     proxyServer,
@@ -1467,8 +1525,11 @@ function parseCaptureMode(rawValue: string | undefined): CaptureMode {
   if (raw === CAPTURE_MODE_DESKTOP_ONLY) {
     return CAPTURE_MODE_DESKTOP_ONLY;
   }
+  if (raw === CAPTURE_MODE_BLUEPRINT) {
+    return CAPTURE_MODE_BLUEPRINT;
+  }
   throw new Error(
-    `playwright-audit: --capture must be ${CAPTURE_MODE_FULL} or ${CAPTURE_MODE_DESKTOP_ONLY}`,
+    `playwright-audit: --capture must be ${CAPTURE_MODE_FULL}, ${CAPTURE_MODE_DESKTOP_ONLY} or ${CAPTURE_MODE_BLUEPRINT}`,
   );
 }
 
@@ -1598,6 +1659,7 @@ function emptyReport(args: CliArgs): AuditReport {
       desktop: { ...DESKTOP_VIEWPORT, screenshot_path: null, fullpage_screenshot_path: null },
       mobile: { ...MOBILE_VIEWPORT, screenshot_path: null },
     },
+    targets: null,
     mobile_layout: null,
     horizontal_scrollers: [],
     unreachable_controls: { desktop: [], mobile: [] },
@@ -2961,6 +3023,123 @@ async function captureViewport(
   }
 }
 
+interface CaptureSinks {
+  consoleErrors: string[];
+  consoleWarnings: string[];
+  blockedRequests: string[];
+  externalRequests: ExternalRequestLog;
+  brokenAssets: FailedAssetRequest[];
+  externalFetchFailures: { count: number; samples: string[] };
+}
+
+/**
+ * One target view: the page as a host loads it for that device (the URL
+ * fragment, size and color scheme in `spec`), measured for what does not fit.
+ * Same network policy and settle as the other passes. Never fails the audit:
+ * a view that cannot be captured reports its error and the audit goes on.
+ */
+async function captureTargetView(
+  pw: typeof import("playwright"),
+  args: CliArgs,
+  spec: TargetViewSpec,
+  outputDir: string,
+  sharedBrowser: Browser | null,
+  executablePath: string | null,
+  sinks: CaptureSinks,
+): Promise<TargetViewReport> {
+  const result: TargetViewReport = {
+    name: spec.name,
+    color_scheme: spec.colorScheme,
+    ...spec.viewport,
+    screenshot_path: null,
+    scroll_x_px: 0,
+    scroll_y_px: 0,
+    outside: [],
+    focused: null,
+    low_contrast: [],
+    opaque_background: null,
+    clipped: [],
+    error: null,
+  };
+  let browser: Browser | null = sharedBrowser;
+  let ownsBrowser = false;
+  try {
+    if (browser === null) {
+      browser = await pw.chromium.launch(
+        buildLaunchOptions(
+          executablePath,
+          args.proxyServer,
+          args.proxyAuthToken,
+          args.proxyAuthUsername,
+        ),
+      );
+      ownsBrowser = true;
+    }
+    const context = await browser.newContext({
+      viewport: spec.viewport,
+      deviceScaleFactor: 2,
+      colorScheme: spec.colorScheme,
+      serviceWorkers: "block",
+      ignoreHTTPSErrors: true,
+    });
+    try {
+      if (SCENARIO_CLOCK_OFFSET_MS !== null) {
+        await context.addInitScript(shiftTimeScript(SCENARIO_CLOCK_OFFSET_MS));
+      }
+      const page = await context.newPage();
+      const daemonOrigin = new URL(args.url).origin;
+      installPageDiagnostics(
+        page,
+        sinks.consoleErrors,
+        [],
+        daemonOrigin,
+        sinks.consoleWarnings,
+        sinks.brokenAssets,
+        sinks.externalFetchFailures,
+        args.egressLockdown,
+      );
+      await attachAuditNetworkPolicy(
+        page,
+        args.url,
+        args.slug,
+        args.routeSlug,
+        args.notaryToken,
+        args.auditSessionId,
+        sinks.blockedRequests,
+        sinks.externalRequests,
+        args.sandboxApiSocket ?? null,
+      );
+      const navigation = await navigateForCapture(page, `${args.url}#${spec.hash}`, () => {});
+      if (navigation.status === null || navigation.status < 200 || navigation.status >= 300) {
+        throw new Error(`navigation returned HTTP ${navigation.status ?? "no response"}`);
+      }
+      if (!navigation.settle.settled) await settleForCapture(page);
+      if (spec.backdrop !== null) await page.evaluate(paintHostBackdrop, spec.backdrop);
+      const measure = await page.evaluate(measureTargetView, {
+        inset: spec.inset,
+        checkFocus: spec.checkFocus,
+        limit: OUTSIDE_LIMIT,
+        backdrop: spec.backdrop,
+      });
+      Object.assign(result, measure);
+      result.clipped = await observeNodes(page)
+        .then((walk) => clippedNodes(walk))
+        .catch(() => []);
+      const screenshotPath = join(outputDir, spec.fileName);
+      await page.screenshot({ path: screenshotPath, fullPage: false });
+      result.screenshot_path = screenshotPath;
+    } finally {
+      await context.close().catch(() => {});
+    }
+  } catch (err) {
+    result.error = (err as Error).message.slice(0, 300);
+    sinks.consoleErrors.push(`${targetViewLabel(spec)} capture failed: ${result.error}`);
+  } finally {
+    if (ownsBrowser && browser !== null) await browser.close().catch(() => {});
+  }
+  return result;
+}
+
 async function runAudit(args: CliArgs): Promise<AuditReport> {
   const started = performance.now();
   navRetriesThisRun = 0;
@@ -2975,6 +3154,7 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
   // Fallback/decision flags surfaced in report.diagnostics for validation.
   let sharedLaunchFailed = false;
   let concurrentDesktopRetried = false;
+  let targetViewLaunches = 0;
   let concurrentMobileRetried = false;
   logAuditEvent("start", {
     slug: args.slug,
@@ -3203,6 +3383,30 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
       await runDesktop();
       await runMobile();
     }
+    // Target views read the page the desktop pass proved loads; after a failed
+    // desktop pass they would only repeat its error.
+    if (report.ok && args.targetViews.length > 0) {
+      const targetsStartedAt = performance.now();
+      report.targets = [];
+      for (const spec of args.targetViews) {
+        // Without a live shared browser the view launches its own.
+        if (liveShared() === null) targetViewLaunches += 1;
+        report.targets.push(
+          await captureTargetView(pw, args, spec, outputDir, liveShared(), executablePath, {
+            consoleErrors,
+            consoleWarnings,
+            blockedRequests,
+            externalRequests,
+            brokenAssets,
+            externalFetchFailures,
+          }),
+        );
+      }
+      logAuditEvent("target_views", {
+        views: args.targetViews.map(targetViewLabel).join(","),
+        ms: Math.round(performance.now() - targetsStartedAt),
+      });
+    }
   } finally {
     // Close the shared browser we launched (Fix 1), exactly once.
     if (sharedBrowser !== null) {
@@ -3212,11 +3416,12 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
 
   // Phase-0 telemetry: how many cold chromium.launch() calls this audit paid and
   // which browser strategy ran. Shared mode is a single launch; the legacy path
-  // pays desktop + (mobile unless desktop-only).
+  // pays desktop + (mobile unless desktop-only). Target views reuse the shared
+  // browser and launch their own only without one.
   report.browser_launches =
-    sharedBrowser !== null
+    (sharedBrowser !== null
       ? 1
-      : 1 + (args.captureMode !== CAPTURE_MODE_DESKTOP_ONLY ? 1 : 0);
+      : 1 + (args.captureMode !== CAPTURE_MODE_DESKTOP_ONLY ? 1 : 0)) + targetViewLaunches;
   report.audit_path = concurrentViewportsRan
     ? "shared-concurrent"
     : sharedBrowser !== null
@@ -3293,6 +3498,202 @@ async function runAudit(args: CliArgs): Promise<AuditReport> {
     diagnostics: report.diagnostics,
   });
   return report;
+}
+
+/**
+ * Inside the runner's 180 s AUDIT_TIMEOUT, with room for the target in flight
+ * and the browser's close; targets not started by then are left out.
+ */
+const BLUEPRINT_DEADLINE_MS = 140_000;
+
+async function runBlueprintCapture(args: CliArgs): Promise<BlueprintReport> {
+  const started = performance.now();
+  const report: BlueprintReport = { ok: true, duration_ms: 0, routes: [], missed: [] };
+  let browser: Browser | null = null;
+  try {
+    const replacements = await readReplacements(args.outputDir);
+    const executablePath = findSystemChrome();
+    if (executablePath === null && !args.skipInstall) await ensureChromium();
+    const pw = await loadPlaywright();
+    browser = await pw.chromium.launch(
+      buildLaunchOptions(executablePath, args.proxyServer, args.proxyAuthToken, args.proxyAuthUsername),
+    );
+    const pinnedNow = Date.now() + (SCENARIO_CLOCK_OFFSET_MS ?? 0);
+    const capture: BlueprintCapture = {
+      replacements,
+      pinnedNow,
+      deadline: started + BLUEPRINT_DEADLINE_MS,
+      routes: new Map(),
+      missed: report.missed,
+    };
+    for (const viewport of [DESKTOP_VIEWPORT, MOBILE_VIEWPORT]) {
+      if (performance.now() >= capture.deadline) break;
+      await captureBlueprintViewport(browser, args, viewport, capture);
+    }
+    report.routes = [...capture.routes.values()];
+  } catch (err) {
+    report.ok = false;
+    report.error = `blueprint capture failed: ${(err as Error).message}`;
+  } finally {
+    await browser?.close().catch(() => {});
+    report.duration_ms = performance.now() - started;
+  }
+  return report;
+}
+
+interface BlueprintCapture {
+  replacements: Replacement[];
+  pinnedNow: number;
+  /** On the `performance.now()` clock. */
+  deadline: number;
+  /** By target key; the first screen is `""`. */
+  routes: Map<string, BlueprintRoute>;
+  missed: BlueprintReport["missed"];
+}
+
+async function captureBlueprintViewport(
+  browser: Browser,
+  args: CliArgs,
+  viewport: { width: number; height: number },
+  { replacements, pinnedNow, deadline, routes, missed }: BlueprintCapture,
+): Promise<void> {
+  const mobile = viewport.width === MOBILE_VIEWPORT.width;
+  const opened = await openBlueprintPage(browser, args, viewport, pinnedNow);
+  try {
+    const { page } = opened;
+    const label = `${viewport.width}x${viewport.height}`;
+    await openFirstScreen(page, args.url);
+    const targets = await navTargets(page, replacements);
+    const home = blueprintRoute(routes, { index: null, key: "", name: "home" });
+    await shootBlueprintRoute(page, args.outputDir, home, label, replacements);
+    for (const target of mobile ? targets.filter(({ key }) => routes.has(key)) : targets) {
+      if (performance.now() >= deadline) break;
+      if (!(await openFromFirstScreen(page, args.url, target, replacements))) {
+        missed.push({ viewport: label, name: target.name });
+        continue;
+      }
+      const route = blueprintRoute(routes, target);
+      await shootBlueprintRoute(page, args.outputDir, route, label, replacements);
+    }
+    if (opened.transportFailed()) {
+      throw new AuditNavigationError(null, "capture_transport");
+    }
+  } finally {
+    await opened.page.context().close().catch(() => {});
+  }
+}
+
+/** A page in the context the blueprint pins, not yet on the Space. */
+async function openBlueprintPage(
+  browser: Browser,
+  args: CliArgs,
+  viewport: { width: number; height: number },
+  pinnedNow: number,
+): Promise<{ page: Page; transportFailed: () => boolean }> {
+  const context = await browser.newContext(blueprintContextOptions(viewport));
+  await context.clock.setFixedTime(pinnedNow);
+  // A closed shadow root would hide its text from the swap and from the check.
+  await context.addInitScript(() => {
+    const attachShadow = Element.prototype.attachShadow;
+    Element.prototype.attachShadow = function (init: ShadowRootInit) {
+      return attachShadow.call(this, { ...init, mode: "open" });
+    };
+  });
+  const page = await context.newPage();
+  let failed = false;
+  await attachAuditNetworkPolicy(
+    page,
+    args.url,
+    args.slug,
+    args.routeSlug,
+    args.notaryToken,
+    args.auditSessionId,
+    [],
+    newExternalRequestLog(),
+    args.sandboxApiSocket ?? null,
+    () => (failed = true),
+  );
+  return { page, transportFailed: () => failed };
+}
+
+async function openFirstScreen(page: Page, url: string): Promise<void> {
+  const navigation = await navigateForCapture(page, url);
+  if (navigation.status === null || navigation.status < 200 || navigation.status >= 300) {
+    throw new AuditNavigationError(navigation.status);
+  }
+  if (!navigation.settle.settled) await settleForCapture(page);
+}
+
+/**
+ * Each target opens from a freshly loaded first screen, found again by its
+ * key, so an earlier click's state or a control another screen added never
+ * changes which control this one is.
+ */
+async function openFromFirstScreen(
+  page: Page,
+  url: string,
+  target: NavTarget,
+  replacements: Replacement[],
+): Promise<boolean> {
+  await openFirstScreen(page, url);
+  const found = (await navTargets(page, replacements)).find(({ key }) => key === target.key);
+  if (found === undefined || !(await openNavTarget(page, found.index))) return false;
+  if (!(await settleForCapture(page)).settled) await settleForCapture(page);
+  return true;
+}
+
+/** What the blueprint pins that the audit leaves to the page and the host. */
+function blueprintContextOptions(viewport: { width: number; height: number }) {
+  const mobile = viewport.width === MOBILE_VIEWPORT.width;
+  return {
+    viewport,
+    deviceScaleFactor: 1,
+    isMobile: mobile,
+    hasTouch: mobile,
+    serviceWorkers: "block" as const,
+    // The same scoped bypass as captureViewport's context.
+    ignoreHTTPSErrors: true,
+    locale: "en-US",
+    timezoneId: "UTC",
+    colorScheme: "light" as const,
+    reducedMotion: "reduce" as const,
+  };
+}
+
+/** The route `key` names (the first screen is `""`), made on first sight. */
+function blueprintRoute(
+  routes: Map<string, BlueprintRoute>,
+  { index, key, name }: { index: number | null; key: string; name: string },
+): BlueprintRoute {
+  const known = routes.get(key);
+  if (known !== undefined) return known;
+  const taken = new Set([...routes.values()].map((route) => route.slug));
+  taken.add("home");
+  const route: BlueprintRoute = {
+    index,
+    slug: key === "" ? "home" : routeSlug(name, taken),
+    shots: [],
+    matched: [],
+    unreplaced: [],
+  };
+  routes.set(key, route);
+  return route;
+}
+
+async function shootBlueprintRoute(
+  page: Page,
+  outputDir: string,
+  route: BlueprintRoute,
+  label: string,
+  replacements: Replacement[],
+): Promise<void> {
+  const { matched, unreplaced } = await replacePageText(page, replacements);
+  route.matched = [...new Set([...route.matched, ...matched])];
+  route.unreplaced = [...new Set([...route.unreplaced, ...unreplaced])];
+  const file = `${route.slug}-${label}.png`;
+  const png = await page.screenshot({ path: join(outputDir, file), fullPage: false });
+  route.unreplaced = [...new Set([...route.unreplaced, ...(await unreplacedOn(page, replacements))])];
+  route.shots.push({ viewport: label, file, sha256: createHash("sha256").update(png).digest("hex") });
 }
 
 export type ProxyAuthRelay = { server: string; close: () => Promise<void> };
@@ -3644,12 +4045,15 @@ async function main(): Promise<number> {
     }
   }
   const startFailure = relayStartFailure ?? ledgerStartFailure;
-  let report: AuditReport;
+  let report: AuditReport | BlueprintReport;
   try {
     if (startFailure !== null) {
       throw new Error(startFailure);
     }
-    report = await runAudit(args);
+    report =
+      args.captureMode === CAPTURE_MODE_BLUEPRINT
+        ? await runBlueprintCapture(args)
+        : await runAudit(args);
   } catch (err) {
     report = {
       ok: false,

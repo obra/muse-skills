@@ -378,6 +378,9 @@ function createToolClient(): SpaceToolClient {
     async web_search() {
       return vmCapabilityUnavailable("ctx.tool.web_search");
     },
+    async generate_media() {
+      return vmCapabilityUnavailable("ctx.tool.generate_media");
+    },
   };
 }
 

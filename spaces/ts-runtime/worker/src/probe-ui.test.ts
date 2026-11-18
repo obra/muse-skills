@@ -78,8 +78,13 @@ describe("requestFromArgv", () => {
     });
   });
 
-  test("viewport only accepts the two presets", () => {
+  test("viewport only accepts its presets", () => {
     expect(parse(["viewport", "mobile"])).toEqual({ op: "viewport", preset: "mobile" });
+    expect(parse(["viewport", "widget-small", "--widget", "today"])).toEqual({
+      op: "viewport",
+      preset: "widget-small",
+      widget: "today",
+    });
     expect(parse(["viewport", "tablet"])).toContain("desktop or mobile");
   });
 

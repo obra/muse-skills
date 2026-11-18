@@ -20,7 +20,7 @@
 
 - Identity, membership and payment details go through the provider's form, the secure wallet or credential flow, or the browser handoff. Do not ask for passwords in chat.
 
-- Ask in chat for a document or membership number only when the connector doc for this booking asks for it and the booking needs it. Use it only in that booking request, and never repeat it.
+- Ask in chat for a document or membership number only when the connector doc for this booking asks for it and the booking needs it, or for a loyalty number the connector doc asks for, which puts the traveler's status and mileage earning on the booking. Use it only in that booking request, and keep it out of later replies.
 
 - Do not request, repeat, store or forward card numbers or CVVs from chat. Use Wallet or browser takeover for payment details. Keep passport, traveler-security and membership numbers out of browser task text, notes, memory and files.
 
