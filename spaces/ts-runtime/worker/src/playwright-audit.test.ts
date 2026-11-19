@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Route } from "playwright";
 import { describe, expect, spyOn, test } from "bun:test";
-import { connect as netConnect, createServer as netCreateServer } from "node:net";
 
 import {
   attachAuditNetworkPolicy,
@@ -20,7 +19,6 @@ import {
   isHighPriorityWarning,
   newExternalRequestLog,
   recordExternalRequest,
-  startProxyAuthRelay,
 } from "./playwright-audit";
 
 const DAEMON_ORIGIN = "http://[fd8b:4f84:7d32:99::2]:18792";
@@ -77,7 +75,7 @@ describe("buildLaunchOptions image policy boundary", () => {
       // Even with a policy present, unrelated browsers must never read it.
       expect(read).toHaveBeenCalledTimes(1);
       expect(() => buildLaunchOptions(chrome, proxy, "token", null)).toThrow(
-        "proxy auth token must be routed through relay",
+        "proxy auth token must be injected by the transport ledger",
       );
     } finally {
       read.mockRestore();
@@ -150,96 +148,6 @@ describe("HBI-provided Chromium admission", () => {
       expect(() => buildLaunchOptions(alternative, null, null, null)).toThrow(
         "Linux artifact rendering requires /opt/meta-chromium/chrome",
       );
-    }
-  });
-});
-
-describe("startProxyAuthRelay", () => {
-  test("injects Proxy-Authorization on every forwarded CONNECT", async () => {
-    // Mock upstream Sentinel proxy: capture the CONNECT head, accept the tunnel.
-    // This is the load-bearing attribution contract — the render's subresource
-    // CONNECTs (Google Fonts) must carry the egress token so Sentinel attributes
-    // them to the Space subject instead of runtime.unknown.
-    let capturedHead = "";
-    const upstream = netCreateServer((sock) => {
-      sock.once("data", (chunk: Buffer) => {
-        capturedHead = chunk.toString("latin1");
-        sock.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-      });
-    });
-    await new Promise<void>((resolve) => upstream.listen(0, "::1", resolve));
-    const upstreamPort = (upstream.address() as { port: number }).port;
-
-    const relay = await startProxyAuthRelay(
-      `http://[::1]:${upstreamPort}`,
-      "hatch-runtime",
-      "tok-abc123",
-    );
-    try {
-      const relayPort = Number(new URL(relay.server).port);
-      const status = await new Promise<string>((resolve, reject) => {
-        const c = netConnect(relayPort, "::1", () => {
-          c.write(
-            "CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\n\r\n",
-          );
-        });
-        c.once("data", (chunk: Buffer) => {
-          resolve(chunk.toString("latin1"));
-          c.end();
-        });
-        c.once("error", reject);
-      });
-      const expectedCredential =
-        "Proxy-Authorization: Basic " +
-        Buffer.from("hatch-runtime:tok-abc123").toString("base64");
-      expect(status).toContain("200");
-      expect(capturedHead).toContain("CONNECT example.com:443");
-      expect(capturedHead).toContain(expectedCredential);
-    } finally {
-      await relay.close();
-      await new Promise<void>((resolve) => upstream.close(() => resolve()));
-    }
-  });
-
-  test("forwards a non-200 upstream CONNECT verbatim and does not tunnel", async () => {
-    // The "denied stays denied" contract: the relay must surface a policy
-    // denial (e.g. 403) to Chromium unchanged and never establish a tunnel on a
-    // non-200. Injecting the token sets attribution only; it never overrides
-    // Sentinel's decision.
-    const upstream = netCreateServer((sock) => {
-      sock.once("data", () => {
-        sock.write("HTTP/1.1 403 Forbidden\r\n\r\n");
-        sock.end();
-      });
-    });
-    await new Promise<void>((resolve) => upstream.listen(0, "::1", resolve));
-    const upstreamPort = (upstream.address() as { port: number }).port;
-
-    const relay = await startProxyAuthRelay(
-      `http://[::1]:${upstreamPort}`,
-      "hatch-runtime",
-      "tok-xyz789",
-    );
-    try {
-      const relayPort = Number(new URL(relay.server).port);
-      const response = await new Promise<string>((resolve, reject) => {
-        let data = "";
-        const c = netConnect(relayPort, "::1", () => {
-          c.write(
-            "CONNECT denied.example:443 HTTP/1.1\r\nHost: denied.example:443\r\n\r\n",
-          );
-        });
-        c.on("data", (chunk: Buffer) => {
-          data += chunk.toString("latin1");
-        });
-        c.on("close", () => resolve(data));
-        c.once("error", reject);
-      });
-      expect(response).toContain("403");
-      expect(response).not.toContain("200");
-    } finally {
-      await relay.close();
-      await new Promise<void>((resolve) => upstream.close(() => resolve()));
     }
   });
 });

@@ -50,7 +50,6 @@ import {
   readAuditTokensFromStdin,
   readBodyText,
   scanTextIssues,
-  startProxyAuthRelay,
   summarizeImages,
   type ExternalRequestLog,
   type FailedImageRequest,
@@ -1210,35 +1209,26 @@ async function serve(flags: Map<string, string>): Promise<number> {
   await mkdir(probeDir, { recursive: true });
   if (auditDir !== null) await mkdir(auditDir, { recursive: true });
 
-  // Same egress posture as the one-shot audit: the token must be behind a
-  // loopback relay before Chromium starts, never handed to Playwright.
+  // The origin-scoped ledger injects the runtime egress token upstream, never
+  // handing it to Playwright or forwarding credentialed arbitrary destinations.
+  const proxyAuthHeader =
+    proxyServer !== null && proxyAuthToken !== null
+      ? "Basic " +
+        Buffer.from(
+          `${proxyAuthUsername ?? "hatch-runtime"}:${proxyAuthToken}`,
+        ).toString("base64")
+      : null;
   let effectiveProxy = proxyServer;
-  let relayClose: (() => Promise<void>) | null = null;
-  if (proxyServer !== null && proxyAuthToken !== null) {
-    // CONNECT-only from the first byte: with the transport ledger fronting
-    // Chromium (below), the relay's only legitimate client is the ledger's
-    // CONNECT hop, and an origin-form request would carry the injected
-    // credential for any loopback caller — including the audited page, which
-    // Chromium never proxies loopback traffic away from. The ledger-failure
-    // fallback reopens origin-form explicitly.
-    const relay = await startProxyAuthRelay(
-      proxyServer,
-      proxyAuthUsername ?? "hatch-runtime",
-      proxyAuthToken,
-      { connectOnly: true },
-    );
-    effectiveProxy = relay.server;
-    relayClose = relay.close;
-  }
 
-  // Front the resident Chromium with the same loopback SOCKS5 transport ledger
-  // and egress lockdown the one-shot audit uses: only the artifact's own
-  // origin (exact host AND port) tunnels out, every other destination is
-  // recorded and refused at this hop, so the interaction phase reaches
-  // Sentinel with nothing and raises no mid-build approval prompt. Chromium is
-  // pointed at the ledger's socks5 URL, which also switches
-  // `buildHostResolverRulesArg` into its socks5h shape (names resolve
-  // proxy-side, so a hostname carrying data lands in the ledger).
+  // Front the resident Chromium with the loopback SOCKS5 transport ledger and
+  // egress lockdown the one-shot audit uses: only the artifact's own origin
+  // (exact host AND port) tunnels out, every other destination is recorded and
+  // refused at this hop, so the interaction phase reaches Sentinel with nothing
+  // and raises no mid-build approval prompt. The ledger injects the egress token
+  // on its upstream CONNECT to Sentinel. Chromium is pointed at the ledger's
+  // socks5 URL, which also switches `buildHostResolverRulesArg` into its socks5h
+  // shape (names resolve proxy-side, so a hostname carrying data lands in the
+  // ledger).
   //
   // Unlike the audit, a ledger that will not start does NOT fail the session:
   // the socket is about to be advertised to a builder mid-turn and "an
@@ -1252,31 +1242,20 @@ async function serve(flags: Map<string, string>): Promise<number> {
         throw new Error(`probe url has no TCP destination: ${url}`);
       }
       transportLedger = await startTransportLedger(effectiveProxy, {
+        upstreamProxyAuthHeader: proxyAuthHeader,
         allowedDestinations: new Set([probeDestination]),
       });
       effectiveProxy = transportLedger.server;
     } catch (err) {
       process.stderr.write(
-        `[probe-ui] transport ledger failed to start; continuing without egress lockdown: ${String(err)}\n`,
+        `[probe-ui] transport ledger failed to start; continuing without egress lockdown and unattributed: ${String(err)}\n`,
       );
       transportLedger = null;
-      // Without the ledger, Chromium talks to the relay directly as its HTTP
-      // proxy and plain-http fetches need the origin-form path — restart the
-      // relay open. Only this explicit fallback runs origin-form.
-      if (relayClose !== null && proxyServer !== null && proxyAuthToken !== null) {
-        try {
-          await relayClose();
-        } catch {
-          /* replaced below either way */
-        }
-        const openRelay = await startProxyAuthRelay(
-          proxyServer,
-          proxyAuthUsername ?? "hatch-runtime",
-          proxyAuthToken,
-        );
-        effectiveProxy = openRelay.server;
-        relayClose = openRelay.close;
-      }
+      // Without the ledger, Chromium talks to the Sentinel proxy directly with
+      // NO token (egress lands on `runtime.unknown`, so remote assets may be
+      // refused, but the probe keeps serving). We do NOT fall back to a
+      // credentialed loopback relay: that open listener is the borrow this fix
+      // removes (T290000266). effectiveProxy stays the upstream Sentinel proxy.
     }
   }
 
@@ -1443,7 +1422,6 @@ async function serve(flags: Map<string, string>): Promise<number> {
     await state.context.close().catch(() => {});
     await browser.close().catch(() => {});
     if (transportLedger !== null) await transportLedger.close().catch(() => {});
-    if (relayClose !== null) await relayClose().catch(() => {});
     server.close();
     process.exit(0);
   };

@@ -309,8 +309,7 @@ def merge_formula_caches(original_bytes, calculated_path):
                     )
                 cell.setAttribute("t", kind)
                 for name in ("v", "is"):
-                    old = child(cell, name)
-                    if old is not None:
+                    while (old := child(cell, name)) is not None:
                         cell.removeChild(old)
                 prefix = f"{cell.prefix}:" if cell.prefix else ""
                 value = document.createElementNS(SHEET_NS, f"{prefix}v")

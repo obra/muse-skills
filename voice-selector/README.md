@@ -33,6 +33,15 @@ catalog asset as `eng`. New catalog entries should record the field explicitly.
   A stored restricted voice is replaced by the default voice of its gender
   (the letter beside each ID): Aria for `F`, otherwise Helio.
 
+`avocado_v2:p1a1_short` is restricted by `abra_hatch_restricted_voices`.
+Owners outside that GK cannot discover it through onboarding, search,
+suggestions or library browsing, or select or synthesize it directly. Its
+editorial scores are aesthetics `0.5` and adherence `2.0`; those scores and
+its ranking description are not access controls.
+Its structured accent and UI accent are `Swiss German`. The localized
+accent label is available to eligible owners through the catalog and its
+accent filters; those filters are built from the owner-visible catalog.
+
 If a voice lands on the restricted list by mistake, remove it from the list
 first. Before each replacement, the daemon appended the replaced `voice_id` and
 `voice_name`, the replacement, and the time to the owner's

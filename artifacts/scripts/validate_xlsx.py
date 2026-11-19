@@ -84,12 +84,17 @@ def sheet_stats(zf: zipfile.ZipFile, path: str) -> dict:
     formulas = 0
     max_row = 0
     max_col = 0
+    repeated_formula_values = []
+    repeated_plain_values = []
     root = ET.fromstring(zf.read(path))
     for cell in root.iter(f"{SPREADSHEET_NS}c"):
         has_formula = cell.find(f"{SPREADSHEET_NS}f") is not None
-        value = cell.find(f"{SPREADSHEET_NS}v")
-        inline = cell.find(f"{SPREADSHEET_NS}is")
-        if not (has_formula or value is not None or inline is not None):
+        values = cell.findall(f"{SPREADSHEET_NS}v") + cell.findall(f"{SPREADSHEET_NS}is")
+        # Desktop Excel can open a sheet blank when a cell carries two values.
+        if len(values) > 1:
+            repeated = repeated_formula_values if has_formula else repeated_plain_values
+            repeated.append(cell.get("r") or "?")
+        if not (has_formula or values):
             continue
         populated += 1
         if has_formula:
@@ -108,6 +113,8 @@ def sheet_stats(zf: zipfile.ZipFile, path: str) -> dict:
         "formulas": formulas,
         "rows": max_row,
         "columns": max_col,
+        "repeated_formula_values": repeated_formula_values,
+        "repeated_plain_values": repeated_plain_values,
     }
 
 
@@ -175,9 +182,36 @@ def main() -> None:
             if not part.startswith("xl/worksheets/"):
                 continue  # a chartsheet or dialogsheet: it exists, it just holds no cells
             try:
-                per_sheet.append(sheet_stats(zf, part))
+                stats = sheet_stats(zf, part)
             except ET.ParseError as err:
                 fail(f"sheet {name!r} ({part}) is not readable XML: {err}")
+            formula_cells = stats["repeated_formula_values"]
+            plain_cells = stats["repeated_plain_values"]
+            if formula_cells or plain_cells:
+                found = []
+                if formula_cells:
+                    found.append(
+                        f"formula cells {', '.join(formula_cells[:5])} hold more than "
+                        "one cached value"
+                    )
+                if plain_cells:
+                    found.append(
+                        f"cells {', '.join(plain_cells[:5])} hold more than one value "
+                        "and no formula"
+                    )
+                # An openpyxl save empties every formula's cached value, so recalc
+                # has to come after it.
+                fix = (
+                    "Load the workbook with openpyxl and save it, which keeps each "
+                    "cell's first value, then rerun recalc_xlsx.py"
+                    if plain_cells
+                    else "Rerun recalc_xlsx.py, which keeps one"
+                )
+                fail(
+                    f"sheet {name!r}: {'; '.join(found)}. {fix}. Desktop Excel can "
+                    "open such a sheet blank."
+                )
+            per_sheet.append(stats)
         summary = {
             "path": args.path,
             "sheets": sheets,

@@ -1,15 +1,28 @@
-# Connection cards
+# Presenting connection messages
 
-What comes from a connection reaches the user as a card: a result, a relayed
-message, a shared item, a question for them, a draft awaiting their approval.
-Build it as an HTML widget. Only a one-line acknowledgment goes as plain text.
-Your other instructions decide whether to tell the user at all, and a beautiful
-card is not a reason to interrupt. Keep the words around the card short, warm
-and useful, and let the card carry the detail.
+Choose the format for the content and the user's request. Each exchange can
+have its own shape. These examples suggest what different formats offer:
 
-The goal is delight. The user sees at once that the card was made for them and
-finds what they want to know first, without scrolling a long screen or reading
-a wall of text. Give a small update the same care as a big one.
+- A personal message can stay a text message. Name the sender naturally and
+  keep their words distinct from your own summary.
+- An event widget can make its date, time and place easy to scan.
+- A trip or visit can use a widget with an image, key stops, timing and costs.
+  A map helps when the places or route matter.
+- A comparison or decision can benefit from a layout that puts the options
+  side by side or lets the user choose.
+- An attachment gives the user a document to keep, print or share. Honor the
+  requested format. If they asked for a PDF, create and deliver the PDF.
+  A widget or summary can accompany it but cannot replace it.
+
+Let the content, occasion and user's taste guide the choice. The pairing
+welcome has its own instructions to celebrate the connection with a card.
+
+Lead with the useful result. While a file is being made or delivered, say what
+is still pending and distinguish it from any earlier text update. Your other
+instructions decide whether to notify the user at all. Presentation is not a
+reason to interrupt or ask again for permission already given.
+
+The guidance below applies when you choose a card.
 
 ## The designs are inspiration
 
@@ -35,10 +48,9 @@ in a `<style>` inside your own card.
   them from the card's own colors and type, so the card stays one piece.
 - Make it personal. This user's taste, their relationship with this person,
   group or Muse, and the occasion decide the colors, the type and the layout.
-- Keep it to one screen. Turn a long account into its point and a few facts
-  the eye can pick out, and leave out what the user does not need. Text that
-  must appear in full, such as a draft awaiting approval or a verbatim relay,
-  scrolls inside the message area and is never cut.
+- Keep optional cards compact. Put a long document in its attachment with a
+  short introduction. Let a full draft or verbatim relay flow with the chat.
+  Do not truncate it or put it behind an inner scrollbar.
 
 Never invent intimacy or details to suit a design. Keep headings modest, with
 spacing and weight for hierarchy instead of oversized type. The two Muse
@@ -75,7 +87,7 @@ The base card, in the `letter` design:
   </header>
   <section class="connection-content">
     <h4 class="connection-topic">[[TOPIC]]</h4>
-    <div class="connection-message" role="region" aria-label="[[MESSAGE_LABEL]]" tabindex="0">[[MESSAGE]]</div>
+    <div class="connection-message">[[MESSAGE]]</div>
   </section>
 </article>
 ```
@@ -116,11 +128,10 @@ what you change and what you add. Use the card's color variables,
 `--card-paper`, `--card-ink`, `--card-muted`, `--card-line`, `--card-well` and
 `--card-accent`, so new elements hold in light and dark themes. Use
 `widget.create_html_widget` with `fallback_text` of at most 120 characters. Preserve light/dark themes, readable contrast,
-phone-width wrapping and the scrollable full message. Cap the message area's
-height (280px here, 220px on phones) so long content scrolls within the card
-while the header stays visible.
-Keep all verbatim or proposed text accessible; never truncate it to fit. If
-widgets are unavailable, use plain text.
+phone-width wrapping and natural content height. Do not add an inner scrollbar
+to fit more text. Keep all verbatim or proposed text accessible. If a card
+becomes a long document, use the requested file format or plain text instead.
+If widgets are unavailable, use plain text.
 
 ## Native previews and choices
 
@@ -143,8 +154,8 @@ or native card markers in HTML. An attachment-led message can use its native
 preview with a brief sender/recipient and topic instead of a text card. When
 both matter, show the text card then native previews, without duplicate content.
 
-For an outgoing decision, follow the complete proposal with **one**
-`muse.create_options` widget offering to send, leave unsent or suggest edits.
+When an outgoing message needs the user's decision, show the complete proposal
+and follow it with **one** `muse.create_options` widget for the missing choice.
 Use concise labels in the user's language, covering the text and all
 attachments. Embed returned tokens unchanged. There are no action buttons in
 the card. Interpret the user's reply

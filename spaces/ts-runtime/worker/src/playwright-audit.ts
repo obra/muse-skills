@@ -123,9 +123,6 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { createServer, request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { connect as netConnect, isIP } from "node:net";
 import {
   ledgerDestinationKey,
   startTransportLedger,
@@ -133,8 +130,6 @@ import {
   type TransportConnection,
   type TransportLedgerHandle,
 } from "./transport-ledger";
-import { connect as tlsConnect } from "node:tls";
-import type { Duplex } from "node:stream";
 import type { Browser, Page } from "playwright";
 
 import {
@@ -755,7 +750,7 @@ interface AuditReport {
   console_warnings: string[];
   // Console errors that were a cross-origin resource failing to load
   // (`net::ERR_*` / "Failed to load resource" against a foreign origin).
-  // Under the audit's egress lockdown every external fetch fails, so these
+  // In a locked-down capture every off-origin fetch fails by design, so these
   // would otherwise fill the 20-entry `console_errors` cap and crowd out the
   // artifact's own errors. Counted here instead, with a bounded sample; the
   // same failure on the daemon origin stays a real console error.
@@ -778,9 +773,9 @@ interface AuditReport {
   // audit. False means the transport view is UNOBSERVED (host test/dev path
   // or a ledger start failure), never that nothing connected.
   transport_ledger_active: boolean;
-  // Whether the audit egress lockdown was requested (--egress-lockdown, the
-  // audit caller only): policy_denied ledger entries are expected exactly
-  // when this is true. Preview/inspection captures observe-and-forward.
+  // Effective origin lockdown: audits request it explicitly; credentialed
+  // preview and inspection captures also enable it before Chromium starts.
+  // Uncredentialed captures can still observe and forward.
   egress_lockdown: boolean;
   // Every TCP destination the browser process reached (or attempted),
   // aggregated per host:port. Complete at transport granularity even for
@@ -1924,8 +1919,9 @@ type AuditLaunchOptions = {
 
 // Build the Chromium launch options shared by the baseline capture and the
 // agent-test runner: headless, optional system-chrome executable, and the
-// Sentinel forward proxy. Runtime egress tokens must already have been moved
-// behind startProxyAuthRelay; this function refuses to pass them to Chromium.
+// Sentinel forward proxy. Runtime egress tokens are injected by the transport
+// ledger on its upstream hop, not by Chromium; this function refuses to pass
+// a token to Chromium.
 export function buildLaunchOptions(
   executablePath: string | null,
   proxyServer: string | null,
@@ -1978,13 +1974,14 @@ export function buildLaunchOptions(
     // edge (the nginx replacement). Without this Chromium would try to dial it
     // directly and the cell's egress firewall drops the TCP SYN.
     //
-    // When a runtime egress token is present, main() must route Chromium through
-    // a loopback relay and clear proxyAuthToken before this point. Passing the
+    // When a runtime egress token is present, main()/serve() must route Chromium
+    // through the transport ledger (which injects the credential on its own
+    // upstream hop) and clear proxyAuthToken before this point. Passing the
     // token to Playwright would put it inside Chromium, where DEBUG=pw:protocol
     // can serialize the proxy-auth exchange to stderr.
     if (proxyAuthToken !== null) {
       throw new Error(
-        "proxy auth token must be routed through relay before launching Chromium",
+        "proxy auth token must be injected by the transport ledger, not passed to Chromium",
       );
     }
     // Route Chromium's startup phone-home probes DIRECT instead of through
@@ -3696,225 +3693,9 @@ async function shootBlueprintRoute(
   route.shots.push({ viewport: label, file, sha256: createHash("sha256").update(png).digest("hex") });
 }
 
-export type ProxyAuthRelay = { server: string; close: () => Promise<void> };
-
-const RELAY_START_FAILURE_MARKER = "hatch-egress-relay-start-failure";
-const RELAY_START_FAILURE_MESSAGE =
-  "proxy-auth relay failed to start; refusing to pass egress token to Chromium";
-
 const LEDGER_START_FAILURE_MARKER = "hatch-transport-ledger-start-failure";
 const LEDGER_START_FAILURE_MESSAGE =
   "transport ledger failed to start; audit aborted (retryable)";
-
-// Loopback CONNECT relay that injects the runtime egress token as
-// `Proxy-Authorization` on EVERY forwarded CONNECT, then tunnels to the real
-// Sentinel proxy.
-//
-// Why this exists: Chromium is pointed at this credential-free loopback relay,
-// while the relay injects the runtime egress token into every forwarded CONNECT.
-// Chromium does NOT reliably replay Playwright proxy credentials on cross-origin
-// SUBRESOURCE CONNECTs — in particular the `fonts.googleapis.com` /
-// `fonts.gstatic.com` fetches a Space's CSS `@import` triggers at render time.
-// Those CONNECTs reach Sentinel unattributed (`policy_subject =
-// runtime.unknown`), so the per-Space managed allow (which is scoped to the
-// `space.<slug>` subject) can't match and the user gets a mid-build "access
-// fonts.googleapis.com" egress card. Injecting the credential at the transport
-// layer here makes attribution deterministic for every connection the render
-// opens, independent of Chromium's challenge/replay behavior, and keeps the
-// token out of Chromium's DEBUG=pw:protocol output.
-//
-// Listens on IPv6 loopback (`[::1]`) on purpose: pointing Chromium at an
-// IPv4-literal proxy endpoint makes it issue a NAT64 `ipv4only.arpa` probe
-// that hangs on the cell's (deliberately dead) DNS — the audit-timeout class
-// of bug. An IPv6 literal triggers no such probe. The relay dials the upstream
-// Sentinel proxy at whatever address the runner passed (v4 or v6); only the
-// Chromium-facing endpoint must be v6.
-//
-// Threat model: the relay injects the egress token for any client that reaches
-// its loopback port during the render window, so loopback reachability + the
-// ephemeral port stand in for token knowledge. This is acceptable and not
-// hardened further because: the listener is IPv6-loopback-only (off-host
-// unreachable), the port is ephemeral and disclosed only to the render's
-// Chromium, the relay lives only for the render and is torn down after, the
-// token already resides in-cell (piped to this process over stdin), and
-// Sentinel still enforces the `space.<slug>` subject's policy — injecting the
-// token only sets attribution, it never widens what that subject may reach.
-//
-// `connectOnly` narrows that further where the caller can prove only CONNECT
-// is legitimate (the one-shot audit, whose Chromium reaches this hop through
-// the transport ledger, which speaks CONNECT and nothing else): an origin-form
-// request is then some other in-cell client trying to borrow the credential,
-// and gets a 405 instead of a credentialed forward. Callers whose Chromium
-// talks to the relay directly (the resident probe) must leave it off — Chromium
-// proxies plain http as an absolute-form GET.
-export async function startProxyAuthRelay(
-  upstreamProxyUrl: string,
-  username: string,
-  token: string,
-  options?: { connectOnly?: boolean },
-): Promise<ProxyAuthRelay> {
-  const connectOnly = options?.connectOnly === true;
-  const upstream = new URL(upstreamProxyUrl);
-  if (upstream.protocol !== "http:" && upstream.protocol !== "https:") {
-    throw new Error(`unsupported proxy protocol: ${upstream.protocol}`);
-  }
-  const upstreamIsHttps = upstream.protocol === "https:";
-  const upstreamHost = upstream.hostname.replace(/^\[/, "").replace(/\]$/, "");
-  const upstreamPort =
-    upstream.port.length > 0 ? Number(upstream.port) : upstreamIsHttps ? 443 : 80;
-  const upstreamRequest = upstreamIsHttps ? httpsRequest : httpRequest;
-  const credential =
-    "Basic " + Buffer.from(`${username}:${token}`).toString("base64");
-
-  const server = createServer((clientReq, clientRes) => {
-    if (connectOnly) {
-      // Refuse before dialing upstream and before the credential is composed:
-      // nothing legitimate sends an origin-form request to this relay.
-      try {
-        clientRes.writeHead(405, { connection: "close" });
-        clientRes.end();
-      } catch {
-        /* client already gone */
-      }
-      return;
-    }
-    // Plain HTTP through the proxy is rare for the render (it speaks HTTPS via
-    // CONNECT), but forward it with the injected credential for completeness.
-    const upstreamReq = upstreamRequest(
-      {
-        host: upstreamHost,
-        port: upstreamPort,
-        method: clientReq.method,
-        path: clientReq.url,
-        headers: { ...clientReq.headers, "proxy-authorization": credential },
-      },
-      (upstreamRes) => {
-        clientRes.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
-        upstreamRes.pipe(clientRes);
-      },
-    );
-    upstreamReq.on("error", () => {
-      try {
-        clientRes.writeHead(502);
-        clientRes.end();
-      } catch {
-        /* client already gone */
-      }
-    });
-    clientReq.pipe(upstreamReq);
-  });
-
-  // Track live sockets so close() can force them shut and never block on a
-  // lingering connection.
-  const sockets = new Set<Duplex>();
-  server.on("connect", (req, clientSocket, head) => {
-    const target = req.url ?? "";
-    const connectRequest =
-      `CONNECT ${target} HTTP/1.1\r\n` +
-      `Host: ${target}\r\n` +
-      `Proxy-Authorization: ${credential}\r\n` +
-      `\r\n`;
-    const upstreamSocket = upstreamIsHttps
-      ? tlsConnect({
-          host: upstreamHost,
-          port: upstreamPort,
-          servername: isIP(upstreamHost) ? undefined : upstreamHost,
-        })
-      : netConnect(upstreamPort, upstreamHost);
-    upstreamSocket.once(upstreamIsHttps ? "secureConnect" : "connect", () => {
-      upstreamSocket.write(connectRequest);
-    });
-    sockets.add(clientSocket);
-    sockets.add(upstreamSocket);
-    // Symmetric teardown: destroy BOTH ends whenever either closes or errors,
-    // so a client abort before the tunnel is established can't leak the dangling
-    // upstream socket (Chromium routinely cancels speculative subresource
-    // CONNECTs). Idempotent — destroy() on an already-destroyed socket is a
-    // no-op.
-    const teardown = () => {
-      sockets.delete(clientSocket);
-      sockets.delete(upstreamSocket);
-      clientSocket.destroy();
-      upstreamSocket.destroy();
-    };
-    clientSocket.on("error", teardown);
-    clientSocket.on("close", teardown);
-    upstreamSocket.on("close", teardown);
-    // Chromium waits for our tunnel response before sending TLS bytes, so pause
-    // the client read side until the tunnel is established to avoid dropping any
-    // early data on the floor.
-    clientSocket.pause();
-    let established = false;
-    let buffer = Buffer.alloc(0);
-    const onData = (chunk: Buffer) => {
-      if (established) {
-        return;
-      }
-      buffer = Buffer.concat([buffer, chunk]);
-      const headerEnd = buffer.indexOf("\r\n\r\n");
-      if (headerEnd === -1) {
-        return;
-      }
-      established = true;
-      upstreamSocket.removeListener("data", onData);
-      const statusLine = buffer
-        .subarray(0, buffer.indexOf("\r\n"))
-        .toString("latin1");
-      // Forward the upstream CONNECT response verbatim: a 200 establishes the
-      // tunnel, and a 407/403/5xx is surfaced to Chromium unchanged. Any tunnel
-      // bytes the upstream already sent after the header ride along in `buffer`.
-      clientSocket.write(buffer);
-      // Match the status CODE token exactly (not a substring) so a reason phrase
-      // that merely contains "200" can't be misread as an established tunnel.
-      if (statusLine.split(/\s+/)[1] === "200") {
-        if (head.length > 0) {
-          upstreamSocket.write(head);
-        }
-        clientSocket.pipe(upstreamSocket);
-        upstreamSocket.pipe(clientSocket);
-      } else {
-        clientSocket.end();
-        upstreamSocket.end();
-      }
-    };
-    upstreamSocket.on("data", onData);
-    upstreamSocket.on("error", () => {
-      if (!established) {
-        try {
-          clientSocket.end("HTTP/1.1 502 Bad Gateway\r\n\r\n");
-        } catch {
-          /* client already gone */
-        }
-      }
-      teardown();
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "::1", () => {
-      server.removeListener("error", reject);
-      resolve();
-    });
-  });
-  const address = server.address();
-  const port =
-    address !== null && typeof address === "object" ? address.port : 0;
-  return {
-    server: `http://[::1]:${port}`,
-    close: () =>
-      new Promise<void>((resolve) => {
-        // Force-close any live tunnels first so server.close()'s callback fires
-        // promptly (it otherwise waits on lingering connections, which could
-        // hang the audit's teardown).
-        for (const socket of [...sockets]) {
-          socket.destroy();
-        }
-        sockets.clear();
-        server.close(() => resolve());
-      }),
-  };
-}
 
 async function main(): Promise<number> {
   let args: CliArgs;
@@ -3934,117 +3715,72 @@ async function main(): Promise<number> {
     notaryToken: tokens.notaryToken,
     proxyAuthToken: tokens.proxyAuthToken,
   };
-  // Route Chromium's egress through a loopback relay that injects the runtime
-  // egress token as `Proxy-Authorization` on every forwarded CONNECT (see
-  // startProxyAuthRelay). This attributes the render's cross-origin subresource
-  // CONNECTs (e.g. Google Fonts) to the Space subject instead of
-  // `runtime.unknown`, so the per-Space managed allow applies and no mid-build
-  // egress card is raised. If the relay cannot start, fail closed with a
-  // token-free error rather than handing credentials to Playwright/Chromium.
-  let proxyRelay: ProxyAuthRelay | null = null;
-  let relayStartFailure: string | null = null;
-  // The pre-relay upstream (the Sentinel forward proxy): the observe-mode
-  // ledger-failure fallback below restarts the relay against it.
-  const upstreamProxyServer = args.proxyServer;
-  if (args.proxyServer !== null && args.proxyAuthToken !== null) {
-    try {
-      proxyRelay = await startProxyAuthRelay(
-        args.proxyServer,
-        args.proxyAuthUsername ?? "hatch-runtime",
-        args.proxyAuthToken,
-        // The transport ledger below is the only client of this relay, and it
-        // speaks CONNECT exclusively; anything else on the port is another
-        // in-cell process reaching for the credential.
-        { connectOnly: true },
-      );
-      args = { ...args, proxyServer: proxyRelay.server, proxyAuthToken: null };
-    } catch {
-      process.stderr.write(
-        `playwright-audit: ${RELAY_START_FAILURE_MARKER}: ${RELAY_START_FAILURE_MESSAGE}\n`,
-      );
-      proxyRelay = null;
-      relayStartFailure = RELAY_START_FAILURE_MESSAGE;
-    }
-  }
-  // Front Chromium with the loopback SOCKS5 transport ledger so every TCP
-  // connection the browser process makes is recorded at host:port
-  // granularity, chained to the same egress path (the relay injects the
-  // credential; the ledger stays token-free). A ledger start failure IS
-  // reachable from inside the cell -- a builder can exhaust ephemeral ports or
-  // file descriptors before invoking the audit -- and running without it would
-  // hand back the pre-lockdown posture (audit-time egress to policy-allowed
-  // hosts, mid-build approval prompts) on demand. So it fails the audit closed,
-  // exactly like a relay start failure, and the caller retries.
+  // Inject the runtime egress credential only through the origin-scoped ledger,
+  // never through Chromium or a separate unrestricted relay (T290000266).
+  // Preview and inspection captures also need lockdown when credentialed: page
+  // JS reachability does not authorize another in-cell process to borrow the
+  // Space identity. External assets in those captures are consequently blocked;
+  // published pages are unchanged.
+  const proxyAuthHeader =
+    args.proxyServer !== null && args.proxyAuthToken !== null
+      ? "Basic " +
+        Buffer.from(
+          `${args.proxyAuthUsername ?? "hatch-runtime"}:${args.proxyAuthToken}`,
+        ).toString("base64")
+      : null;
+  args = { ...args, egressLockdown: args.egressLockdown || proxyAuthHeader !== null };
   let transportLedger: TransportLedgerHandle | null = null;
   let ledgerStartFailure: string | null = null;
-  if (args.proxyServer !== null && relayStartFailure === null) {
+  if (args.proxyServer !== null) {
     try {
-      // Audit egress lockdown: only the artifact's own daemon origin
+      // Origin lockdown: only the artifact's own daemon origin
       // (exact host AND port) may tunnel out. Every other destination is recorded + refused at the
       // ledger, so the render generates zero Sentinel traffic (and zero
       // approval prompts); the attempts still feed the capture cross-check,
-      // the egress screen, and the critique. Viewers' browsers run the
-      // published page ungated, so an external fetch denied here is an
-      // audit-only condition the result guidance explains to the builder.
+      // the egress screen, and the critique. Published pages run in viewers'
+      // browsers without this capture restriction; inspectors receive the
+      // capture limitation with their evidence.
       const auditDestination = ledgerDestinationKey(args.url);
       if (auditDestination === null) {
         throw new Error(`audit url has no TCP destination: ${args.url}`);
       }
-      // Lockdown only for the audit caller (--egress-lockdown). Preview and
-      // inspection captures keep observe-and-forward: enforcement stays with
-      // Sentinel upstream exactly as at base, so share-card and thumbnail
-      // frames keep their external assets while the ledger still records.
-      transportLedger = await startTransportLedger(
-        args.proxyServer,
-        args.egressLockdown
+      // Uncredentialed observe captures retain their forward-and-record posture.
+      // Any capture carrying a Space credential is restricted to its own origin.
+      transportLedger = await startTransportLedger(args.proxyServer, {
+        upstreamProxyAuthHeader: proxyAuthHeader,
+        ...(args.egressLockdown
           ? { allowedDestinations: new Set([auditDestination]) }
-          : {},
-      );
+          : {}),
+      });
       args = {
         ...args,
         proxyServer: transportLedger.server,
+        proxyAuthToken: null,
         transport: transportLedger,
       };
     } catch {
       transportLedger = null;
       if (args.egressLockdown) {
-        // Fixed message, like the relay's: this string becomes the report's
-        // builder-visible `error`, and the thrown detail can echo the upstream
-        // proxy endpoint into it. Fail closed: running the AUDIT without the
-        // ledger would hand back the pre-lockdown posture on demand.
+        // Fixed message: this string becomes the report's builder-visible
+        // `error`, and the thrown detail can echo the upstream proxy endpoint
+        // into it. Fail closed: running the AUDIT without the ledger would hand
+        // back the pre-lockdown posture on demand.
         process.stderr.write(
           `playwright-audit: ${LEDGER_START_FAILURE_MARKER}: ${LEDGER_START_FAILURE_MESSAGE}\n`,
         );
         ledgerStartFailure = LEDGER_START_FAILURE_MESSAGE;
       } else {
-        // Observe-mode capture (preview/inspection): a missing ledger only
-        // loses the transport record — degrade to base behavior, and reopen
-        // the relay's origin-form path since Chromium now talks to it
-        // directly as its HTTP proxy.
+      // An uncredentialed observe capture may lose the transport record without
+      // lending a Space identity. Keep its token-free direct-to-Sentinel path;
+      // never restart a credentialed listener after a ledger failure.
         process.stderr.write(
-          "playwright-audit: transport ledger failed to start; continuing unobserved (no lockdown requested)\n",
+          "playwright-audit: transport ledger failed to start; continuing unobserved and unattributed (no lockdown requested)\n",
         );
-        if (
-          proxyRelay !== null &&
-          upstreamProxyServer !== null &&
-          tokens.proxyAuthToken !== null
-        ) {
-          try {
-            await proxyRelay.close();
-          } catch {
-            /* replaced below either way */
-          }
-          proxyRelay = await startProxyAuthRelay(
-            upstreamProxyServer,
-            args.proxyAuthUsername ?? "hatch-runtime",
-            tokens.proxyAuthToken,
-          );
-          args = { ...args, proxyServer: proxyRelay.server };
-        }
+        args = { ...args, proxyAuthToken: null };
       }
     }
   }
-  const startFailure = relayStartFailure ?? ledgerStartFailure;
+  const startFailure = ledgerStartFailure;
   let report: AuditReport | BlueprintReport;
   try {
     if (startFailure !== null) {
@@ -4111,13 +3847,6 @@ async function main(): Promise<number> {
     if (transportLedger !== null) {
       try {
         await transportLedger.close();
-      } catch {
-        /* best-effort teardown */
-      }
-    }
-    if (proxyRelay !== null) {
-      try {
-        await proxyRelay.close();
       } catch {
         /* best-effort teardown */
       }

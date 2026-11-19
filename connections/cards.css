@@ -50,14 +50,8 @@ html[data-theme="dark"] .connection-card {
 .connection-card .connection-content { padding: 22px 24px 26px; border-top: 1px solid var(--card-line); }
 .connection-card .connection-topic { margin-bottom: 14px; color: var(--card-accent); font-size: 14px; line-height: 21px; font-weight: 600; }
 .connection-card .connection-message {
-  max-height: 280px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: var(--card-line) transparent;
   white-space: pre-wrap;
 }
-.connection-card .connection-message:focus-visible { outline: 2px solid var(--card-accent); outline-offset: 4px; border-radius: 3px; }
 
 .connection-card.invitation { --card-paper: #fcf5ee; --card-ink: #492e27; --card-muted: #805f51; --card-line: #e9d6c8; --card-well: #f0e2d5; --card-accent: #91533c; border-radius: 100px 100px 20px 20px; }
 .invitation .connection-header { flex-direction: column; gap: 18px; padding: 30px 28px 22px; }
@@ -121,9 +115,6 @@ html[data-theme="dark"] .evening { --card-paper: #302535; --card-ink: #f2e9f5; -
 html[data-theme="dark"] .margin { --card-paper: #2d2825; --card-ink: #f2ece5; --card-muted: #c9baac; --card-line: #564a40; --card-well: #3b322c; --card-accent: #d6b89e; }
 html[data-theme="dark"] .dispatch { --card-paper: #202b39; --card-ink: #e9f0f9; --card-muted: #b3c3d8; --card-line: #405571; --card-well: #2c3b50; --card-accent: #aac8ed; }
 
-@media (max-width: 600px) {
-  .connection-card .connection-message { max-height: 220px; }
-}
 @media (max-width: 380px) {
   .connection-card .connection-header { gap: 12px; padding-inline: 20px; }
   .connection-card .muse-portrait { width: 38px; height: 38px; }

@@ -1,6 +1,6 @@
 // Transport-level connection ledger for the web-artifact audit: a minimal
 // loopback SOCKS5 proxy Chromium is pointed at, chained to the existing
-// Sentinel egress path (the proxy-auth relay, or the forward proxy directly).
+// Sentinel forward proxy.
 //
 // Why it exists: the in-browser capture (page.route) sees full request
 // content but only for traffic that flows through Chromium's fetch stack of
@@ -26,8 +26,11 @@
 //   like any other. Without `allowedDestinations` (dev/tests) the ledger records
 //   and forwards, and enforcement stays with Sentinel upstream. A refused
 //   upstream CONNECT is recorded as denied, never hidden.
-// - No credentials live here: when the upstream is the proxy-auth relay, the
-//   relay injects Proxy-Authorization; this hop stays token-free by design.
+// - Credential injection is permitted only with an explicit destination set.
+//   The ledger still accepts unauthenticated local clients, so injecting a Space
+//   credential into an unrestricted tunnel would lend that identity to any
+//   in-cell process (T290000266). Credentialed audit, probe, preview and
+//   inspection callers restrict that set to the artifact's own origin.
 
 import { createServer, connect as netConnect, isIP, type Socket } from "node:net";
 import { connect as tlsConnect } from "node:tls";
@@ -363,13 +366,14 @@ function parseUpstream(upstreamProxyUrl: string | null): UpstreamTarget | null {
   };
 }
 
-/** Dial the destination: through the upstream HTTP proxy (plain CONNECT; the
- *  relay owns credentials) when one is configured, or directly otherwise
- *  (host test/dev path). Resolves once the tunnel is ready for bytes. */
+/** Dial the destination through the upstream HTTP proxy when configured, or
+ *  directly otherwise (host test/dev path). `authHeader` is written only to the
+ *  upstream proxy after the caller's destination policy has admitted the dial. */
 function dialUpstream(
   upstream: UpstreamTarget | null,
   host: string,
   port: number,
+  authHeader: string | null,
 ): Promise<Socket> {
   return new Promise((resolve, reject) => {
     if (upstream === null) {
@@ -388,8 +392,10 @@ function dialUpstream(
     const readyEvent = upstream.tls ? "secureConnect" : "connect";
     socket.once("error", reject);
     socket.once(readyEvent, () => {
+      const authLine =
+        authHeader !== null ? `Proxy-Authorization: ${authHeader}\r\n` : "";
       socket.write(
-        `CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n\r\n`,
+        `CONNECT ${host}:${port} HTTP/1.1\r\nHost: ${host}:${port}\r\n${authLine}\r\n`,
       );
       let buffer = Buffer.alloc(0);
       const onData = (chunk: Buffer) => {
@@ -421,10 +427,8 @@ function dialUpstream(
   });
 }
 
-/** Start the loopback SOCKS5 ledger proxy. `upstreamProxyUrl` is whatever
- *  Chromium would otherwise have used as its proxy (the auth relay, or the
- *  Sentinel forward proxy when no token is in play); null means direct
- *  egress (dev). */
+/** Start the loopback SOCKS5 ledger proxy, chained to the Sentinel forward
+ *  proxy; null means direct egress (dev). */
 export async function startTransportLedger(
   upstreamProxyUrl: string | null,
   options?: {
@@ -438,10 +442,18 @@ export async function startTransportLedger(
      *  part of the key. Build keys with `normalizeLedgerHost(host)`.
      *  Omitted/null preserves the observe-and-forward behavior (dev/tests). */
     allowedDestinations?: Set<string> | null;
+    /** `Proxy-Authorization` value for the Sentinel upstream CONNECT.
+     *  Requires `allowedDestinations`: this listener does not authenticate local
+     *  clients. Omitted/null sends a token-free CONNECT. */
+    upstreamProxyAuthHeader?: string | null;
   },
 ): Promise<TransportLedgerHandle> {
   const upstream = parseUpstream(upstreamProxyUrl);
   const allowedDestinations = options?.allowedDestinations ?? null;
+  const upstreamProxyAuthHeader = options?.upstreamProxyAuthHeader ?? null;
+  if (upstreamProxyAuthHeader !== null && allowedDestinations === null) {
+    throw new Error("credentialed transport ledger requires allowed destinations");
+  }
   const state = newTransportLedgerState();
   const sockets = new Set<Socket>();
 
@@ -507,7 +519,7 @@ export async function startTransportLedger(
           return;
         }
         client.pause();
-        dialUpstream(upstream, request.host, request.port)
+        dialUpstream(upstream, request.host, request.port, upstreamProxyAuthHeader)
           .then((remote) => {
             sockets.add(remote);
             remote.on("close", () => sockets.delete(remote));

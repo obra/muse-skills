@@ -255,6 +255,7 @@ describe("ledger proxy end to end (loopback)", () => {
 
     const ledger = await startTransportLedger(`http://127.0.0.1:${upstreamPort}`, {
       allowedDestinations: new Set(["allowed.example:443"]),
+      upstreamProxyAuthHeader: "Basic " + Buffer.from("hatch-runtime:synthetic-test-token").toString("base64"),
     });
     const proxyPort = Number(new URL(ledger.server).port);
 
@@ -293,6 +294,74 @@ describe("ledger proxy end to end (loopback)", () => {
 
     await ledger.close();
     await new Promise<void>((resolve) => upstream.close(() => resolve()));
+  });
+
+  test("injects Proxy-Authorization on the upstream CONNECT, and only there", async () => {
+    // Restricting destinations, not keeping the token off the client wire,
+    // prevents another local process from borrowing credentialed egress.
+    // Unrestricted credentialed startup must fail before opening a listener.
+    const seenHeads: string[] = [];
+    const upstream = createServer();
+    upstream.on("connection", (socket) => {
+      let buf = Buffer.alloc(0);
+      socket.on("data", (chunk: Buffer) => {
+        buf = Buffer.concat([buf, chunk]);
+        const end = buf.indexOf("\r\n\r\n");
+        if (end !== -1) {
+          seenHeads.push(buf.subarray(0, end).toString("latin1"));
+          socket.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+          socket.on("data", () => socket.end("ok"));
+        }
+      });
+    });
+    await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    const upstreamPort = (upstream.address() as { port: number }).port;
+
+    const header = "Basic " + Buffer.from("hatch-runtime:tok-xyz").toString("base64");
+    await expect(startTransportLedger(`http://127.0.0.1:${upstreamPort}`, {
+      upstreamProxyAuthHeader: header,
+    })).rejects.toThrow("credentialed transport ledger requires allowed destinations");
+    expect(seenHeads).toEqual([]);
+    const connectThrough = async (
+      authHeader: string | null,
+    ): Promise<void> => {
+      const ledger = await startTransportLedger(
+        `http://127.0.0.1:${upstreamPort}`,
+        {
+          allowedDestinations: new Set(["fonts.example:443"]),
+          upstreamProxyAuthHeader: authHeader,
+        },
+      );
+      const proxyPort = Number(new URL(ledger.server).port);
+      await new Promise<void>((resolve, reject) => {
+        const client: Socket = netConnect(proxyPort, "127.0.0.1");
+        let phase: "greet" | "request" = "greet";
+        client.on("error", reject);
+        client.on("data", (chunk: Buffer) => {
+          if (phase === "greet") {
+            phase = "request";
+            client.write(socksConnectFrame("fonts.example", 443));
+            return;
+          }
+          expect(chunk[1]).toBe(0); // tunnel established
+          client.end();
+        });
+        client.on("close", () => resolve());
+        client.write(Buffer.from([5, 1, 0]));
+      });
+      await ledger.close();
+    };
+
+    await connectThrough(header);
+    await connectThrough(null);
+    await new Promise<void>((resolve) => upstream.close(() => resolve()));
+
+    expect(seenHeads.length).toBe(2);
+    expect(seenHeads[0]).toContain("CONNECT fonts.example:443");
+    expect(seenHeads[0]).toContain(`Proxy-Authorization: ${header}`);
+    // Token-free ledger: no credential on the wire.
+    expect(seenHeads[1]).toContain("CONNECT fonts.example:443");
+    expect(seenHeads[1]?.toLowerCase()).not.toContain("proxy-authorization");
   });
 
 });
