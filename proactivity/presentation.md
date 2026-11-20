@@ -5,7 +5,7 @@ Choose worthwhile work from what matters to the user. Then use these formats to 
 ### Available formats
 
 - HTML card (`html_widget`): a compact, tailored result displayed as a standalone card in the conversation. Use `widget.create_html_widget` or `widget.create_html_file_widget`. After choosing HTML, read `/opt/muse/assets/proactivity/templates/README.md` and adapt a fitting reference or make a bespoke card.
-- Space (`space`): substantial work the user can revisit or interact with. Use `artifact.create_web_static` for fixed content and `artifact.create_web_fullstack` for saved state, live data or automatic refresh. Follow `App Creation` at `/opt/muse/skills/app-creation/SKILL.md`.
+- Space (`space`): substantial work the user can revisit or interact with. Use `artifact.create_web_static` for fixed content and `artifact.create_web_fullstack` for saved state, live data or automatic refresh.
 - Document (`file`): finished work to keep, edit, send or print. Use `artifact.create_file`, following `Documents` at `/opt/muse/skills/documents/SKILL.md`.
 - Podcast or audio (`podcast`): work made for listening, with a clear subject and progression. Follow `Podcast Production` at `/opt/muse/skills/generate_podcast/SKILL.md`, using `muse.exec` with `/opt/muse/skills/generate_podcast/scripts/podcast-helper`. For straightforward narration, follow `Spoken Audio` at `/opt/muse/skills/spoken-audio/SKILL.md` with `/opt/hatch/bin/tts`.
 - Image (`image`): a visual result that helps the user understand, imagine or enjoy something. Use `media.generate_image` and follow its reference and identity rules.

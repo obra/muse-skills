@@ -6,7 +6,7 @@
 // Bundle build emits this as `dist/validate-client.js` next to `worker.js`;
 // the build pipeline shells out to:
 //
-//   bun run validate-client.js --client-dir=<path> [--input-checks=off]
+//   bun run validate-client.js --client-dir=<path>
 //
 // On success: writes `{"ok":true,"files":<N>}` to stdout, exits 0.
 // On violation: writes the first violation reason (with file path) to
@@ -119,8 +119,7 @@ async function main(): Promise<number> {
       sources.push({ rel, content });
       scanned++;
     }
-    // The platform turns the input checks off with hatch_spaces_schema_input_limits.
-    const limitViolations = arg("input-checks") === "off" ? [] : await inputLimitViolations(sources);
+    const limitViolations = await inputLimitViolations(sources);
     if (limitViolations.length > 0) {
       process.stderr.write(`${limitViolations.join("\n")}\n${INPUT_LIMITS_GUIDANCE}\n`);
       return 1;

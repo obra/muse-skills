@@ -87,9 +87,9 @@ const RETRY_CAP_MS = 30_000;
 declare const __HATCH_SPACE_PLATFORM_VERSION__: number | undefined;
 
 /**
- * The failure notice and readable action errors start at platformVersion 29,
- * which a space reaches only with hatch_spaces_schema_input_limits on. The client
- * build compiles the version in; a bundle built without it keeps the old behavior.
+ * The failure notice and readable action errors start at platformVersion 29.
+ * The client build compiles the version in; a bundle built without it keeps the
+ * old behavior.
  */
 const READABLE_FAILURES =
   typeof __HATCH_SPACE_PLATFORM_VERSION__ === "number" && __HATCH_SPACE_PLATFORM_VERSION__ >= 29;

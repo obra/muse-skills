@@ -30,7 +30,7 @@
 
 ### Flights without the native list
 
-- Use one row per complete itinerary, keeping outbound and return together. Use the columns Option, Route and local times, Duration, Stops and layovers, Flight and cabin, and Full total.
+- Use one row per complete itinerary, keeping outbound and return together. Use the columns Option, Route and local times, Duration, Stops and layovers, Flight with cabin and fare, and Full total.
 
 - Every row shows the full-party price and currency, labeled one way or round trip. It also shows each leg's local airports and times, elapsed duration, exact stop count, every connection airport with its layover, the marketing carrier and flight number, the operating carrier when different, and the cabin and fare brand when stated.
 

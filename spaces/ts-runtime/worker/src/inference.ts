@@ -143,10 +143,12 @@ function timeoutPlan(
     0,
     actionRemainingMs - deadline.transportHeadroomMs,
   );
+  // timeout_secs can only lengthen a call: Spaces hardcode limits shorter than
+  // the model often needs, which cut off calls the action had time to finish.
   const requestedTimeoutMs =
     requestedTimeoutSecs === undefined
       ? deadline.defaultServerTimeoutMs
-      : requestedTimeoutSecs * 1000;
+      : Math.max(requestedTimeoutSecs * 1000, deadline.defaultServerTimeoutMs);
 
   // Always state the budget: the daemon's own default belongs to interactive
   // workers, while this worker's deadline may be a scheduled occurrence's.
