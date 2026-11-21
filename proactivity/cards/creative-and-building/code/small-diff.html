@@ -1,0 +1,13 @@
+<link rel="stylesheet" href="/opt/muse/assets/proactivity/cards/cards.css">
+<article class="mc genui-v2-surface th-stone tp-rule">
+<div class="mc-pad">
+<div class="mc-top"><i class="ic"><svg class="mc-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l-4.5 4L8 16 M16 8l4.5 4-4.5 4 M13.5 5l-3 14"/></svg></i><span class="k">ledgerly</span><span class="st mute">Not committed</span></div>
+<div class="mc-hero"><div class="tx"><h3 class="mc-t">VAT rounding fix</h3><p class="mc-s">Two lines in tax.py</p></div></div>
+<div class="mc-b k-code"><span class="c"># tax.py, line 37</span>
+<span class="r">- return round(net * rate, 2)</span>
+<span class="a">+ return (net * rate).quantize(</span>
+<span class="a">+     CENT, rounding=ROUND_HALF_UP)</span></div>
+<p class="mc-b k-note">Python rounds 118.995 down. Invoices must round it up. discount.py has the same pattern.</p>
+<p class="mc-f">Diff against main at 9f3c2e1</p>
+</div>
+</article>

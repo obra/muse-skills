@@ -1,0 +1,769 @@
+{
+ "families": [
+  {
+   "name": "Day and week",
+   "kinds": [
+    {
+     "id": "day-plan",
+     "name": "Day and week ahead",
+     "desc": "The shape of a day or a week, with what is already prepared.",
+     "th": "cream",
+     "readme": "/opt/muse/assets/proactivity/cards/day-and-week/day-plan/README.md"
+    },
+    {
+     "id": "calendar",
+     "name": "Calendar events",
+     "desc": "An event, a change to it, or what it needs from the user.",
+     "th": "cream",
+     "readme": "/opt/muse/assets/proactivity/cards/day-and-week/calendar/README.md"
+    },
+    {
+     "id": "reminders",
+     "name": "Reminders",
+     "desc": "One thing to do, at a time or a place, and what it needs.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/day-and-week/reminders/README.md"
+    },
+    {
+     "id": "tasks",
+     "name": "Tasks and reminders",
+     "desc": "What is due, what slipped and what got done.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/day-and-week/tasks/README.md"
+    },
+    {
+     "id": "focus",
+     "name": "Focus list",
+     "desc": "The few things that need attention now, and why these.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/day-and-week/focus/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Email and people",
+   "kinds": [
+    {
+     "id": "inbox",
+     "name": "Inbox triage",
+     "desc": "What arrived, what needs the user, and what was handled.",
+     "th": "blue",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/inbox/README.md"
+    },
+    {
+     "id": "email",
+     "name": "Email drafts",
+     "desc": "A reply or a new message, written and ready for the user to send.",
+     "th": "blue",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/email/README.md"
+    },
+    {
+     "id": "needs-reply",
+     "name": "Waiting on your reply",
+     "desc": "Threads where someone is waiting on the user, with drafts.",
+     "th": "blue",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/needs-reply/README.md"
+    },
+    {
+     "id": "message-digest",
+     "name": "Message digests",
+     "desc": "What was said in a chat or a group while the user was away.",
+     "th": "teal",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/message-digest/README.md"
+    },
+    {
+     "id": "sent-receipt",
+     "name": "Sent for you",
+     "desc": "What Muse sent on the user's behalf, to whom, and any answer.",
+     "th": "blue",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/sent-receipt/README.md"
+    },
+    {
+     "id": "occasions",
+     "name": "Birthdays and occasions",
+     "desc": "Who, when, and a gesture prepared in time.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/occasions/README.md"
+    },
+    {
+     "id": "family-calendar",
+     "name": "Family and school",
+     "desc": "School dates, forms, pickups and who is doing what.",
+     "th": "cream",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/family-calendar/README.md"
+    },
+    {
+     "id": "call-result",
+     "name": "Phone calls Muse made",
+     "desc": "The outcome of a call Muse placed, and what was agreed.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/email-and-people/call-result/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Money and markets",
+   "kinds": [
+    {
+     "id": "markets",
+     "name": "Stocks and markets",
+     "desc": "A price, a move or a level on something the user follows.",
+     "th": "olive",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/markets/README.md"
+    },
+    {
+     "id": "crypto",
+     "name": "Crypto prices",
+     "desc": "A coin's price, its move over a day, and a level the user set.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/crypto/README.md"
+    },
+    {
+     "id": "spending",
+     "name": "Spending and budgets",
+     "desc": "Where the money went and how that compares with usual.",
+     "th": "olive",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/spending/README.md"
+    },
+    {
+     "id": "bills",
+     "name": "Bills and renewals",
+     "desc": "An amount, a date, and whether it is due, scheduled or paid.",
+     "th": "olive",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/bills/README.md"
+    },
+    {
+     "id": "subscriptions",
+     "name": "Subscriptions and renewals",
+     "desc": "Recurring charges, the next renewal, and ones worth cancelling.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/subscriptions/README.md"
+    },
+    {
+     "id": "savings",
+     "name": "Savings goals",
+     "desc": "A balance against a target, the pace, and what changes it.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/savings/README.md"
+    },
+    {
+     "id": "disputes",
+     "name": "Refunds and disputes",
+     "desc": "A wrong or recoverable charge, the claim, and where it stands.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/disputes/README.md"
+    },
+    {
+     "id": "taxes",
+     "name": "Taxes and paperwork",
+     "desc": "Documents gathered and missing, amounts, and the deadline.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/money-and-markets/taxes/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Shopping and selling",
+   "kinds": [
+    {
+     "id": "price-watch",
+     "name": "Price and stock watch",
+     "desc": "A price that moved or an item that came back.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/price-watch/README.md"
+    },
+    {
+     "id": "deliveries",
+     "name": "Deliveries",
+     "desc": "An order on its way, delayed, arrived or ready to collect.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/deliveries/README.md"
+    },
+    {
+     "id": "product-compare",
+     "name": "Product comparison",
+     "desc": "Two or three options side by side on the terms that decide it.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/product-compare/README.md"
+    },
+    {
+     "id": "marketplace",
+     "name": "Marketplace finds",
+     "desc": "New second-hand listings that match a search the user saved.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/marketplace/README.md"
+    },
+    {
+     "id": "listings",
+     "name": "Your listings and offers",
+     "desc": "Views, messages and offers on things the user is selling.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/listings/README.md"
+    },
+    {
+     "id": "returns",
+     "name": "Returns and refunds",
+     "desc": "A return window, the label, the parcel back, and the refund.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/returns/README.md"
+    },
+    {
+     "id": "groceries",
+     "name": "Groceries and reorders",
+     "desc": "A list or a basket ready for delivery or pickup, and swaps.",
+     "th": "sage",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/groceries/README.md"
+    },
+    {
+     "id": "gifts",
+     "name": "Gift ideas",
+     "desc": "Options for one person and one occasion, inside a budget.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/shopping-and-selling/gifts/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Travel",
+   "kinds": [
+    {
+     "id": "flight",
+     "name": "Flight status",
+     "desc": "A booked flight and what changed about it.",
+     "th": "mint",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/flight/README.md"
+    },
+    {
+     "id": "fare-watch",
+     "name": "Fare watch",
+     "desc": "A fare for a route and dates against the price the user wants.",
+     "th": "mint",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/fare-watch/README.md"
+    },
+    {
+     "id": "trip-plan",
+     "name": "Trip plans",
+     "desc": "An itinerary, day by day, with what is booked and what is open.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/trip-plan/README.md"
+    },
+    {
+     "id": "trip-prep",
+     "name": "Trip preparation",
+     "desc": "What a trip still needs before leaving.",
+     "th": "mint",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/trip-prep/README.md"
+    },
+    {
+     "id": "stays",
+     "name": "Stays",
+     "desc": "A hotel or rental booking, from confirmation to checkout.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/stays/README.md"
+    },
+    {
+     "id": "trains",
+     "name": "Trains and transfers",
+     "desc": "Getting there by rail, car or shuttle, and what changed.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/trains/README.md"
+    },
+    {
+     "id": "commute",
+     "name": "Commute and traffic",
+     "desc": "Travel time now, what is slowing it, and when to leave.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/travel/commute/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Local and weather",
+   "kinds": [
+    {
+     "id": "weather",
+     "name": "Weather",
+     "desc": "Conditions and forecasts that affect a plan.",
+     "th": "sky",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/weather/README.md"
+    },
+    {
+     "id": "arrivals",
+     "name": "Arriving somewhere",
+     "desc": "What helps in the first minutes at an airport, hotel, venue or home.",
+     "th": "sage",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/arrivals/README.md"
+    },
+    {
+     "id": "things-to-do",
+     "name": "Things to do nearby",
+     "desc": "A short list for a free day, evening or weekend.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/things-to-do/README.md"
+    },
+    {
+     "id": "restaurants",
+     "name": "Restaurants",
+     "desc": "A table booked, changed or worth booking.",
+     "th": "sage",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/restaurants/README.md"
+    },
+    {
+     "id": "events",
+     "name": "Events and tickets",
+     "desc": "Something on, tickets for it and how to get there.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/events/README.md"
+    },
+    {
+     "id": "local-services",
+     "name": "Local services",
+     "desc": "A provider, a slot and a price for a job that needs someone.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/local-and-weather/local-services/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Work and business",
+   "kinds": [
+    {
+     "id": "meetings",
+     "name": "Meetings",
+     "desc": "Preparation before a meeting and follow-through after it.",
+     "th": "cream",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/meetings/README.md"
+    },
+    {
+     "id": "documents",
+     "name": "Documents",
+     "desc": "A document, sheet or deck that Muse made or changed.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/documents/README.md"
+    },
+    {
+     "id": "files",
+     "name": "Files and storage",
+     "desc": "A file found, a folder tidied, space running out, or a share to review.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/files/README.md"
+    },
+    {
+     "id": "sheets",
+     "name": "Sheets and reports",
+     "desc": "A work file that changed, what changed, and what it means.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/sheets/README.md"
+    },
+    {
+     "id": "jobs",
+     "name": "Job search",
+     "desc": "Openings that fit, applications in flight and interviews.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/jobs/README.md"
+    },
+    {
+     "id": "post-performance",
+     "name": "Post performance",
+     "desc": "Reach and engagement for a post or an account, against the usual.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/post-performance/README.md"
+    },
+    {
+     "id": "post-draft",
+     "name": "Posts ready to publish",
+     "desc": "A post with its caption and media, ready for a yes.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/post-draft/README.md"
+    },
+    {
+     "id": "audience-replies",
+     "name": "Comments and DMs",
+     "desc": "Messages from an audience that need an answer, with drafts.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/audience-replies/README.md"
+    },
+    {
+     "id": "ads",
+     "name": "Ad performance",
+     "desc": "Spend, results and what changed in a campaign.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/ads/README.md"
+    },
+    {
+     "id": "store-sales",
+     "name": "Store and sales",
+     "desc": "Orders, revenue and stock for a shop.",
+     "th": "olive",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/store-sales/README.md"
+    },
+    {
+     "id": "leads",
+     "name": "Leads and follow-ups",
+     "desc": "New leads, where each stands, and follow-ups that are due.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/leads/README.md"
+    },
+    {
+     "id": "invoices",
+     "name": "Invoices and payroll",
+     "desc": "What is owed, what was paid, and what is due to run.",
+     "th": "olive",
+     "readme": "/opt/muse/assets/proactivity/cards/work-and-business/invoices/README.md"
+    }
+   ]
+  },
+  {
+   "name": "News and entertainment",
+   "kinds": [
+    {
+     "id": "news",
+     "name": "News briefings",
+     "desc": "A few stories with their sources, on what the user follows.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/news/README.md"
+    },
+    {
+     "id": "page-watch",
+     "name": "Page and topic watch",
+     "desc": "Whether something the user watches changed, and how.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/page-watch/README.md"
+    },
+    {
+     "id": "sports",
+     "name": "Sports",
+     "desc": "Scores, standings and the next game for teams the user follows.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/sports/README.md"
+    },
+    {
+     "id": "podcast",
+     "name": "Podcasts and audio briefings",
+     "desc": "A playable episode Muse made, with its outline.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/podcast/README.md"
+    },
+    {
+     "id": "releases",
+     "name": "New releases",
+     "desc": "New films, shows, music, books and games the user would want.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/releases/README.md"
+    },
+    {
+     "id": "creators",
+     "name": "Creators and channels",
+     "desc": "New posts and videos from accounts the user follows.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/creators/README.md"
+    },
+    {
+     "id": "puzzles",
+     "name": "Daily puzzles and quizzes",
+     "desc": "A playable daily item, the result, and the streak.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/puzzles/README.md"
+    },
+    {
+     "id": "daily-reading",
+     "name": "Daily readings",
+     "desc": "A quote, a verse, a word or a horoscope for the day.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/news-and-entertainment/daily-reading/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Health and food",
+   "kinds": [
+    {
+     "id": "measures",
+     "name": "Health measures",
+     "desc": "A measurement over time, with dates and units.",
+     "th": "teal",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/measures/README.md"
+    },
+    {
+     "id": "habits",
+     "name": "Habits and goals",
+     "desc": "A streak, the pace against a goal, and the next step.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/habits/README.md"
+    },
+    {
+     "id": "workouts",
+     "name": "Workouts",
+     "desc": "Training done, planned or due.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/workouts/README.md"
+    },
+    {
+     "id": "sleep",
+     "name": "Sleep",
+     "desc": "Last night, the week, and what moved it.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/sleep/README.md"
+    },
+    {
+     "id": "meal-plan",
+     "name": "Meal plans",
+     "desc": "Meals for a day or a week, the shopping list, and the numbers.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/meal-plan/README.md"
+    },
+    {
+     "id": "medication",
+     "name": "Medication and refills",
+     "desc": "A dose, a schedule, a refill date, and what was missed.",
+     "th": "teal",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/medication/README.md"
+    },
+    {
+     "id": "care",
+     "name": "Appointments and care",
+     "desc": "Booking, preparing for, and following up on medical care.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/care/README.md"
+    },
+    {
+     "id": "wellbeing",
+     "name": "Mood and reflection",
+     "desc": "A check-in, a pattern over weeks, or a prompt to pause.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/health-and-food/wellbeing/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Home and life admin",
+   "kinds": [
+    {
+     "id": "home-devices",
+     "name": "Home devices",
+     "desc": "The state of lights, locks, heating and sensors, and what changed.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/home-devices/README.md"
+    },
+    {
+     "id": "government",
+     "name": "Government and benefits",
+     "desc": "An application, its state, and the next deadline.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/government/README.md"
+    },
+    {
+     "id": "legal",
+     "name": "Contracts and legal papers",
+     "desc": "Key terms, dates and obligations in a document.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/legal/README.md"
+    },
+    {
+     "id": "pets",
+     "name": "Pet care",
+     "desc": "Vet visits, food, medication and insurance for a pet.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/pets/README.md"
+    },
+    {
+     "id": "vehicle",
+     "name": "Vehicles",
+     "desc": "Charge, range, service and paperwork for a car or a bike.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/vehicle/README.md"
+    },
+    {
+     "id": "home-search",
+     "name": "Home search",
+     "desc": "New homes that match what the user is looking for.",
+     "th": "sage",
+     "readme": "/opt/muse/assets/proactivity/cards/home-and-life-admin/home-search/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Learning and research",
+   "kinds": [
+    {
+     "id": "research",
+     "name": "Research briefs",
+     "desc": "What a piece of research found, with its sources.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/research/README.md"
+    },
+    {
+     "id": "answers",
+     "name": "Quick answers",
+     "desc": "One answer with its source and how sure it is.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/answers/README.md"
+    },
+    {
+     "id": "explainers",
+     "name": "Explainers",
+     "desc": "One idea explained with an example and a picture of how it works.",
+     "th": "teal",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/explainers/README.md"
+    },
+    {
+     "id": "summaries",
+     "name": "Summaries",
+     "desc": "Something long reduced to what it says.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/summaries/README.md"
+    },
+    {
+     "id": "practice",
+     "name": "Practice and lessons",
+     "desc": "A ready exercise, a quiz or the next lesson.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/practice/README.md"
+    },
+    {
+     "id": "language",
+     "name": "Language lessons",
+     "desc": "Words and phrases with practice, at the user's level.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/learning-and-research/language/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Creative and building",
+   "kinds": [
+    {
+     "id": "images",
+     "name": "Generated images",
+     "desc": "One image or a few to choose from, with what to change next.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/images/README.md"
+    },
+    {
+     "id": "videos",
+     "name": "Generated videos",
+     "desc": "A clip, its state, and variants.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/videos/README.md"
+    },
+    {
+     "id": "spaces",
+     "name": "Apps and pages built",
+     "desc": "A Space Muse built, what it does, and what was added.",
+     "th": "indigo",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/spaces/README.md"
+    },
+    {
+     "id": "dashboards",
+     "name": "Living dashboards",
+     "desc": "A page Muse keeps up to date, and what changed on it.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/dashboards/README.md"
+    },
+    {
+     "id": "code",
+     "name": "Code and repos",
+     "desc": "Commits, issues, builds and releases in a project.",
+     "th": "stone",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/code/README.md"
+    },
+    {
+     "id": "design",
+     "name": "Design concepts",
+     "desc": "A layout, a room or a craft idea, with the choices behind it.",
+     "th": "rose",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/design/README.md"
+    },
+    {
+     "id": "writing",
+     "name": "Writing drafts",
+     "desc": "A story, a speech, a poem or a script, ready to read.",
+     "th": "cream",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/writing/README.md"
+    },
+    {
+     "id": "music",
+     "name": "Music and playlists",
+     "desc": "Tracks picked for a moment, with a reason for each.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/creative-and-building/music/README.md"
+    }
+   ]
+  },
+  {
+   "name": "Muse itself",
+   "kinds": [
+    {
+     "id": "tracking",
+     "name": "Tracked items",
+     "desc": "A change of state on something Muse is tracking.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/tracking/README.md"
+    },
+    {
+     "id": "task-result",
+     "name": "Task results",
+     "desc": "What a scheduled run found, including when nothing changed.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/task-result/README.md"
+    },
+    {
+     "id": "task-created",
+     "name": "Scheduled tasks",
+     "desc": "A task Muse set up, when it runs, and how to change it.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/task-created/README.md"
+    },
+    {
+     "id": "projects",
+     "name": "Projects",
+     "desc": "Progress and the next step on something the user is building.",
+     "th": "green",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/projects/README.md"
+    },
+    {
+     "id": "needs-input",
+     "name": "Needs your input",
+     "desc": "Work that is blocked on an approval, a sign-in or a decision.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/needs-input/README.md"
+    },
+    {
+     "id": "mix-ups",
+     "name": "Mix-ups caught",
+     "desc": "Two records that disagree, and the fix.",
+     "th": "clay",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/mix-ups/README.md"
+    },
+    {
+     "id": "tips",
+     "name": "Things Muse can do",
+     "desc": "One capability shown at the moment it would have helped.",
+     "th": "amber",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/tips/README.md"
+    },
+    {
+     "id": "connections",
+     "name": "Connections",
+     "desc": "A service to connect, what it unlocks, and its health.",
+     "th": "azure",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/connections/README.md"
+    },
+    {
+     "id": "memory",
+     "name": "What Muse remembers",
+     "desc": "Something Muse learned, corrected or forgot, and how to change it.",
+     "th": "lilac",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/memory/README.md"
+    },
+    {
+     "id": "dial",
+     "name": "Proactive settings",
+     "desc": "What Muse does unasked, when it does it, and what the user changed.",
+     "th": "steel",
+     "readme": "/opt/muse/assets/proactivity/cards/muse-itself/dial/README.md"
+    }
+   ]
+  }
+ ]
+}

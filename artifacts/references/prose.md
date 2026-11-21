@@ -24,6 +24,8 @@ Claim:   adoption flattened because onboarding took three weeks, not price.
 Source:  pasted table rows 4-11 (weekly signups), user's message on pricing.
 ```
 
+- Write the text the user will read in the language and regional spelling the user asked for; on an edit, keep what the artifact already uses; otherwise go by how this user writes in the messages they typed, not by the assistant's replies or by where the user or the readers live.
+
 - The outline is the document's argument, so give every section a claim. Cut a section you cannot find a claim for, and merge two sections that make the same one. You write the body in pieces, and without the outline those pieces drift apart.
 
 - `Source` is a working note for you. It never appears in the document.

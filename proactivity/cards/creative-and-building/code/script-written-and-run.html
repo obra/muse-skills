@@ -1,0 +1,14 @@
+<link rel="stylesheet" href="/opt/muse/assets/proactivity/cards/cards.css">
+<article class="mc genui-v2-surface th-stone tp-rule">
+<div class="mc-pad">
+<div class="mc-top"><i class="ic"><svg class="mc-ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8l-4.5 4L8 16 M16 8l4.5 4-4.5 4 M13.5 5l-3 14"/></svg></i><span class="k">Script</span><span class="st up">Ran once</span></div>
+<div class="mc-hero"><div class="tx"><h3 class="mc-t">rename_by_date.py</h3><p class="mc-s">Run on your Sicily 2025 folder</p></div></div>
+<div class="mc-b k-pics n2"><div><div class="ph"><img src="[[PHOTO]]" alt="Photo of the beach, Cefalu. 20250712_1104.jpg"></div><span>20250712_1104.jpg</span></div><div><div class="ph"><img src="[[PHOTO]]" alt="Photo of the city, Palermo. 20250713_0915.jpg"></div><span>20250713_0915.jpg</span></div></div>
+<div class="mc-b k-stat"><div class="lb u">Files renamed</div><div class="v">1,204<span class="d up">0 failed</span></div></div>
+<div class="mc-b k-code">for p in folder.glob(&quot;*.jpg&quot;):
+    d = exif_date(p)
+    name = f&quot;{d:%Y%m%d_%H%M}.jpg&quot;
+    p.rename(p.with_name(name))</div>
+<p class="mc-f">17 had no date. Undo with renames.csv</p>
+</div>
+</article>
