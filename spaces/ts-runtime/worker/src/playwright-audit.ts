@@ -1915,7 +1915,19 @@ type AuditLaunchOptions = {
   executablePath?: string;
   args?: string[];
   proxy?: { server: string; username?: string; password?: string; bypass?: string };
+  chromiumSandbox?: boolean;
 };
+
+const CHROMIUM_SANDBOX_LAUNCHER = "/opt/hatch/bin/hatch-chromium-sandbox";
+// `<scheme>:<absolute unix socket path>`, the launcher's `--hatch-sandbox-proxy`
+// form. A TCP proxy URL (`scheme://host`) never matches: the sandbox has no route
+// to it.
+const SANDBOX_PROXY_SPEC = /^(socks5|http):(\/(?!\/).*)$/;
+
+// The daemon or exec tool sets this when the caller's Chromium sandbox rollout is on.
+export function chromiumSandboxEnabled(): boolean {
+  return process.env.HATCH_CHROMIUM_SANDBOX === "1";
+}
 
 // Build the Chromium launch options shared by the baseline capture and the
 // agent-test runner: headless, optional system-chrome executable, and the
@@ -1927,9 +1939,21 @@ export function buildLaunchOptions(
   proxyServer: string | null,
   proxyAuthToken: string | null,
   _proxyAuthUsername: string | null,
+  sandboxReadPaths: readonly string[] = [],
 ): AuditLaunchOptions {
   if (process.platform === "linux" && executablePath !== IMAGE_CHROME_PATH) {
     throw new Error(`Linux artifact rendering requires ${IMAGE_CHROME_PATH}`);
+  }
+  const sandboxed = chromiumSandboxEnabled();
+  if (sandboxed && executablePath !== IMAGE_CHROME_PATH) {
+    throw new Error(`sandboxed Chromium requires ${IMAGE_CHROME_PATH}`);
+  }
+  let sandboxProxy: RegExpMatchArray | null = null;
+  if (sandboxed && proxyServer !== null) {
+    sandboxProxy = proxyServer.match(SANDBOX_PROXY_SPEC);
+    if (sandboxProxy === null) {
+      throw new Error("sandboxed Chromium reaches its proxy only through a unix socket");
+    }
   }
   const launchOptions: AuditLaunchOptions = {
     headless: true,
@@ -1940,12 +1964,22 @@ export function buildLaunchOptions(
   // resolver hangs on dead cell DNS and times out even the already-governed
   // proxied self-FQDN navigation. Real hostnames carry no rule and resolve
   // proxy-side over CONNECT, so the explicit-proxy egress posture is unchanged.
-  const hostResolverRulesArg = buildHostResolverRulesArg(proxyServer);
+  // Sandboxed, Chromium sees the proxy at the launcher's loopback bridge.
+  const hostResolverRulesArg = buildHostResolverRulesArg(
+    sandboxProxy === null ? proxyServer : `${sandboxProxy[1]}://127.0.0.1`,
+  );
   if (hostResolverRulesArg !== null) {
     launchOptions.args = [...(launchOptions.args ?? []), hostResolverRulesArg];
   }
   if (executablePath !== null) {
-    launchOptions.executablePath = executablePath;
+    launchOptions.executablePath = sandboxed ? CHROMIUM_SANDBOX_LAUNCHER : executablePath;
+  }
+  if (sandboxed) {
+    launchOptions.chromiumSandbox = true;
+    launchOptions.args = [
+      ...(launchOptions.args ?? []),
+      ...sandboxReadPaths.map((path) => `--hatch-sandbox-read=${path}`),
+    ];
   }
   if (executablePath === "/opt/meta-chromium/chrome") {
     // Trust only the measured immutable image policy, bound read-only at this
@@ -1988,7 +2022,17 @@ export function buildLaunchOptions(
     // Sentinel — see CHROME_PHONE_HOME_BYPASS_HOSTS. Comma-separated here;
     // Playwright joins the entries with ';' for Chrome's --proxy-bypass-list.
     const bypass = CHROME_PHONE_HOME_BYPASS_HOSTS.join(",");
-    launchOptions.proxy = { server: proxyServer, bypass };
+    if (sandboxProxy !== null) {
+      // The launcher appends --proxy-server itself, so Playwright must not; this
+      // repeats the bypass list Playwright would have derived from `proxy`.
+      launchOptions.args = [
+        ...(launchOptions.args ?? []),
+        `--hatch-sandbox-proxy=${proxyServer}`,
+        `--proxy-bypass-list=${[...CHROME_PHONE_HOME_BYPASS_HOSTS, "<-loopback>"].join(";")}`,
+      ];
+    } else {
+      launchOptions.proxy = { server: proxyServer, bypass };
+    }
   }
   return launchOptions;
 }
@@ -3748,6 +3792,7 @@ async function main(): Promise<number> {
       // Any capture carrying a Space credential is restricted to its own origin.
       transportLedger = await startTransportLedger(args.proxyServer, {
         upstreamProxyAuthHeader: proxyAuthHeader,
+        unixSocket: chromiumSandboxEnabled(),
         ...(args.egressLockdown
           ? { allowedDestinations: new Set([auditDestination]) }
           : {}),
@@ -3776,7 +3821,18 @@ async function main(): Promise<number> {
         process.stderr.write(
           "playwright-audit: transport ledger failed to start; continuing unobserved and unattributed (no lockdown requested)\n",
         );
-        args = { ...args, proxyAuthToken: null };
+        // Deliberate tradeoff: a sandboxed Chromium reaches the network only
+        // through the launcher's bridge to the ledger socket, so with no ledger
+        // it renders offline. The Space itself still loads through page.route;
+        // only remote subresources (web fonts, CDN images and scripts) fail.
+        // A forwarder that kept a direct path to Sentinel here was rejected:
+        // this branch runs only after the ledger has already failed, its
+        // traffic is unrecorded anyway, and no network is the safer way to fail.
+        args = {
+          ...args,
+          proxyAuthToken: null,
+          proxyServer: chromiumSandboxEnabled() ? null : args.proxyServer,
+        };
       }
     }
   }

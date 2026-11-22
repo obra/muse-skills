@@ -114,6 +114,54 @@ describe("buildLaunchOptions image policy boundary", () => {
   });
 });
 
+describe("buildLaunchOptions Chromium sandbox", () => {
+  const chrome = "/opt/meta-chromium/chrome";
+
+  test("a sandboxed launch runs only the launcher and reaches its proxy only through the bridge", () => {
+    const previous = process.env.HATCH_CHROMIUM_SANDBOX;
+    const read = spyOn(fs, "readFileSync").mockReturnValue(Buffer.from("example.com\n"));
+    process.env.HATCH_CHROMIUM_SANDBOX = "1";
+    try {
+      const options = buildLaunchOptions(chrome, "socks5:/var/tmp/hatch-ledger-x/ledger.sock", null, null, [
+        "/home/hatch/workspace/deck",
+      ]);
+      expect(options.executablePath).toBe("/opt/hatch/bin/hatch-chromium-sandbox");
+      expect(options.chromiumSandbox).toBe(true);
+      // Playwright would turn `proxy` into a --proxy-server the sandbox cannot reach.
+      expect(options.proxy).toBeUndefined();
+      expect(options.args).toContain("--hatch-sandbox-proxy=socks5:/var/tmp/hatch-ledger-x/ledger.sock");
+      expect(options.args).toContain("--hatch-sandbox-read=/home/hatch/workspace/deck");
+      expect(options.args?.some((arg) => arg.startsWith("--proxy-server"))).toBe(false);
+      expect(options.args?.some((arg) => arg.startsWith("--hatch-webgl-allowed-domains-file="))).toBe(true);
+      for (const arg of CHROME_HARDENING_ARGS) expect(options.args).toContain(arg);
+
+      expect(() => buildLaunchOptions(chrome, "http://[fd00::1]:3128", null, null)).toThrow(
+        "sandboxed Chromium reaches its proxy only through a unix socket",
+      );
+      expect(() => buildLaunchOptions(chrome, "socks5:/x.sock", "token", null)).toThrow(
+        "proxy auth token must be injected by the transport ledger",
+      );
+      if (process.platform !== "linux") {
+        expect(() => buildLaunchOptions(null, null, null, null)).toThrow(
+          `sandboxed Chromium requires ${chrome}`,
+        );
+      }
+
+      delete process.env.HATCH_CHROMIUM_SANDBOX;
+      const unsandboxed = buildLaunchOptions(chrome, "socks5://127.0.0.1:1080", null, null, [
+        "/home/hatch/workspace/deck",
+      ]);
+      expect(unsandboxed.executablePath).toBe(chrome);
+      expect(unsandboxed.chromiumSandbox).toBeUndefined();
+      expect(unsandboxed.args?.some((arg) => arg.startsWith("--hatch-sandbox-"))).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.HATCH_CHROMIUM_SANDBOX;
+      else process.env.HATCH_CHROMIUM_SANDBOX = previous;
+      read.mockRestore();
+    }
+  });
+});
+
 describe("HBI-provided Chromium admission", () => {
   test("only genuine absence admits managed development, never Linux fallback", async () => {
     const root = await mkdtemp(join(tmpdir(), "image-chrome-admission-"));

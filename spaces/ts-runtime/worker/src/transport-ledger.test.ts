@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { existsSync, statSync } from "node:fs";
 import { connect as netConnect, createServer, type Socket } from "node:net";
+import { dirname } from "node:path";
 
 import {
   ledgerDestinationKey,
@@ -194,6 +196,51 @@ describe("ledger proxy end to end (loopback)", () => {
     ).toBeUndefined();
 
     await ledger.close();
+    await new Promise<void>((resolve) => destination.close(() => resolve()));
+  });
+
+  test("a unix-socket ledger is private to its owner, tunnels, and leaves nothing behind", async () => {
+    const banner = "allowed-destination";
+    const destination = createServer((socket) => {
+      socket.on("data", () => socket.end(banner));
+    });
+    await new Promise<void>((resolve) => destination.listen(0, "127.0.0.1", resolve));
+    const destinationPort = (destination.address() as { port: number }).port;
+
+    const ledger = await startTransportLedger(null, {
+      allowedDestinations: new Set([`127.0.0.1:${destinationPort}`]),
+      unixSocket: true,
+    });
+    expect(ledger.server.startsWith("socks5:/")).toBe(true);
+    const socketPath = ledger.server.slice("socks5:".length);
+    expect(statSync(dirname(socketPath)).mode & 0o777).toBe(0o700);
+
+    const received = await new Promise<string>((resolve, reject) => {
+      const client: Socket = netConnect(socketPath);
+      const chunks: Buffer[] = [];
+      let phase: "greet" | "request" | "data" = "greet";
+      client.on("error", reject);
+      client.on("data", (chunk: Buffer) => {
+        if (phase === "greet") {
+          phase = "request";
+          client.write(socksConnectFrame("127.0.0.1", destinationPort));
+          return;
+        }
+        if (phase === "request") {
+          expect(chunk[1]).toBe(0);
+          phase = "data";
+          client.write("ping");
+          return;
+        }
+        chunks.push(chunk);
+      });
+      client.on("close", () => resolve(Buffer.concat(chunks).toString("latin1")));
+      client.write(Buffer.from([5, 1, 0]));
+    });
+    expect(received).toBe(banner);
+
+    await ledger.close();
+    expect(existsSync(dirname(socketPath))).toBe(false);
     await new Promise<void>((resolve) => destination.close(() => resolve()));
   });
 

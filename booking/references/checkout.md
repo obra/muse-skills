@@ -16,7 +16,7 @@
 
 ## Collect details safely
 
-- Ask for traveler, guest or contact details only after the user has chosen an offer, and only for the fields that offer requires. Use saved profile and wallet details first.
+- Ask for traveler, guest or contact details only after the user has chosen an offer, and only for the fields that offer requires. Use saved profile and wallet details first, and the travel preferences in `~/memory/travel/PROFILE.md`, read when it exists, for seats, rooms and loyalty programs.
 
 - Identity, membership and payment details go through the provider's form, the secure wallet or credential flow, or the browser handoff. Do not ask for passwords in chat.
 

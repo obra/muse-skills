@@ -139,13 +139,14 @@ import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { connect as netConnect, isIP } from "node:net";
 import { connect as tlsConnect } from "node:tls";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 
 import { loadBrowserAuditRuntime } from "./browser_audit_runtime.mjs";
-import { fileUrlWithinRoots, realRootsFor } from "./deck_asset_scope.mjs";
+import { fileUrlWithinRoots, realRootsFor, sandboxReadPathsFor } from "./deck_asset_scope.mjs";
 import { probePdfFacts } from "./pdf_geometry_probe.mjs";
 import { evaluatePdfGeometry } from "./pdf_geometry_gate.mjs";
 import { evaluateTextFloor } from "./pdf_text_floor.mjs";
@@ -389,8 +390,10 @@ const RELAY_START_FAILURE_MESSAGE =
   "proxy-auth relay failed to start; refusing to pass egress token to Chromium";
 
 // The shared audit's relay does not emit the transport marker consumed by the
-// exec runner, so this renderer keeps its marker-aware relay local.
-function startProxyAuthRelay(upstreamProxyUrl, username, token) {
+// exec runner, so this renderer keeps its marker-aware relay local. A sandboxed
+// Chromium reaches it only through a unix socket, `listenDir/relay.sock`, and
+// needs it even when there is no credential to attach.
+function startProxyAuthRelay(upstreamProxyUrl, username, token, listenDir = null) {
   const upstream = new URL(upstreamProxyUrl);
   if (upstream.protocol !== "http:" && upstream.protocol !== "https:") {
     throw new Error(`unsupported proxy protocol: ${upstream.protocol}`);
@@ -400,7 +403,10 @@ function startProxyAuthRelay(upstreamProxyUrl, username, token) {
   const upstreamPort =
     upstream.port.length > 0 ? Number(upstream.port) : upstreamIsHttps ? 443 : 80;
   const upstreamRequest = upstreamIsHttps ? httpsRequest : httpRequest;
-  const credential = "Basic " + Buffer.from(`${username}:${token}`).toString("base64");
+  const credential =
+    username !== undefined && token !== undefined
+      ? "Basic " + Buffer.from(`${username}:${token}`).toString("base64")
+      : null;
 
   const server = createServer((clientReq, clientRes) => {
     const upstreamReq = upstreamRequest(
@@ -409,7 +415,10 @@ function startProxyAuthRelay(upstreamProxyUrl, username, token) {
         port: upstreamPort,
         method: clientReq.method,
         path: clientReq.url,
-        headers: { ...clientReq.headers, "proxy-authorization": credential },
+        headers:
+          credential === null
+            ? clientReq.headers
+            : { ...clientReq.headers, "proxy-authorization": credential },
       },
       (upstreamRes) => {
         clientRes.writeHead(upstreamRes.statusCode ?? 502, upstreamRes.headers);
@@ -436,7 +445,7 @@ function startProxyAuthRelay(upstreamProxyUrl, username, token) {
     const connectRequest =
       `CONNECT ${target} HTTP/1.1\r\n` +
       `Host: ${target}\r\n` +
-      `Proxy-Authorization: ${credential}\r\n` +
+      (credential === null ? "" : `Proxy-Authorization: ${credential}\r\n`) +
       `\r\n`;
     const upstreamSocket = upstreamIsHttps
       ? tlsConnect({
@@ -495,14 +504,15 @@ function startProxyAuthRelay(upstreamProxyUrl, username, token) {
     });
   });
 
+  const socketPath = listenDir === null ? null : join(listenDir, "relay.sock");
   return new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "::1", () => {
+    const onListening = () => {
       server.removeListener("error", reject);
       const address = server.address();
       const port = address !== null && typeof address === "object" ? address.port : 0;
       resolve({
-        server: `http://[::1]:${port}`,
+        server: socketPath === null ? `http://[::1]:${port}` : `http:${socketPath}`,
         close: () =>
           new Promise((res) => {
             for (const socket of [...sockets]) socket.destroy();
@@ -510,7 +520,12 @@ function startProxyAuthRelay(upstreamProxyUrl, username, token) {
             server.close(() => res());
           }),
       });
-    });
+    };
+    if (socketPath === null) {
+      server.listen(0, "::1", onListening);
+    } else {
+      server.listen(socketPath, onListening);
+    }
   });
 }
 
@@ -1399,18 +1414,23 @@ async function runAudit(args) {
   // the loopback auth relay so the runtime egress token is attached to every
   // CONNECT without ever entering Chromium.
   const proxyConfig = args.hermetic ? null : parseProxyConfig();
+  const sandboxed = audit.chromiumSandboxEnabled();
   let proxyRelay = null;
+  let relayDir = null;
   let effectiveProxy = proxyConfig?.server ?? null;
   if (proxyConfig !== null) {
-    if (proxyConfig.username !== undefined && proxyConfig.token !== undefined) {
+    if (sandboxed || (proxyConfig.username !== undefined && proxyConfig.token !== undefined)) {
       try {
+        if (sandboxed) relayDir = await mkdtemp(join(tmpdir(), "hatch-render-relay-"));
         proxyRelay = await startProxyAuthRelay(
           proxyConfig.server,
           proxyConfig.username,
           proxyConfig.token,
+          relayDir,
         );
         effectiveProxy = proxyRelay.server;
       } catch {
+        if (relayDir !== null) await rm(relayDir, { recursive: true, force: true });
         process.stderr.write(
           `render_audit: ${RELAY_START_FAILURE_MARKER}: ${RELAY_START_FAILURE_MESSAGE}\n`,
         );
@@ -1423,6 +1443,7 @@ async function runAudit(args) {
     effectiveProxy,
     null,
     proxyConfig?.username ?? null,
+    sandboxReadPathsFor(artifactAssetRoots(resolve(args.html))),
   );
   if (args.hermetic) {
     // Name resolution fails for everything, so nothing can be reached even if a
@@ -1798,6 +1819,7 @@ async function runAudit(args) {
         /* best-effort teardown */
       }
     }
+    if (relayDir !== null) await rm(relayDir, { recursive: true, force: true });
   }
 
   return report;

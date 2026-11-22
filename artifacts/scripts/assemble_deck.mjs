@@ -29,7 +29,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { loadBrowserAuditRuntime } from "./browser_audit_runtime.mjs";
-import { fileUrlWithinRoots, realRootsFor } from "./deck_asset_scope.mjs";
+import { fileUrlWithinRoots, realRootsFor, sandboxReadPathsFor } from "./deck_asset_scope.mjs";
 
 // The deck contract: one <section class="slide"> per file, N of them combined.
 const SLIDE_SELECTOR = "section.slide";
@@ -742,7 +742,13 @@ async function run(args) {
       ? "assemble_deck: using Playwright-managed chromium\n"
       : `assemble_deck: using system chrome at ${executablePath}\n`,
   );
-  const launchOptions = audit.buildLaunchOptions(executablePath, null, null, null);
+  const launchOptions = audit.buildLaunchOptions(
+    executablePath,
+    null,
+    null,
+    null,
+    sandboxReadPathsFor([dirname(args.out), args.slides]),
+  );
   launchOptions.args = [...(launchOptions.args ?? []), ...HERMETIC_LAUNCH_ARGS];
   const browser = await playwright.chromium.launch(launchOptions);
 

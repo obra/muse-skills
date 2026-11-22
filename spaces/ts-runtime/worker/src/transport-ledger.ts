@@ -32,7 +32,10 @@
 //   in-cell process (T290000266). Credentialed audit, probe, preview and
 //   inspection callers restrict that set to the artifact's own origin.
 
+import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, connect as netConnect, isIP, type Socket } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { connect as tlsConnect } from "node:tls";
 
 // Aggregated per host:port so a chatty page cannot bloat the report; the
@@ -334,7 +337,8 @@ export function unexplainedTransportHosts(
 // --- The proxy itself --------------------------------------------------------
 
 export interface TransportLedgerHandle {
-  /** Chromium-facing proxy URL (`socks5://127.0.0.1:<port>`). */
+  /** Chromium-facing proxy: `socks5://127.0.0.1:<port>`, or
+   *  `socks5:<socket path>` for a `unixSocket` ledger. */
   server: string;
   state: TransportLedgerState;
   close(): Promise<void>;
@@ -446,6 +450,10 @@ export async function startTransportLedger(
      *  Requires `allowedDestinations`: this listener does not authenticate local
      *  clients. Omitted/null sends a token-free CONNECT. */
     upstreamProxyAuthHeader?: string | null;
+    /** Listen on a socket in a fresh 0700 directory instead of loopback TCP,
+     *  for a sandboxed Chromium that reaches the ledger only through its
+     *  launcher's bridge. */
+    unixSocket?: boolean;
   },
 ): Promise<TransportLedgerHandle> {
   const upstream = parseUpstream(upstreamProxyUrl);
@@ -580,23 +588,48 @@ export async function startTransportLedger(
     });
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => resolve());
-  });
+  const socketDir = options?.unixSocket ? await mkdtemp(join(tmpdir(), "hatch-ledger-")) : null;
+  const socketPath = socketDir === null ? null : join(socketDir, "ledger.sock");
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject);
+      if (socketPath === null) {
+        server.listen(0, "127.0.0.1", () => resolve());
+      } else {
+        server.listen(socketPath, () => resolve());
+      }
+    });
+  } catch (err) {
+    if (socketDir !== null) await rm(socketDir, { recursive: true, force: true });
+    throw err;
+  }
   const address = server.address();
-  if (address === null || typeof address === "string") {
+  let chromiumProxy: string;
+  if (socketPath !== null) {
+    chromiumProxy = `socks5:${socketPath}`;
+  } else if (address === null || typeof address === "string") {
     throw new Error("transport ledger failed to bind");
+  } else {
+    chromiumProxy = `socks5://127.0.0.1:${address.port}`;
   }
   return {
-    server: `socks5://127.0.0.1:${address.port}`,
+    server: chromiumProxy,
     state,
     close: () =>
       new Promise<void>((resolve) => {
         for (const socket of sockets) {
           socket.destroy();
         }
-        server.close(() => resolve());
+        server.close(() => {
+          if (socketDir === null) {
+            resolve();
+            return;
+          }
+          rm(socketDir, { recursive: true, force: true }).then(
+            () => resolve(),
+            () => resolve(),
+          );
+        });
       }),
   };
 }

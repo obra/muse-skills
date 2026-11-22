@@ -16,7 +16,7 @@
 // `--disable-file-access-from-file-urls` does NOT stop it: a `file://` page loaded
 // `file:///tmp/target.png` into a screenshot identically with and without the flag.
 
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,15 @@ export function realRootsFor(directories) {
     }
   }
   return roots;
+}
+
+/// What a sandboxed Chromium needs bound read-only to load a file inside these
+/// roots: each directory as named, since that is the URL Chromium opens, and its
+/// real path, which a symlink inside it may resolve into. Absent directories are
+/// left out, because the launcher refuses to bind a path that does not exist.
+export function sandboxReadPathsFor(directories) {
+  const present = directories.filter((directory) => existsSync(directory));
+  return [...new Set([...present.map((directory) => resolve(directory)), ...realRootsFor(present)])];
 }
 
 /// Whether a `file:` URL lands inside one of those roots.

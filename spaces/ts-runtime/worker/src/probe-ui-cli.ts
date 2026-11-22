@@ -40,6 +40,7 @@ import {
   MOBILE_VIEWPORT,
   attachAuditNetworkPolicy,
   buildLaunchOptions,
+  chromiumSandboxEnabled,
   ensureChromium,
   findSystemChrome,
   collectRawImages,
@@ -1244,6 +1245,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
       transportLedger = await startTransportLedger(effectiveProxy, {
         upstreamProxyAuthHeader: proxyAuthHeader,
         allowedDestinations: new Set([probeDestination]),
+        unixSocket: chromiumSandboxEnabled(),
       });
       effectiveProxy = transportLedger.server;
     } catch (err) {
@@ -1255,7 +1257,15 @@ async function serve(flags: Map<string, string>): Promise<number> {
       // NO token (egress lands on `runtime.unknown`, so remote assets may be
       // refused, but the probe keeps serving). We do NOT fall back to a
       // credentialed loopback relay: that open listener is the borrow this fix
-      // removes (T290000266). effectiveProxy stays the upstream Sentinel proxy.
+      // removes (T290000266). effectiveProxy stays the upstream Sentinel proxy,
+      // except under the sandbox: there Chromium reaches the network only
+      // through the launcher's bridge to the ledger socket, so it serves
+      // offline. That is a deliberate tradeoff, the same as the audit's ledger
+      // fallback in playwright-audit.ts: a forwarder keeping a direct path to
+      // Sentinel was rejected because this branch runs only after the ledger
+      // failed, its traffic is unrecorded anyway, and no network is the safer
+      // way to fail.
+      if (chromiumSandboxEnabled()) effectiveProxy = null;
     }
   }
 
