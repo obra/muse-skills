@@ -179,7 +179,7 @@ async function search<TContent>(
 
 function createToolClientWithContext(
   baseCtx: ToolContext,
-): Omit<SpaceToolClient, "generate_media"> {
+): Omit<SpaceToolClient, "generate_media" | "saved_product_lists"> {
   return {
     weather(query, options = {}) {
       return search(
@@ -245,7 +245,7 @@ export function createToolClient(
   actionInvocationId?: string,
   actionName?: string,
   rootRequestId?: string,
-): Omit<SpaceToolClient, "generate_media"> {
+): Omit<SpaceToolClient, "generate_media" | "saved_product_lists"> {
   return createToolClientWithContext({
     ...(actionInvocationId !== undefined ? { actionInvocationId } : {}),
     ...(actionName !== undefined ? { actionName } : {}),
@@ -263,7 +263,7 @@ const BUILDER_PROBE_ACTION = "__builder_probe__";
  */
 export function createBuilderProbeToolClient(
   invocationId: string,
-): Omit<SpaceToolClient, "generate_media"> {
+): Omit<SpaceToolClient, "generate_media" | "saved_product_lists"> {
   return createToolClientWithContext({
     actionInvocationId: invocationId,
     actionName: BUILDER_PROBE_ACTION,

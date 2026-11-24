@@ -18,6 +18,7 @@
 //   HATCH_SPACE_INFERENCE_DEFAULT_TIMEOUT_MS inference budget inside that deadline
 //   HATCH_SPACE_WEB_SEARCH_SOCKET daemon-owned length-prefixed JSON RPC socket for ctx.tool
 //   HATCH_SPACE_PRIVILEGED_SOCKET daemon-owned length-prefixed JSON RPC socket for ctx.executePrivileged
+//                               and ctx.tool.saved_product_lists
 
 import { existsSync } from "node:fs";
 import { createReadStream, writeSync } from "node:fs";
@@ -48,6 +49,7 @@ import { createAgentClient } from "./agent";
 import { createBlobClient } from "./blobs";
 import { createInferenceClient } from "./inference";
 import { createPrivilegedTransport } from "./privileged";
+import { readDeclaredSavedProductLists, readSavedProductLists } from "./saved_product_lists";
 import { generateMedia } from "./space_media";
 import { createToolClient } from "./web_search";
 import {
@@ -321,6 +323,7 @@ function buildCtx(args: {
   readOnly: boolean;
   /** The read-only accessor a read-only invocation's data access uses. */
   readOnlyDb: SpaceDbAccessor | null;
+  savedProductLists: readonly string[] | undefined;
 }): Ctx {
   const agent = createAgentClient({
     slug: args.slug,
@@ -364,6 +367,17 @@ function buildCtx(args: {
         actionName: args.action,
         rootRequestId: args.rootRequestId,
       }),
+    saved_product_lists: (lists) =>
+      readSavedProductLists(
+        {
+          blobs,
+          actionInvocationId: args.invocationId,
+          actionName: args.action,
+          ...(args.rootRequestId !== undefined ? { rootRequestId: args.rootRequestId } : {}),
+          ...(args.viewer !== undefined ? { viewer: args.viewer } : {}),
+        },
+        lists,
+      ),
   };
   return {
     slug: args.slug,
@@ -375,6 +389,7 @@ function buildCtx(args: {
     inference,
     tool,
     blobs,
+    ...(args.savedProductLists !== undefined ? { savedProductLists: args.savedProductLists } : {}),
     executePrivileged: privilegedExecutor.executePrivileged,
     emit(data: JsonValue): void {
       if (args.transport !== "stream") {
@@ -461,6 +476,7 @@ async function runInvocation(args: {
     queryInvalidation,
     readOnly,
     readOnlyDb,
+    savedProductLists: await readDeclaredSavedProductLists(spaceDir),
   });
 
   let invalidationsEmitted = false;

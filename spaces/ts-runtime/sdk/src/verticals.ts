@@ -16,6 +16,7 @@
 //     forecast, price history) is optional and only present when requested.
 
 import { z, type JsonValue } from "./server-contract";
+import type { SavedProductLists } from "./saved_product_lists";
 
 // ---------------------------------------------------------------------------
 // Shared request types
@@ -524,4 +525,21 @@ export interface SpaceToolClient {
    * components in the prompt. Persist `blobKey` in your DB and render `url`.
    */
   generate_media(prompt: string, options?: GenerateMediaOptions): Promise<GeneratedMedia>;
+  /**
+   * The owner's Remember Products lists declared in `space.json.savedProductLists`.
+   * Omit `lists` or pass an empty array to read the declaration in its order;
+   * a nonempty array selects only declared names, in the requested order.
+   * Product photos are stored in this Space's `ctx.blobs` and each item's
+   * `image` is their own-origin URL, or null when the product has no photo;
+   * never render the product's remote `image_url`. Only the Space's owner can
+   * read them: for anyone else, and in every shared or published copy, this
+   * throws {@link SavedProductListsUnavailableError}, so serve the page's saved
+   * copy when `SavedProductListsUnavailableError.is(e)`, and treat any other
+   * error as a failure. Catalog prices are refreshed on every read.
+   *
+   * A page normally exports `savedProductsAction` instead, which keeps the
+   * page's saved copy and its fallback; call this only to build something it
+   * doesn't cover.
+   */
+  saved_product_lists(lists?: readonly string[]): Promise<SavedProductLists>;
 }

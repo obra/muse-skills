@@ -1,5 +1,5 @@
 {
-  "currentVersion": 29,
+  "currentVersion": 31,
   "versionField": "platformVersion",
   "upgrades": [
     {
@@ -555,6 +555,43 @@
       ],
       "verification": [
         "The artifact builds and typechecks. Client validation does not check input limits during this upgrade build (the Space is still below version 29), so inspect every <input> and <textarea> that feeds a limited request field for its FIELDS spread and for leftover hand-written limits, and every blank-text check in a submit handler for a visible reason, before reporting the upgrade complete."
+      ]
+    },
+    {
+      "version": 30,
+      "id": "2026-11-19-managed-saved-products-action",
+      "title": "SDK-owned saved-products actions",
+      "runtime": "typescript",
+      "summary": "savedProductsAction owns saved-list reads, durable snapshots, price labels and change-only invalidation; builders no longer implement that plumbing.",
+      "applicability": "TypeScript Spaces showing Remember Products lists through ctx.tool.saved_product_lists or manual saved-product cache actions.",
+      "instructions": [
+        "Import savedProductsAction from @hatch/space-sdk and replace the saved-product read/cache action with savedProductsAction({ messages: \"en\" }) for an English page, or a complete messages object in the page's language. Keep its existing exported action name and space.json.savedProductLists selection. An action serving a fixed section also supplies lists: [the declared section names].",
+        "Remove manual saved-product cache merging, conditional upserts, field-comparison rules and invalidation code superseded by the helper. Preserve unrelated app tables, notes, actions and authorization guards; do not delete existing app data.",
+        "Remove refreshPrices options from saved-product reads. Render each returned item's product, image and priceLabel; replace raw current/cached/saved/refreshing state branches with the provided label. Keep remote product.image_url out of displayed photos.",
+        "Render notice and snapshotAt when present. A viewerless build/audit or shared copy can show a saved snapshot or unavailable state, not live owner data. Keep the SDK's owner-only boundary and report authenticated paths as unverified if they cannot be exercised.",
+        "Keep the current client useQuery and opt-in shopping bridge. Update the SDK dependency to the installed tarball and rebuild during this edit; do not preemptively edit other Spaces or republish them."
+      ],
+      "verification": [
+        "The action and client build/typecheck succeed with savedProductsAction and the typed response.",
+        "An unchanged read does not invalidate itself; list or photo changes update visible cards, and unavailable live access serves only the snapshot/unavailable state.",
+        "Existing per-product notes and unrelated app data remain intact. Record live owner checks that the build context cannot perform as unverified."
+      ]
+    },
+    {
+      "version": 31,
+      "id": "2026-11-20-saved-products-authored-messages",
+      "title": "Saved-product labels in the page's language",
+      "runtime": "typescript",
+      "summary": "savedProductsAction requires an explicit English message set or complete authored UI messages matching the page's language.",
+      "applicability": "TypeScript Spaces that export savedProductsAction, including helper actions introduced at platformVersion 30.",
+      "instructions": [
+        "Add messages to each savedProductsAction declaration: messages: \"en\" for an English page, or a complete object with currentPrice, lastCheckedPrice, savedPrice, snapshotNotice, unavailableNotice and ownerSharedCopyNotice in the page's language. When you write the object, the owner sees ownerSharedCopyNotice on the shared link whether or not the shared copy has saved products to show. Write it to hold in both cases: tell the owner they are looking at their shared copy and that the original Space in Muse shows their live saved products. That is all it needs to say, because the shared copy may be empty. Signing in on the shared link does not enable live reads. Follow the page's existing language; do not infer it from viewer identity or introduce a new locale RPC.",
+        "Keep lists, action names, request/response usage, cache behavior, authorization guards and app data unchanged. Continue rendering priceLabel and notice directly; do not add client branches over price states.",
+        "Update the installed SDK dependency and rebuild during this edit. Do not preemptively mutate or republish other Spaces."
+      ],
+      "verification": [
+        "The helper action and client build/typecheck succeed with explicit messages.",
+        "Verify available live, saved-snapshot and unavailable UI states use the page's language, preserving the same prices and owner-only behavior. Record live paths unavailable to the builder as unverified."
       ]
     }
   ]

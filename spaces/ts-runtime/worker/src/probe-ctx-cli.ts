@@ -171,6 +171,11 @@ export function buildProbeCtx(invokedTools: Set<string>): Ctx {
         "ctx.tool.generate_media is not available in probe mode — requires a built web artifact",
       );
     },
+    saved_product_lists() {
+      throw new Error(
+        "ctx.tool.saved_product_lists is not available in probe mode — requires a built web artifact",
+      );
+    },
   };
 
   const privilegedExecutor = createPrivilegedExecutor([], async () => {

@@ -14,6 +14,8 @@ import {
   type PortableCtx,
 } from "../../sdk/src/server-contract";
 import type { GeneratedMedia, GenerateMediaOptions } from "../../sdk/src/verticals";
+import type { SavedProductLists } from "../../sdk/src/saved_product_lists";
+import { savedProductsActionFor } from "../../sdk/src/saved_products_action";
 
 export {
   INFERENCE_SCHEMA_ERROR_BRAND,
@@ -165,6 +167,26 @@ export {
   type ToolFinanceInterval,
 } from "../../sdk/src/verticals";
 
+export {
+  SAVED_PRODUCT_IMAGE_KEY_PREFIX,
+  SAVED_PRODUCT_LISTS_OWNER_ONLY_CODE,
+  SAVED_PRODUCT_LISTS_UNAVAILABLE_BRAND,
+  SavedProductListsUnavailableError,
+  type SavedProductList,
+  type SavedProductListItem,
+  type SavedProductLists,
+  type SavedProductPrice,
+  type SavedProductRecord,
+} from "../../sdk/src/saved_product_lists";
+
+export {
+  SAVED_PRODUCTS_REQUEST_SCHEMA,
+  SAVED_PRODUCTS_RESPONSE_SCHEMA,
+  type SavedProducts,
+  type SavedProductsActionOptions,
+  type SavedProductsMessages,
+} from "../../sdk/src/saved_products_action";
+
 export interface SpaceToolClient {
   weather(
     query: string,
@@ -196,6 +218,8 @@ export interface SpaceToolClient {
     options?: ToolSearchOptions,
   ): Promise<ToolSearchResponse<ToolWebSearchResult>>;
   generate_media(prompt: string, options?: GenerateMediaOptions): Promise<GeneratedMedia>;
+  /** Always throws `SavedProductListsUnavailableError` in a shared copy. */
+  saved_product_lists(lists?: readonly string[]): Promise<SavedProductLists>;
 }
 
 export interface AgentSendOptions {
@@ -327,6 +351,8 @@ export type AnyZodObject = z.ZodType;
 export type Infer<T extends z.ZodType> = z.infer<T>;
 
 export const defineAction = createDefineAction<Ctx>();
+
+export const savedProductsAction = savedProductsActionFor<Ctx>();
 
 export type ActionsModule = ActionsModuleFor<Ctx>;
 

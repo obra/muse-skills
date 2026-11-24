@@ -38,7 +38,7 @@ async function fixture(): Promise<{ writer: Client; reader: Client }> {
   await writer.execute({ sql: "INSERT INTO songs (title) VALUES (?)", args: ["Choir"] });
   const raw = await openReadOnlyClient(path);
   clients.push(writer, raw);
-  return { writer, reader: readOnlyClient(raw) };
+  return { writer, reader: readOnlyClient(raw, () => openReadOnlyClient(path)) };
 }
 
 async function count(writer: Client): Promise<number> {
@@ -69,6 +69,15 @@ describe("a view grantee's action", () => {
     expect(isReadOnlyRefusal(await rejection(drizzle(reader).run(sql`DELETE FROM songs`)))).toBe(true);
     expect(await count(writer)).toBe(1);
     expect((await reader.execute("SELECT count(*) AS n FROM songs")).rows[0]?.n).toBe(1);
+  });
+
+  test("reads committed changes without weakening the query-only boundary", async () => {
+    const { writer, reader } = await fixture();
+    expect((await reader.execute("SELECT title FROM songs")).rows[0]?.title).toBe("Choir");
+    await writer.execute("UPDATE songs SET title = 'Orchestra'");
+    expect((await reader.execute("SELECT title FROM songs")).rows[0]?.title).toBe("Orchestra");
+    expect(isReadOnlyRefusal(await rejection(reader.execute("DELETE FROM songs")))).toBe(true);
+    expect(await count(writer)).toBe(1);
   });
 
   test("SQLite itself refuses a write on the read-only connection", async () => {

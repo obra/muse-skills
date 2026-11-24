@@ -295,6 +295,13 @@ export interface PortableCtx extends PrivilegedExecutor {
   readonly db: SpaceDbAccessor;
   readonly viewer?: Viewer;
   readonly blobs: BlobClient;
+  /**
+   * The saved-product lists `space.json` declares, as the runtime read them
+   * for this invocation (the VM) or captured at publication (a shared copy);
+   * undefined when it declares none. It selects what a saved copy shows and
+   * never authorizes a live read, which the daemon checks itself.
+   */
+  readonly savedProductLists?: readonly string[];
 }
 
 /**

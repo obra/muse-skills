@@ -1,6 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
+  blobRequestPath,
   computeSelfBaseDir,
   isExternalUrl,
   isSelfOriginUrl,
@@ -107,6 +108,24 @@ test("resolveTunnelUrl: origin-less blob round-trips to the daemon subpath", () 
   assert.equal(isSelfOriginUrl(out.href, OPAQUE_BASE, OPAQUE_HREF, NO_OBJ), true);
   assert.equal(isExternalUrl(out.href, OPAQUE_BASE, OPAQUE_HREF, NO_OBJ), false);
   assert.equal(normalizeToRelPath(out.href, OPAQUE_BASE), "actions");
+});
+
+test("versioned blob URLs keep distinct cache keys but request the same logical blob", () => {
+  for (const [href, base] of [[HREF, BASE], [OPAQUE_HREF, OPAQUE_BASE]]) {
+    const first = normalizeToRelPath(resolveTunnelUrl("./blobs/cGhvdG8?v=first", href, href, URL).href, base);
+    const second = normalizeToRelPath(resolveTunnelUrl("./blobs/cGhvdG8?v=second", href, href, URL).href, base);
+    assert.notEqual(first, second);
+    assert.equal(blobRequestPath(first), "blobs/cGhvdG8");
+    assert.equal(blobRequestPath(second), "blobs/cGhvdG8");
+  }
+});
+
+test("blob request paths preserve encoded keys and leave other routes unchanged", () => {
+  assert.equal(blobRequestPath("blobs/cGhvdG8"), "blobs/cGhvdG8");
+  assert.equal(blobRequestPath("blobs/legacy%3Fkey?v=version"), "blobs/legacy%3Fkey");
+  for (const path of ["actions?filter=recent", "assets/logo.png?v=version", "other/blobs/key?v=version"]) {
+    assert.equal(blobRequestPath(path), path);
+  }
 });
 
 test("resolveTunnelUrl: origin-less blob keeps external URLs external", () => {

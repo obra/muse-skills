@@ -23,6 +23,8 @@ import {
   type SpaceDb,
   type SpaceToolClient,
   type CloudflareViewer as Viewer,
+  SAVED_PRODUCT_LISTS_OWNER_ONLY_CODE,
+  SavedProductListsUnavailableError,
   z,
 } from "./sdk";
 
@@ -307,6 +309,7 @@ function createCtx(
   actionCallId: string | undefined,
   readOnly: boolean,
   hatch: UploadChecker | undefined,
+  published: PublishedSpace,
 ): Ctx {
   let db: SpaceDb | null = null;
   const viewer = viewerFromHeaders(request.headers);
@@ -336,6 +339,9 @@ function createCtx(
       return db;
     },
     blobs: readOnly ? readOnlyBlobs(blobs, denyWrite) : blobs,
+    ...(published.savedProductLists !== undefined
+      ? { savedProductLists: published.savedProductLists }
+      : {}),
     executePrivileged: privilegedExecutor.executePrivileged,
     invalidateQueries(): void {
       // Cloudflare Spaces serve actions remotely; viewer clients refetch on
@@ -380,6 +386,16 @@ function createToolClient(): SpaceToolClient {
     },
     async generate_media() {
       return vmCapabilityUnavailable("ctx.tool.generate_media");
+    },
+    async saved_product_lists() {
+      // Typed so the action can serve its saved copy; uncaught, it still
+      // answers 403 through the forbidden cause.
+      throw new SavedProductListsUnavailableError(undefined, {
+        cause: new SpaceActionForbiddenError(
+          "ctx.tool.saved_product_lists is not available in shared web artifacts",
+          SAVED_PRODUCT_LISTS_OWNER_ONLY_CODE,
+        ),
+      });
     },
   };
 }
@@ -686,7 +702,17 @@ async function handleBlobDownload(request: Request, env: CloudflareEnv): Promise
 
 // --- Worker entrypoint ---
 
-export function createWorker(actionsExport: unknown, slug: string): WorkerModule {
+/** What the build captured from the Space at publication. */
+export interface PublishedSpace {
+  /** `space.json.savedProductLists` when the Space was published, if valid. */
+  readonly savedProductLists?: readonly string[];
+}
+
+export function createWorker(
+  actionsExport: unknown,
+  slug: string,
+  published: PublishedSpace = {},
+): WorkerModule {
   const actions = buildActionMap(actionsExport);
 
   async function handleRequest(
@@ -792,6 +818,7 @@ export function createWorker(actionsExport: unknown, slug: string): WorkerModule
           normalizeActionCallId(body.actionCallId),
           readOnly,
           hatch,
+          published,
         ),
         parsedArgs.data,
       );

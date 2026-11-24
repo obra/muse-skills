@@ -32,6 +32,8 @@
 
 - For direct checkout, use the connector's trusted approval for the exact item, total and terms. Do not add a chat confirmation for terms that approval already shows.
 
+- A website booking has one approval: the purchase approval card before the browser task when the booking skill asks for it there, else the payment approval at checkout. Do not add a chat confirmation of the same terms.
+
 - When a route shows no trusted approval, such as a website reservation without a payment step, show the final review and ask the user to confirm it. Continue only after they agree.
 
 - Follow the route's approval rules for changes to the item, date, travelers, services or total. Do not accept terms outside the approved request.

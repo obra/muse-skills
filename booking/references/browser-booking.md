@@ -20,7 +20,7 @@
 
 - Continue the browser task that found the selected option. Use `task_id: "new"` only when none exists. Keep that task through review, changes, submission and verification; do not start a competing checkout or start over after approval.
 
-- Give the task the exact seller URL and every known non-sensitive choice. When the booking takes payment or requires a card guarantee, follow `~/docs/chat/payments-and-purchases.md` for approval and ask it to book. Otherwise, ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
+- Give the task the exact seller URL and every known non-sensitive choice. When the booking takes payment or requires a card guarantee, the booking skill says when the user approves it: before the task, with the purchase approval card and their choice of how to pay, or at checkout. Follow it, and `~/docs/chat/payments-and-purchases.md` for the payment itself, and ask the task to book. Otherwise, ask it to prepare the booking, hand back the verified final review and stop before anything that creates a reservation, charge, deposit, points transfer or cancellation penalty. It may place a free, cancellable hold that protects this booking. Tell the user about the hold and its expiry right away.
 
 - Keep passport, traveler-security and membership numbers out of task text. Use Wallet or browser takeover for card details, following `~/docs/chat/payments-and-purchases.md`; do not forward card numbers or CVVs from chat.
 

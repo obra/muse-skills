@@ -39,9 +39,14 @@ export interface SpaceDb {
 /** A second connection that SQLite keeps from writing. */
 export async function openReadOnlyClient(dbPath: string): Promise<Client> {
   const client: Client = createClient({ url: `file:${dbPath}` });
-  await client.execute("PRAGMA busy_timeout = 5000");
-  await client.execute("PRAGMA query_only = ON");
-  return client;
+  try {
+    await client.execute("PRAGMA busy_timeout = 5000");
+    await client.execute("PRAGMA query_only = ON");
+    return client;
+  } catch (error) {
+    client.close();
+    throw error;
+  }
 }
 
 export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
@@ -62,7 +67,7 @@ export async function openSpaceDb(dbPath: string): Promise<SpaceDb> {
         readOnlyRaw = null;
         throw err;
       });
-      const readOnlyInstance = drizzle(readOnlyClient(await readOnlyRaw));
+      const readOnlyInstance = drizzle(readOnlyClient(await readOnlyRaw, () => openReadOnlyClient(dbPath)));
       return <TSchema extends Record<string, unknown>>() =>
         readOnlyInstance as unknown as LibSQLDatabase<TSchema>;
     },

@@ -67,6 +67,7 @@ export {
 // Local handle for the `Ctx` interface below; the full set of these symbols
 // is re-exported from `./verticals` further down.
 import { type SpaceToolClient } from "./verticals";
+import { savedProductsActionFor } from "./saved_products_action";
 
 export {
   actionDescription,
@@ -338,6 +339,26 @@ export {
   type ToolWebSearchResult,
 } from "./verticals";
 
+export {
+  SAVED_PRODUCT_IMAGE_KEY_PREFIX,
+  SAVED_PRODUCT_LISTS_OWNER_ONLY_CODE,
+  SAVED_PRODUCT_LISTS_UNAVAILABLE_BRAND,
+  SavedProductListsUnavailableError,
+  type SavedProductList,
+  type SavedProductListItem,
+  type SavedProductLists,
+  type SavedProductPrice,
+  type SavedProductRecord,
+} from "./saved_product_lists";
+
+export {
+  SAVED_PRODUCTS_REQUEST_SCHEMA,
+  SAVED_PRODUCTS_RESPONSE_SCHEMA,
+  type SavedProducts,
+  type SavedProductsActionOptions,
+  type SavedProductsMessages,
+} from "./saved_products_action";
+
 /** Per-invocation context passed to every action handler. */
 export interface Ctx extends PortableCtx {
   readonly agent: AgentClient;
@@ -369,6 +390,14 @@ export function isAction(value: unknown): value is ActionDefinition {
  * worker) and static typing (on the client via `createActionClient`).
  */
 export const defineAction = createDefineAction<Ctx>();
+
+/**
+ * The whole server side of a page of the owner's saved products: export
+ * `getProducts: savedProductsAction({ messages })` and render its response.
+ * Pass `"en"` for an English Space or supply all six messages in the Space's
+ * UI language. Pass `lists` for a section of the declared lists.
+ */
+export const savedProductsAction = savedProductsActionFor<Ctx>();
 
 /**
  * The shape every space's `actions.ts` must satisfy. Use as

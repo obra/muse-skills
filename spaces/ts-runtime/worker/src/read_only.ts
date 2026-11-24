@@ -107,17 +107,26 @@ function normalize(stmt: InStatement | [string, InArgs?], args?: InArgs): { sql:
   return { sql: stmt.sql, args: stmt.args ?? [] };
 }
 
-async function requireReadOnly(client: Client, stmt: { sql: string; args: InArgs }): Promise<void> {
+async function requireReadOnly(
+  openInspectionClient: () => Promise<Client>,
+  stmt: { sql: string; args: InArgs },
+): Promise<void> {
   if (!isSingleReadStatement(stmt.sql)) {
     deny();
   }
-  const program = await client.execute({ sql: `EXPLAIN ${stmt.sql}`, args: stmt.args });
-  for (const row of program.rows) {
-    const opcode = String((row as Record<string, unknown>).opcode);
-    const p2 = Number((row as Record<string, unknown>).p2);
-    if ((opcode === "Transaction" && p2 !== 0) || WRITING_OPCODES.has(opcode)) {
-      deny();
+  // libsql can retain EXPLAIN's read snapshot; don't run it on the data connection.
+  const inspection = await openInspectionClient();
+  try {
+    const program = await inspection.execute({ sql: `EXPLAIN ${stmt.sql}`, args: stmt.args });
+    for (const row of program.rows) {
+      const opcode = String((row as Record<string, unknown>).opcode);
+      const p2 = Number((row as Record<string, unknown>).p2);
+      if ((opcode === "Transaction" && p2 !== 0) || WRITING_OPCODES.has(opcode)) {
+        deny();
+      }
     }
+  } finally {
+    inspection.close();
   }
 }
 
@@ -125,7 +134,7 @@ async function requireReadOnly(client: Client, stmt: { sql: string; args: InArgs
  * Wraps a libsql client whose connection has `query_only` on so it runs only
  * statements that read. The wrapper is all drizzle sees.
  */
-export function readOnlyClient(client: Client): Client {
+export function readOnlyClient(client: Client, openInspectionClient: () => Promise<Client>): Client {
   const wrapper = {
     get closed() {
       return client.closed;
@@ -135,13 +144,13 @@ export function readOnlyClient(client: Client): Client {
     },
     async execute(stmtOrSql: InStatement, args?: InArgs): Promise<ResultSet> {
       const stmt = normalize(stmtOrSql, args);
-      await requireReadOnly(client, stmt);
+      await requireReadOnly(openInspectionClient, stmt);
       return client.execute(stmt);
     },
     async batch(stmts: Array<InStatement | [string, InArgs?]>, _mode?: TransactionMode): Promise<ResultSet[]> {
       const normalized = stmts.map((stmt) => normalize(stmt));
       for (const stmt of normalized) {
-        await requireReadOnly(client, stmt);
+        await requireReadOnly(openInspectionClient, stmt);
       }
       return client.batch(normalized, "deferred");
     },

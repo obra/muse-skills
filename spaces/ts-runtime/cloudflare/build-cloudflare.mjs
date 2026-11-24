@@ -7,6 +7,10 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { analyzeServerActionsShape } from "../worker/src/validate-server-actions";
+import {
+  MAX_SPACE_MANIFEST_BYTES,
+  declaredSavedProductLists,
+} from "../sdk/src/saved_product_manifest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const tsRuntimeRoot = path.resolve(__dirname, "..");
@@ -269,6 +273,37 @@ async function collectMigrations(spaceDir) {
   );
 }
 
+/**
+ * The lists `space.json` declares at publication, read like the daemon reads
+ * them: a regular file of at most 64 KiB, never through a link. A missing or
+ * invalid declaration publishes none, so the copy's saved products show
+ * nothing.
+ */
+async function readDeclaredSavedProductLists(spaceDir) {
+  let file;
+  try {
+    file = await fs.open(
+      path.join(spaceDir, "space.json"),
+      fsSync.constants.O_RDONLY | fsSync.constants.O_NOFOLLOW | fsSync.constants.O_NONBLOCK,
+    );
+    const stat = await file.stat();
+    if (!stat.isFile() || stat.size > MAX_SPACE_MANIFEST_BYTES) return undefined;
+    const buffer = Buffer.alloc(MAX_SPACE_MANIFEST_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const { bytesRead } = await file.read(buffer, length, buffer.length - length, length);
+      if (bytesRead === 0) break;
+      length += bytesRead;
+    }
+    if (length > MAX_SPACE_MANIFEST_BYTES) return undefined;
+    return declaredSavedProductLists(JSON.parse(buffer.subarray(0, length).toString("utf8")));
+  } catch {
+    return undefined;
+  } finally {
+    await file?.close();
+  }
+}
+
 async function writeEntrypoint(entryDir, spaceDir) {
   await fs.mkdir(entryDir, { recursive: true });
   const entryPath = path.join(entryDir, "entry.ts");
@@ -277,13 +312,14 @@ async function writeEntrypoint(entryDir, spaceDir) {
   const runtimeImport = toImportSpecifier(entryDir, workerRuntimePath);
   const actionsPath = path.join(spaceDir, "server", "src", "actions.ts");
   const actionsImport = toImportSpecifier(entryDir, actionsPath);
+  const published = { savedProductLists: await readDeclaredSavedProductLists(spaceDir) };
   await fs.writeFile(
     entryPath,
     [
       `import { createWorker } from "${runtimeImport}";`,
       `import { Actions } from "${actionsImport}";`,
       "",
-      `export default createWorker(Actions, ${JSON.stringify(slug)});`,
+      `export default createWorker(Actions, ${JSON.stringify(slug)}, ${JSON.stringify(published)});`,
       "",
     ].join("\n"),
   );

@@ -13,6 +13,7 @@
 // objectUrls and delegate. bun inlines this import into the compiled prelude.
 import {
   base64ToBytes,
+  blobRequestPath,
   bytesToBase64,
   computeSelfBaseDir,
   importMetaUrl,
@@ -599,6 +600,7 @@ declare global {
               } catch {}
             }
           })
+          .catch(() => {})
           .finally(() => {
             blobStats.inFlightRevokes--;
           });
@@ -628,7 +630,10 @@ declare global {
       blobStats.hits++;
     } else {
       blobStats.misses++;
-      const url = httpReq("GET", key, null).then((r) => {
+      const url = httpReq("GET", blobRequestPath(key), null).then((r) => {
+        if (r.status < 200 || r.status >= 300) {
+          throw new Error(`Space resource returned HTTP ${r.status}`);
+        }
         const ctHeader = r.headers.find(
           ([k]) => k.toLowerCase() === "content-type"
         );
@@ -636,6 +641,9 @@ declare global {
         const blob = new Blob([r.bytes], { type: ct });
         blobStats.created++;
         return URL.createObjectURL(blob);
+      }).catch((error) => {
+        if (blobCache.get(key) === ent) blobCache.delete(key);
+        throw error;
       });
       ent = { url };
       blobCache.set(key, ent);
@@ -781,11 +789,18 @@ declare global {
           const resolved = await resolveToBlobUrl(url);
           return rest ? `${resolved} ${rest}` : resolved;
         })
-      ).then((rebuilt) => {
-        try {
-          el.setAttribute("srcset", rebuilt.join(", "));
-        } catch {}
-      });
+      ).then(
+        (rebuilt) => {
+          try {
+            el.setAttribute("srcset", rebuilt.join(", "));
+          } catch {}
+        },
+        () => {
+          try {
+            el.dispatchEvent(new Event("error"));
+          } catch {}
+        }
+      );
       return;
     }
     if (URL_ATTRS.has(lcName)) {
@@ -827,8 +842,8 @@ declare global {
           } catch {}
         },
         () => {
-          if (isMediaSource) {
-            mediaSourceLoads.set(el, "settled");
+          if (isMediaSource) mediaSourceLoads.set(el, "settled");
+          if (isMediaSource || tag === "IMG") {
             el.dispatchEvent(new Event("error"));
           }
         }

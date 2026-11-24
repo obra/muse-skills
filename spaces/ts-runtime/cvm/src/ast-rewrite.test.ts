@@ -150,6 +150,90 @@ test("attribute rewrites preserve library objects while DOM assets wait for the 
   runInNewContext(await build.outputs[0].text() + "\n" + rw(source).code, sandbox);
 });
 
+test("failed image resources notify fallbacks, retry, and release evicted failures", async () => {
+  const build = await Bun.build({
+    entrypoints: [new URL("./prelude.ts", import.meta.url).pathname],
+    target: "browser",
+    format: "iife",
+  });
+  assert.equal(build.success, true);
+  class Element extends EventTarget {
+    attributes = new Map<string, string>();
+    constructor(public tagName: string) { super(); }
+    setAttribute(name: string, value: string) { this.attributes.set(name, value); }
+  }
+  let parentMessage: (event: unknown) => void = () => {};
+  let status = 404;
+  const requests: string[] = [];
+  const revokes: Array<() => void> = [];
+  let objectUrlSequence = 0;
+  const port = {
+    onmessage: null as null | ((event: unknown) => void),
+    start() {},
+    postMessage(message: { id: string; path: string }) {
+      requests.push(message.path);
+      const responseStatus = status;
+      queueMicrotask(() => port.onmessage?.({ data: {
+        type: "http.res", id: message.id, status: responseStatus,
+        headers: [["content-type", "image/png"]], bodyB64: "",
+      } }));
+    },
+  };
+  const sandbox = {
+    Element, EventTarget, Event, Headers, Blob, TextEncoder, TextDecoder, Uint8Array,
+    URL: class extends URL {
+      static createObjectURL() { return `blob:null/resource-${++objectUrlSequence}`; }
+      static revokeObjectURL() {}
+    },
+    location: { href: "blob:null/image-test" },
+    history: { pushState() {}, replaceState() {} },
+    document: {
+      readyState: "loading", styleSheets: [], documentElement: {},
+      addEventListener() {}, querySelectorAll() { return []; },
+    },
+    window: {
+      parent: { postMessage() {} },
+      addEventListener(name: string, handler: (event: unknown) => void) {
+        if (name === "message") parentMessage = handler;
+      },
+    },
+    MutationObserver: class { observe() {} },
+    setTimeout(callback: () => void, delay: number) {
+      if (delay === 30_000) revokes.push(callback);
+      return revokes.length;
+    },
+    clearTimeout() {}, clearInterval() {},
+    __tunnel: undefined as any,
+  };
+  runInNewContext(await build.outputs[0].text(), sandbox);
+  parentMessage({ data: { type: "bundle:init-port" }, ports: [port] });
+  for (const attr of ["src", "srcset"]) {
+    const image = new Element("IMG");
+    const url = `./blobs/cGhvdG8?v=${attr}` + (attr === "srcset" ? " 1x" : "");
+    status = 404;
+    const cacheSize = sandbox.__tunnel._state.blobCacheSize;
+    const failed = new Promise<void>((resolve) => image.addEventListener("error", () => resolve(), { once: true }));
+    sandbox.__tunnel.setAttr(image, attr, url);
+    await failed;
+    assert.equal(sandbox.__tunnel._state.blobCacheSize, cacheSize);
+    status = 200;
+    sandbox.__tunnel.setAttr(image, attr, url);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.match(image.attributes.get(attr) ?? "", /^blob:/);
+  }
+  assert.deepEqual(requests, Array(4).fill("blobs/cGhvdG8"));
+  status = 404;
+  await Promise.all(Array.from({ length: 257 }, (_, index) => {
+    const image = new Element("IMG");
+    const failed = new Promise<void>((resolve) => image.addEventListener("error", () => resolve(), { once: true }));
+    sandbox.__tunnel.setAttr(image, "src", `./blobs/cGhvdG8?v=discard-${index}`);
+    return failed;
+  }));
+  revokes.forEach((callback) => callback());
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(sandbox.__tunnel._state.blobStats.inFlightRevokes, 0);
+});
+
 test("el.innerHTML / outerHTML = v → __tunnel.setInnerHTML(el, v, kind)", () => {
   const a = rw(`el.innerHTML = html;`);
   assert.match(a.code, /__tunnel\.setInnerHTML\(el, html, "innerHTML"\)/);

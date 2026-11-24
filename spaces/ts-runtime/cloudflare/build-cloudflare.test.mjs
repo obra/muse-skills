@@ -23,6 +23,7 @@ async function makeSpace({
   jpgIconSource,
   webpIconSource,
   indexHtml = "<div></div>",
+  spaceJson,
 }) {
   await fs.mkdir(tempRoot, { recursive: true });
   const root = await fs.mkdtemp(path.join(tempRoot, "space-"));
@@ -47,6 +48,9 @@ async function makeSpace({
   );
   await fs.writeFile(path.join(root, "server", "src", "schema.ts"), schemaSource);
   await fs.writeFile(path.join(root, "server", "src", "actions.ts"), actionsSource);
+  if (spaceJson !== undefined) {
+    await fs.writeFile(path.join(root, "space.json"), JSON.stringify(spaceJson));
+  }
   await fs.writeFile(path.join(root, "client", "dist", "index.html"), indexHtml);
   await fs.writeFile(path.join(root, "client", "dist", "assets", "app.js"), "export {};");
   if (iconSource !== undefined) {
@@ -557,4 +561,133 @@ export const Actions = {
       }),
     /Property 'transaction' does not exist/,
   );
+});
+
+test("a published saved-products page localizes the owner's saved copy for every viewer and never writes", async () => {
+  const messages = {
+    currentPrice: "Aktueller Preis",
+    lastCheckedPrice: "Zuletzt geprüfter Preis",
+    savedPrice: "Gespeicherter Preis",
+    snapshotNotice: "Stand vom letzten Besuch des Eigentümers. Die Preise können sich geändert haben.",
+    unavailableNotice: "In dieser Kopie sind keine gespeicherten Produkte verfügbar.",
+    ownerSharedCopyNotice: "Dies ist deine geteilte Kopie. Öffne den ursprünglichen Space in Muse, um deine gespeicherten Produkte live zu sehen.",
+  };
+  const spaceDir = await makeSpace({
+    actionsSource: `
+import { savedProductsAction, type ActionsModule } from "@hatch/space-sdk";
+
+export const Actions = {
+  getProducts: savedProductsAction({ messages: ${JSON.stringify(messages)} }),
+} satisfies ActionsModule;
+`,
+    // What space.json declares when the Space is published.
+    spaceJson: { runtime: "typescript", savedProductLists: ["Kitchen"] },
+  });
+  const { workerPath } = await buildCloudflareArtifacts({
+    spaceDir,
+    outDir: path.join(spaceDir, "cloudflare-dist"),
+  });
+  const workerModule = await import(`${pathToFileURL(workerPath).href}?saved-products-test=${Date.now()}`);
+
+  const sqlite = new Database(":memory:");
+  sqlite.exec(`CREATE TABLE __hatch_shared_state (id INTEGER PRIMARY KEY, version INTEGER, accepting INTEGER);
+    INSERT INTO __hatch_shared_state VALUES (1, 1, 1);
+    CREATE TABLE __hatch_shared_invocations (id TEXT PRIMARY KEY, kind TEXT, started_at_ms INTEGER);
+    CREATE TABLE entries (id text primary key, title text not null);`);
+  const db = { prepare(sql) {
+    let values = [];
+    return {
+      bind(...args) { values = args; return this; },
+      async run() { return sqlite.prepare(sql).run(...values); },
+      async first() { return sqlite.prepare(sql).get(...values); },
+      async all() { return { success: true, results: sqlite.prepare(sql).all(...values), meta: {} }; },
+      async raw() { return sqlite.prepare(sql).values(...values); },
+    };
+  } };
+  const mutations = [];
+  const env = {
+    SPACE_SLUG: "daily-journal",
+    SPACE_SHORTCODE: "daily-journal-space-1",
+    DB: db,
+    ASSETS: { fetch: async () => new Response(null, { status: 404 }) },
+    BUCKET: {
+      async head() { return null; },
+      async get() { return null; },
+      async put(...args) { mutations.push(["put", ...args]); },
+      async delete(...args) { mutations.push(["delete", ...args]); },
+    },
+  };
+  const call = (pathname, isOwner) => workerModule.default.fetch(
+    new Request(`https://space.example${pathname}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-cloudflare-spaces-viewer-authenticated": "1",
+        "x-cloudflare-spaces-share-id": "share-1",
+        "x-cloudflare-spaces-space-slug": "daily-journal",
+        "x-cloudflare-spaces-space-id": "space-1",
+        "x-cloudflare-spaces-viewer-fbid": isOwner ? "viewer-1" : "viewer-2",
+        "x-cloudflare-spaces-owner-fbid": "viewer-1",
+        "x-cloudflare-spaces-is-owner": isOwner ? "true" : "false",
+        "x-cloudflare-spaces-token-exp": String(Date.now() + 60_000),
+        "x-cloudflare-spaces-token-jti": "token-1",
+      },
+      body: JSON.stringify({ action: "getProducts", args: {} }),
+    }),
+    env,
+    { waitUntil() {}, props: { HATCH: { async checkUpload() { return { verdict: "allow", checkId: "checked", receipt: null }; } } } },
+  );
+  const viewers = [["/actions", true], ["/actions", false], ["/__hatch/read-only-actions", false], ["/__hatch/read-only-actions", true]];
+  const tables = () => sqlite.prepare("SELECT name FROM sqlite_master WHERE name = 'hatch_saved_products'").all();
+
+  try {
+    for (const [pathname, isOwner] of viewers) {
+      const response = await call(pathname, isOwner);
+      assert.equal(response.status, 200, await response.clone().text());
+      assert.deepEqual((await response.json()).data, {
+        lists: [],
+        snapshotAt: null,
+        notice: isOwner ? messages.ownerSharedCopyNotice : messages.unavailableNotice,
+      });
+    }
+    assert.deepEqual(tables(), []);
+
+    // The copy the owner's last live read saved, carried over at publication.
+    const product = (citation, price) => ({
+      type: "catalog", citation_id: citation, url: `https://example.com/${citation}`, name: `Item ${citation}`, price,
+    });
+    // The owner's last read predates dropping Garden from the declaration.
+    const garden = { list: "Garden", missing: false, items: [
+      { product: product("g1", "$3.00"), image: null, imageKey: null, imageVersion: null,
+        savedAt: "2026-11-01T00:00:00Z", price: "saved" },
+    ] };
+    const lists = { lists: [garden, { list: "Kitchen", missing: false, items: [
+      { product: product("c1", "$5.00"), image: null, imageKey: `saved-products/${"a".repeat(64)}.img`,
+        imageVersion: "v1", savedAt: "2026-11-01T00:00:00Z", price: "current" },
+      { product: product("c2", "$7.00"), image: null, imageKey: null, imageVersion: null,
+        savedAt: "2026-11-01T00:00:00Z", price: "saved" },
+    ] }] };
+    sqlite.exec(`CREATE TABLE hatch_saved_products (selection TEXT PRIMARY KEY NOT NULL, revision INTEGER NOT NULL,
+      started_ms INTEGER NOT NULL, read_at TEXT NOT NULL, fingerprint TEXT NOT NULL, lists TEXT NOT NULL)`);
+    sqlite.prepare("INSERT INTO hatch_saved_products VALUES ('declared', 3, 1, '2026-11-02T00:00:00.000Z', 'f', ?)")
+      .run(JSON.stringify(lists));
+
+    for (const [pathname, isOwner] of viewers) {
+      const response = await call(pathname, isOwner);
+      assert.equal(response.status, 200, await response.clone().text());
+      const data = (await response.json()).data;
+      assert.deepEqual(data.lists.map(list => list.list), ["Kitchen"]);
+      assert.deepEqual(
+        data.lists[0].items.map(item => [item.product.citation_id, item.priceLabel, item.image]),
+        // The published copy holds no photo at c1's key, so it shows none rather than a broken one.
+        [["c1", messages.lastCheckedPrice, null], ["c2", messages.savedPrice, null]],
+      );
+      assert.equal(data.snapshotAt, "2026-11-02T00:00:00.000Z");
+      assert.equal(data.notice, isOwner ? messages.ownerSharedCopyNotice : messages.snapshotNotice);
+    }
+    assert.deepEqual(sqlite.prepare("SELECT revision FROM hatch_saved_products").all(), [{ revision: 3 }]);
+    assert.deepEqual(mutations, []);
+  } finally {
+    sqlite.close();
+  }
 });

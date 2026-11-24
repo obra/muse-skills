@@ -184,6 +184,13 @@ export function normalizeToRelPath(u: string, selfBaseDir: string): string {
   return s;
 }
 
+/** Blob versions distinguish cached bytes, not logical keys in the daemon. */
+export function blobRequestPath(cacheKey: string): string {
+  if (!cacheKey.startsWith("blobs/")) return cacheKey;
+  const query = cacheKey.indexOf("?");
+  return query < 0 ? cacheKey : cacheKey.slice(0, query);
+}
+
 /**
  * The inner string of a `blob:` URL, or null if `base` is not a blob: URL.
  * `new URL(relative, blobUrl)` throws because a blob path is opaque, so we

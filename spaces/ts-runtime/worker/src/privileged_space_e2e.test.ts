@@ -305,6 +305,9 @@ describe("privileged functions in a bundled Space", () => {
         async generate_media() {
           throw new Error("test tool not available");
         },
+        async saved_product_lists() {
+          throw new Error("test tool not available");
+        },
       },
       executePrivileged: privilegedExecutor.executePrivileged,
       emit(_data: JsonValue) {},

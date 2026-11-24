@@ -5,7 +5,7 @@
 // receives a typed `ctx` (see `@hatch/space-sdk`) with:
 //   ctx.db<typeof schema>()  — drizzle-orm DB instance, typed by your schema
 //   ctx.tool                 — direct calls: web search, search verticals,
-//                             generate_media (see `SpaceToolClient`)
+//                             generate_media, saved_product_lists (see `SpaceToolClient`)
 //   ctx.agent.spawnTask      — background agent task for reading full pages,
 //                             multi-step browsing, or agent-only tools;
 //                             results arrive through `expectsAction`
