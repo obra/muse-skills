@@ -1924,9 +1924,10 @@ const CHROMIUM_SANDBOX_LAUNCHER = "/opt/hatch/bin/hatch-chromium-sandbox";
 // to it.
 const SANDBOX_PROXY_SPEC = /^(socks5|http):(\/(?!\/).*)$/;
 
-// The daemon or exec tool sets this when the caller's Chromium sandbox rollout is on.
-export function chromiumSandboxEnabled(): boolean {
-  return process.env.HATCH_CHROMIUM_SANDBOX === "1";
+// Linux renders run only in the runtime cell, which ships the launcher and the
+// image Chromium. A developer host has neither and launches Chromium directly.
+export function chromiumSandboxed(platform: NodeJS.Platform = process.platform): boolean {
+  return platform === "linux";
 }
 
 // Build the Chromium launch options shared by the baseline capture and the
@@ -1940,14 +1941,12 @@ export function buildLaunchOptions(
   proxyAuthToken: string | null,
   _proxyAuthUsername: string | null,
   sandboxReadPaths: readonly string[] = [],
+  platform: NodeJS.Platform = process.platform,
 ): AuditLaunchOptions {
-  if (process.platform === "linux" && executablePath !== IMAGE_CHROME_PATH) {
+  if (platform === "linux" && executablePath !== IMAGE_CHROME_PATH) {
     throw new Error(`Linux artifact rendering requires ${IMAGE_CHROME_PATH}`);
   }
-  const sandboxed = chromiumSandboxEnabled();
-  if (sandboxed && executablePath !== IMAGE_CHROME_PATH) {
-    throw new Error(`sandboxed Chromium requires ${IMAGE_CHROME_PATH}`);
-  }
+  const sandboxed = chromiumSandboxed(platform);
   let sandboxProxy: RegExpMatchArray | null = null;
   if (sandboxed && proxyServer !== null) {
     sandboxProxy = proxyServer.match(SANDBOX_PROXY_SPEC);
@@ -3792,7 +3791,7 @@ async function main(): Promise<number> {
       // Any capture carrying a Space credential is restricted to its own origin.
       transportLedger = await startTransportLedger(args.proxyServer, {
         upstreamProxyAuthHeader: proxyAuthHeader,
-        unixSocket: chromiumSandboxEnabled(),
+        unixSocket: chromiumSandboxed(),
         ...(args.egressLockdown
           ? { allowedDestinations: new Set([auditDestination]) }
           : {}),
@@ -3831,7 +3830,7 @@ async function main(): Promise<number> {
         args = {
           ...args,
           proxyAuthToken: null,
-          proxyServer: chromiumSandboxEnabled() ? null : args.proxyServer,
+          proxyServer: chromiumSandboxed() ? null : args.proxyServer,
         };
       }
     }

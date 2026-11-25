@@ -13,7 +13,7 @@ On a static build, copy the bundled classic build with `exec`, as `mkdir -p ~/wo
 
 Do not load three.js from a CDN, even though the published page could: the audit browser cannot reach one, so it would judge a blank canvas. A CDN three.js failure under `assessment.expected_lockdown_effects` means the audit saw no scene.
 
-On a server-backed build, run `bun add three` and `bun add -d @types/three` in `~/workspace/ts-spaces/<slug>/` (strict `tsc` refuses an untyped import), and import from `"three"` and `"three/addons/..."` under `client/src/`.
+On a server-backed build, add `three` and `@types/three` with `web_artifacts.add_dependencies` (strict `tsc` refuses an untyped import), and import from `"three"` and `"three/addons/..."` under `client/src/`.
 
 Keep `new Worker()` and dynamic `import()` out of either build: private rendering throws on both.
 

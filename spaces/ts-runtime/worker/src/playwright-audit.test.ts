@@ -39,7 +39,7 @@ describe("buildLaunchOptions image policy boundary", () => {
     const policy = Buffer.from("# measured policy\r\nexample.com\r\n\r\n");
     const read = spyOn(fs, "readFileSync").mockReturnValue(policy);
     try {
-      const options = buildLaunchOptions(chrome, proxy, null, null);
+      const options = buildLaunchOptions(chrome, proxy, null, null, [], "darwin");
       expect(read).toHaveBeenCalledTimes(1);
       expect(read).toHaveBeenCalledWith(policyPath);
       expect(options.executablePath).toBe(chrome);
@@ -63,18 +63,15 @@ describe("buildLaunchOptions image policy boundary", () => {
         null,
         "/tmp/other-chromium/chrome",
       ]) {
-        if (process.platform === "linux") {
-          expect(() => buildLaunchOptions(executable, proxy, null, null)).toThrow(
-            "Linux artifact rendering requires /opt/meta-chromium/chrome",
-          );
-        } else {
-          const unrelated = buildLaunchOptions(executable, proxy, null, null);
-          expect(policyFlags(unrelated.args)).toEqual([]);
-        }
+        expect(() => buildLaunchOptions(executable, proxy, null, null, [], "linux")).toThrow(
+          "Linux artifact rendering requires /opt/meta-chromium/chrome",
+        );
+        const unrelated = buildLaunchOptions(executable, proxy, null, null, [], "darwin");
+        expect(policyFlags(unrelated.args)).toEqual([]);
       }
       // Even with a policy present, unrelated browsers must never read it.
       expect(read).toHaveBeenCalledTimes(1);
-      expect(() => buildLaunchOptions(chrome, proxy, "token", null)).toThrow(
+      expect(() => buildLaunchOptions(chrome, proxy, "token", null, [], "darwin")).toThrow(
         "proxy auth token must be injected by the transport ledger",
       );
     } finally {
@@ -88,25 +85,22 @@ describe("buildLaunchOptions image policy boundary", () => {
       throw missing;
     });
     try {
-      const legacy = buildLaunchOptions(chrome, proxy, null, null);
+      const legacy = buildLaunchOptions(chrome, proxy, null, null, [], "darwin");
       expect(legacy.executablePath).toBe(chrome);
       expect(policyFlags(legacy.args)).toEqual([]);
-      if (process.platform === "linux") {
-        expect(() => buildLaunchOptions(null, proxy, null, null)).toThrow(
-          "Linux artifact rendering requires /opt/meta-chromium/chrome",
-        );
-      } else {
-        const managed = buildLaunchOptions(null, proxy, null, null);
-        expect(legacy.args).toEqual(managed.args);
-        expect(legacy.proxy).toEqual(managed.proxy);
-      }
+      expect(() => buildLaunchOptions(null, proxy, null, null, [], "linux")).toThrow(
+        "Linux artifact rendering requires /opt/meta-chromium/chrome",
+      );
+      const managed = buildLaunchOptions(null, proxy, null, null, [], "darwin");
+      expect(legacy.args).toEqual(managed.args);
+      expect(legacy.proxy).toEqual(managed.proxy);
       expect(read).toHaveBeenCalledTimes(1);
       for (const code of ["EACCES", "EIO"]) {
         const failure = Object.assign(new Error(`policy read failed: ${code}`), { code });
         read.mockImplementation(() => {
           throw failure;
         });
-        expect(() => buildLaunchOptions(chrome, proxy, null, null)).toThrow(failure);
+        expect(() => buildLaunchOptions(chrome, proxy, null, null, [], "darwin")).toThrow(failure);
       }
     } finally {
       read.mockRestore();
@@ -117,14 +111,17 @@ describe("buildLaunchOptions image policy boundary", () => {
 describe("buildLaunchOptions Chromium sandbox", () => {
   const chrome = "/opt/meta-chromium/chrome";
 
-  test("a sandboxed launch runs only the launcher and reaches its proxy only through the bridge", () => {
-    const previous = process.env.HATCH_CHROMIUM_SANDBOX;
+  test("a Linux launch runs only the launcher and reaches its proxy only through the bridge", () => {
     const read = spyOn(fs, "readFileSync").mockReturnValue(Buffer.from("example.com\n"));
-    process.env.HATCH_CHROMIUM_SANDBOX = "1";
     try {
-      const options = buildLaunchOptions(chrome, "socks5:/var/tmp/hatch-ledger-x/ledger.sock", null, null, [
-        "/home/hatch/workspace/deck",
-      ]);
+      const options = buildLaunchOptions(
+        chrome,
+        "socks5:/var/tmp/hatch-ledger-x/ledger.sock",
+        null,
+        null,
+        ["/home/hatch/workspace/deck"],
+        "linux",
+      );
       expect(options.executablePath).toBe("/opt/hatch/bin/hatch-chromium-sandbox");
       expect(options.chromiumSandbox).toBe(true);
       // Playwright would turn `proxy` into a --proxy-server the sandbox cannot reach.
@@ -135,28 +132,20 @@ describe("buildLaunchOptions Chromium sandbox", () => {
       expect(options.args?.some((arg) => arg.startsWith("--hatch-webgl-allowed-domains-file="))).toBe(true);
       for (const arg of CHROME_HARDENING_ARGS) expect(options.args).toContain(arg);
 
-      expect(() => buildLaunchOptions(chrome, "http://[fd00::1]:3128", null, null)).toThrow(
+      expect(() => buildLaunchOptions(chrome, "http://[fd00::1]:3128", null, null, [], "linux")).toThrow(
         "sandboxed Chromium reaches its proxy only through a unix socket",
       );
-      expect(() => buildLaunchOptions(chrome, "socks5:/x.sock", "token", null)).toThrow(
+      expect(() => buildLaunchOptions(chrome, "socks5:/x.sock", "token", null, [], "linux")).toThrow(
         "proxy auth token must be injected by the transport ledger",
       );
-      if (process.platform !== "linux") {
-        expect(() => buildLaunchOptions(null, null, null, null)).toThrow(
-          `sandboxed Chromium requires ${chrome}`,
-        );
-      }
 
-      delete process.env.HATCH_CHROMIUM_SANDBOX;
-      const unsandboxed = buildLaunchOptions(chrome, "socks5://127.0.0.1:1080", null, null, [
+      const developer = buildLaunchOptions(chrome, "socks5://127.0.0.1:1080", null, null, [
         "/home/hatch/workspace/deck",
-      ]);
-      expect(unsandboxed.executablePath).toBe(chrome);
-      expect(unsandboxed.chromiumSandbox).toBeUndefined();
-      expect(unsandboxed.args?.some((arg) => arg.startsWith("--hatch-sandbox-"))).toBe(false);
+      ], "darwin");
+      expect(developer.executablePath).toBe(chrome);
+      expect(developer.chromiumSandbox).toBeUndefined();
+      expect(developer.args?.some((arg) => arg.startsWith("--hatch-sandbox-"))).toBe(false);
     } finally {
-      if (previous === undefined) delete process.env.HATCH_CHROMIUM_SANDBOX;
-      else process.env.HATCH_CHROMIUM_SANDBOX = previous;
       read.mockRestore();
     }
   });

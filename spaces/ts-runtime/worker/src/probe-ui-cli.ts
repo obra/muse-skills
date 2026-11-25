@@ -40,7 +40,7 @@ import {
   MOBILE_VIEWPORT,
   attachAuditNetworkPolicy,
   buildLaunchOptions,
-  chromiumSandboxEnabled,
+  chromiumSandboxed,
   ensureChromium,
   findSystemChrome,
   collectRawImages,
@@ -1245,7 +1245,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
       transportLedger = await startTransportLedger(effectiveProxy, {
         upstreamProxyAuthHeader: proxyAuthHeader,
         allowedDestinations: new Set([probeDestination]),
-        unixSocket: chromiumSandboxEnabled(),
+        unixSocket: chromiumSandboxed(),
       });
       effectiveProxy = transportLedger.server;
     } catch (err) {
@@ -1265,7 +1265,7 @@ async function serve(flags: Map<string, string>): Promise<number> {
       // Sentinel was rejected because this branch runs only after the ledger
       // failed, its traffic is unrecorded anyway, and no network is the safer
       // way to fail.
-      if (chromiumSandboxEnabled()) effectiveProxy = null;
+      if (chromiumSandboxed()) effectiveProxy = null;
     }
   }
 

@@ -1414,7 +1414,7 @@ async function runAudit(args) {
   // the loopback auth relay so the runtime egress token is attached to every
   // CONNECT without ever entering Chromium.
   const proxyConfig = args.hermetic ? null : parseProxyConfig();
-  const sandboxed = audit.chromiumSandboxEnabled();
+  const sandboxed = audit.chromiumSandboxed();
   let proxyRelay = null;
   let relayDir = null;
   let effectiveProxy = proxyConfig?.server ?? null;
